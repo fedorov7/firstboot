@@ -22,6 +22,22 @@
   changed_when: false
   failed_when: false
 
+- name: Remove npm prefix setting incompatible with nvm
+  lineinfile:
+    path: "{{ user_home }}/.npmrc"
+    regexp: '^\s*prefix\s*='
+    state: absent
+    create: false
+    backup: true
+
+- name: Remove npm globalconfig setting incompatible with nvm
+  lineinfile:
+    path: "{{ user_home }}/.npmrc"
+    regexp: '^\s*globalconfig\s*='
+    state: absent
+    create: false
+    backup: true
+
 - name: Install Node.js LTS via nvm
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
