@@ -1,10 +1,11 @@
 ---
-- name: Install rustup and llvm
+- name: Install rustup, llvm, and sccache
   become: true
   community.general.pacman:
     name:
       - rustup
       - llvm
+      - sccache
     state: present
 
 - name: Check current default Rust toolchain
@@ -16,3 +17,20 @@
 - name: Set Rust stable as default toolchain
   command: rustup default stable
   when: "'stable' not in (rustup_current.stdout | default(''))"
+
+- name: Check installed rustup components
+  command: rustup component list --installed
+  register: rustup_components
+  changed_when: false
+
+- name: Install rust-analyzer
+  command: rustup component add rust-analyzer
+  when: "'rust-analyzer' not in rustup_components.stdout"
+
+- name: Install clippy
+  command: rustup component add clippy
+  when: "'clippy' not in rustup_components.stdout"
+
+- name: Install rustfmt
+  command: rustup component add rustfmt
+  when: "'rustfmt' not in rustup_components.stdout"
