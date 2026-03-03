@@ -23,4 +23,22 @@
       - fzf
       - openbsd-netcat
       - vim
+      # Search and navigation
+      - ripgrep
+      - fd
+      - tree
+      - bat
+      # Data processing
+      - jq
+      # Debugging and profiling
+      - strace
+      - ltrace
+      - gdb
+      - valgrind
+      - perf
+      # Documentation
+      - man-db
+      - man-pages
+      # Terminal multiplexer
+      - tmux
     state: present
