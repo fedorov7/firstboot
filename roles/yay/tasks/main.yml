@@ -1,0 +1,25 @@
+---
+- name: Check if yay is installed
+  command: which yay
+  register: yay_check
+  changed_when: false
+  failed_when: false
+
+- name: Clone yay repository
+  git:
+    repo: https://aur.archlinux.org/yay.git
+    dest: /tmp/yay-build
+    version: master
+  when: yay_check.rc != 0
+
+- name: Build and install yay
+  command: makepkg -si --noconfirm
+  args:
+    chdir: /tmp/yay-build
+  when: yay_check.rc != 0
+
+- name: Clean yay build directory
+  file:
+    path: /tmp/yay-build
+    state: absent
+  when: yay_check.rc != 0
