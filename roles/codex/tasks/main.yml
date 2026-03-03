@@ -61,6 +61,11 @@
     executable: /bin/bash
   when: "'[mcp_servers.context7]' not in codex_config"
 
+- name: Ensure Codex memory directory exists
+  file:
+    path: "{{ user_home }}/.local/share/codex"
+    state: directory
+
 - name: Configure Codex MCP — memory (persistent knowledge graph)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
@@ -69,11 +74,6 @@
   args:
     executable: /bin/bash
   when: "'[mcp_servers.memory]' not in codex_config"
-
-- name: Ensure Codex memory directory exists
-  file:
-    path: "{{ user_home }}/.local/share/codex"
-    state: directory
 
 - name: Configure Codex MCP — fetch (web documentation retrieval)
   shell: |

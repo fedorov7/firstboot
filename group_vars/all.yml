@@ -1,6 +1,6 @@
 ---
-user_name: "{{ ansible_user_id }}"
-user_home: "{{ ansible_env.HOME }}"
+user_name: "{{ ansible_facts['user_id'] }}"
+user_home: "{{ ansible_facts['env']['HOME'] }}"
 user_email: "fedorov7@gmail.com"
 git_user_name: "Alexander Fedorov"
 
