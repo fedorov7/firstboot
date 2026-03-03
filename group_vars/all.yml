@@ -8,3 +8,8 @@ astronvim_repo: "git@github.com:fedorov7/astronvim-config-v4.git"
 
 nvm_version: "v0.39.7"
 node_version: "--lts"
+
+# GitHub Personal Access Token for MCP github server (optional).
+# Pass at runtime: -e github_token=ghp_xxx
+# If unset, the github MCP server is skipped.
+github_token: ""

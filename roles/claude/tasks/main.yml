@@ -25,8 +25,8 @@
 
 # ── MCP servers ──
 
-- name: Configure Claude MCP — context7
-  command: claude mcp add --transport http context7 https://mcp.context7.com/mcp
+- name: Configure Claude MCP — context7 (library documentation)
+  command: claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp
   args:
     creates: "{{ user_home }}/.claude/.mcp-context7-configured"
   register: claude_mcp_context7
@@ -37,17 +37,65 @@
     state: touch
   when: claude_mcp_context7.changed
 
-- name: Configure Claude MCP — sentry
-  command: claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-sentry-configured"
-  register: claude_mcp_sentry
-
-- name: Mark sentry MCP as configured
+- name: Ensure Claude memory directory exists
   file:
-    path: "{{ user_home }}/.claude/.mcp-sentry-configured"
+    path: "{{ user_home }}/.local/share/claude"
+    state: directory
+
+- name: Configure Claude MCP — memory (persistent knowledge graph)
+  command: >
+    claude mcp add --scope user memory
+    -e MEMORY_FILE_PATH={{ user_home }}/.local/share/claude/memory.jsonl
+    -- npx -y @modelcontextprotocol/server-memory
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-memory-configured"
+  register: claude_mcp_memory
+
+- name: Mark memory MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-memory-configured"
     state: touch
-  when: claude_mcp_sentry.changed
+  when: claude_mcp_memory.changed
+
+- name: Configure Claude MCP — fetch (web documentation retrieval)
+  command: claude mcp add --scope user fetch -- uvx mcp-server-fetch
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-fetch-configured"
+  register: claude_mcp_fetch
+
+- name: Mark fetch MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-fetch-configured"
+    state: touch
+  when: claude_mcp_fetch.changed
+
+- name: Configure Claude MCP — sequential-thinking (structured reasoning)
+  command: claude mcp add --scope user sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-sequential-thinking-configured"
+  register: claude_mcp_seqthink
+
+- name: Mark sequential-thinking MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-sequential-thinking-configured"
+    state: touch
+  when: claude_mcp_seqthink.changed
+
+- name: Configure Claude MCP — github (code search, issues, PRs)
+  command: >
+    claude mcp add --scope user github
+    -e GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }}
+    -- npx -y @modelcontextprotocol/server-github
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-github-configured"
+  register: claude_mcp_github
+  when: github_token is defined and github_token | length > 0
+
+- name: Mark github MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-github-configured"
+    state: touch
+  when: claude_mcp_github is changed
 
 # ── Plugins / Marketplaces ──
 

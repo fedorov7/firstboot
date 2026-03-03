@@ -11,7 +11,7 @@
 
 # ── MCP servers ──
 
-- name: Configure Codex MCP — context7
+- name: Configure Codex MCP — context7 (library documentation)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
@@ -20,14 +20,47 @@
     executable: /bin/bash
     creates: "{{ user_home }}/.codex/mcp/context7"
 
-- name: Configure Codex MCP — playwright
+- name: Configure Codex MCP — memory (persistent knowledge graph)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
-    codex mcp add playwright npx "@playwright/mcp@latest"
+    codex mcp add memory --env MEMORY_FILE_PATH={{ user_home }}/.local/share/codex/memory.jsonl -- npx -y @modelcontextprotocol/server-memory
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/playwright"
+    creates: "{{ user_home }}/.codex/mcp/memory"
+
+- name: Ensure Codex memory directory exists
+  file:
+    path: "{{ user_home }}/.local/share/codex"
+    state: directory
+
+- name: Configure Codex MCP — fetch (web documentation retrieval)
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add fetch -- uvx mcp-server-fetch
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/mcp/fetch"
+
+- name: Configure Codex MCP — sequential-thinking (structured reasoning)
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/mcp/sequential-thinking"
+
+- name: Configure Codex MCP — github (code search, issues, PRs)
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add github --env GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }} -- npx -y @modelcontextprotocol/server-github
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/mcp/github"
+  when: github_token is defined and github_token | length > 0
 
 # ── Skills: curated (from openai/skills) ──
 
