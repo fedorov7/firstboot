@@ -1,0 +1,17 @@
+---
+- name: Install neovim
+  become: true
+  community.general.pacman:
+    name: neovim
+    state: present
+
+- name: Check if AstroNvim config exists
+  stat:
+    path: "{{ user_home }}/.config/nvim"
+  register: nvim_config
+
+- name: Clone AstroNvim config
+  git:
+    repo: "{{ astronvim_repo }}"
+    dest: "{{ user_home }}/.config/nvim"
+  when: not nvim_config.stat.exists
