@@ -1,0 +1,26 @@
+---
+- name: Full system upgrade
+  become: true
+  community.general.pacman:
+    update_cache: true
+    upgrade: true
+
+- name: Install base packages
+  become: true
+  community.general.pacman:
+    name:
+      - base-devel
+      - git
+      - openssh
+      - curl
+      - wget
+      - gawk
+      - zip
+      - unzip
+      - htop
+      - gdu
+      - duf
+      - fzf
+      - openbsd-netcat
+      - vim
+    state: present
