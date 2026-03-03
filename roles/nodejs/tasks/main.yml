@@ -20,14 +20,3 @@
     executable: /bin/bash
     creates: "{{ user_home }}/.nvm/versions"
 
-- name: Install global npm packages
-  shell: |
-    export NVM_DIR="{{ user_home }}/.nvm"
-    . "$NVM_DIR/nvm.sh"
-    npm ls -g {{ item }} 2>/dev/null || npm i -g {{ item }}
-  args:
-    executable: /bin/bash
-  loop:
-    - "@openai/codex"
-  register: npm_global
-  changed_when: "'added' in npm_global.stdout"
