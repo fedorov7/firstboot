@@ -1,0 +1,32 @@
+---
+- name: Install Lua
+  become: true
+  community.general.pacman:
+    name: lua
+    state: present
+
+- name: Check if Claude CLI is installed
+  command: which claude
+  register: claude_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Claude CLI
+  shell: curl -fsSL https://claude.ai/install.sh | bash
+  when: claude_check.rc != 0
+
+- name: Configure WSL if applicable
+  block:
+    - name: Check if running in WSL
+      stat:
+        path: /proc/sys/fs/binfmt_misc/WSLInterop
+      register: wsl_check
+
+    - name: Configure wsl.conf to disable Windows PATH
+      become: true
+      ini_file:
+        path: /etc/wsl.conf
+        section: interop
+        option: appendWindowsPath
+        value: "false"
+      when: wsl_check.stat.exists
