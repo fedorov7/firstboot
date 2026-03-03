@@ -85,7 +85,7 @@ All tuneable variables live in `group_vars/all.yml`:
 |----------|---------|-------------|
 | `user_email` | `fedorov7@gmail.com` | Used for SSH key comment and git config |
 | `git_user_name` | `Alexander Fedorov` | Global `git user.name` |
-| `astronvim_repo` | `git@github.com:fedorov7/astronvim-config-v4.git` | Neovim config repository |
+| `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
 | `nvm_version` | `v0.39.7` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
 

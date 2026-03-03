@@ -4,7 +4,7 @@ user_home: "{{ ansible_env.HOME }}"
 user_email: "fedorov7@gmail.com"
 git_user_name: "Alexander Fedorov"
 
-astronvim_repo: "git@github.com:fedorov7/astronvim-config-v4.git"
+astronvim_repo: "https://github.com/fedorov7/astronvim-config-v4.git"
 
 nvm_version: "v0.39.7"
 node_version: "--lts"
