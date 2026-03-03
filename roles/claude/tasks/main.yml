@@ -60,10 +60,10 @@
       url: https://github.com/anthropics/claude-code-plugins.git
     - name: context-engineering-marketplace
       url: https://github.com/anthropics/claude-code-plugins.git
-    - name: fullstack-dev-skills
-      url: https://github.com/anthropics/claude-code-plugins.git
     - name: superpowers-marketplace
       url: https://github.com/obra/superpowers.git
+    - name: fullstack-dev-skills
+      url: https://github.com/Jeffallan/claude-skills.git
 
 - name: Enable Claude plugins
   command: claude plugin enable "{{ item }}"
