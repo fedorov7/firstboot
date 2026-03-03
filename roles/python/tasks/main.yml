@@ -1,8 +1,11 @@
 ---
-- name: Install uv (Python package manager)
+- name: Install Python tooling
   become: true
   community.general.pacman:
-    name: uv
+    name:
+      - uv
+      - ruff
+      - python-pip
     state: present
 
 - name: Install Python 3.12 via uv
