@@ -1,4 +1,17 @@
 ---
+- name: Ensure en_US.UTF-8 locale is generated
+  become: true
+  community.general.locale_gen:
+    name: en_US.UTF-8
+    state: present
+
+- name: Set system locale
+  become: true
+  copy:
+    content: "LANG=en_US.UTF-8\n"
+    dest: /etc/locale.conf
+  register: locale_conf
+
 - name: Full system upgrade
   become: true
   community.general.pacman:
