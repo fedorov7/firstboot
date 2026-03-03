@@ -1,0 +1,33 @@
+---
+- name: Check if nvm is installed
+  stat:
+    path: "{{ user_home }}/.nvm/nvm.sh"
+  register: nvm_check
+
+- name: Install nvm
+  shell: >
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh | bash
+  args:
+    creates: "{{ user_home }}/.nvm/nvm.sh"
+  when: not nvm_check.stat.exists
+
+- name: Install Node.js LTS via nvm
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm install {{ node_version }}
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.nvm/versions"
+
+- name: Install global npm packages
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    npm ls -g {{ item }} 2>/dev/null || npm i -g {{ item }}
+  args:
+    executable: /bin/bash
+  loop:
+    - "@openai/codex"
+  register: npm_global
+  changed_when: "'added' in npm_global.stdout"
