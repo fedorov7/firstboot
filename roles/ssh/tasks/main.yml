@@ -5,6 +5,11 @@
     state: directory
     mode: "0700"
 
+- name: Check if ed25519 key already exists
+  stat:
+    path: "{{ user_home }}/.ssh/id_ed25519"
+  register: ssh_key_exists
+
 - name: Generate ed25519 SSH key
   community.crypto.openssh_keypair:
     path: "{{ user_home }}/.ssh/id_ed25519"
@@ -12,17 +17,40 @@
     comment: "{{ user_email }}"
     state: present
   register: ssh_key
+  when: not ssh_key_exists.stat.exists
 
 - name: Display public key (add to GitHub)
   debug:
     msg: "{{ lookup('file', user_home + '/.ssh/id_ed25519.pub') }}"
-  when: ssh_key.changed
+  when: ssh_key is changed
 
-- name: Configure git user
+- name: Display existing public key
+  debug:
+    msg: "SSH key already exists: {{ lookup('file', user_home + '/.ssh/id_ed25519.pub') }}"
+  when: ssh_key_exists.stat.exists
+
+- name: Check current git user.name
+  command: git config --global user.name
+  register: git_current_name
+  changed_when: false
+  failed_when: false
+
+- name: Check current git user.email
+  command: git config --global user.email
+  register: git_current_email
+  changed_when: false
+  failed_when: false
+
+- name: Configure git user.name
   community.general.git_config:
-    name: "{{ item.name }}"
-    value: "{{ item.value }}"
+    name: user.name
+    value: "{{ git_user_name }}"
     scope: global
-  loop:
-    - { name: "user.name", value: "{{ git_user_name }}" }
-    - { name: "user.email", value: "{{ user_email }}" }
+  when: git_current_name.stdout != git_user_name
+
+- name: Configure git user.email
+  community.general.git_config:
+    name: user.email
+    value: "{{ user_email }}"
+    scope: global
+  when: git_current_email.stdout != user_email

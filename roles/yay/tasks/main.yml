@@ -5,11 +5,26 @@
   changed_when: false
   failed_when: false
 
+- name: Check if base-devel is installed (required for makepkg)
+  command: pacman -Qq base-devel
+  register: base_devel_check
+  changed_when: false
+  failed_when: false
+  when: yay_check.rc != 0
+
+- name: Warn if base-devel is missing
+  fail:
+    msg: "base-devel is required to build yay. Run the base role first: ansible-playbook site.yml --tags base"
+  when:
+    - yay_check.rc != 0
+    - base_devel_check.rc != 0
+
 - name: Clone yay repository
   git:
     repo: https://aur.archlinux.org/yay.git
     dest: /tmp/yay-build
     version: master
+    force: true
   when: yay_check.rc != 0
 
 - name: Build and install yay
@@ -22,4 +37,3 @@
   file:
     path: /tmp/yay-build
     state: absent
-  when: yay_check.rc != 0

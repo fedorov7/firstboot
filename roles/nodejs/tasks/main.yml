@@ -11,6 +11,17 @@
     creates: "{{ user_home }}/.nvm/nvm.sh"
   when: not nvm_check.stat.exists
 
+- name: Check if Node.js is installed via nvm
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm ls {{ node_version }} 2>/dev/null
+  args:
+    executable: /bin/bash
+  register: node_installed
+  changed_when: false
+  failed_when: false
+
 - name: Install Node.js LTS via nvm
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
@@ -18,5 +29,17 @@
     nvm install {{ node_version }}
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.nvm/versions"
+  when: node_installed.rc != 0
 
+- name: Check if Node.js is installed via pacman (conflict)
+  command: pacman -Qq nodejs
+  register: system_node
+  changed_when: false
+  failed_when: false
+
+- name: Warn about system Node.js conflicting with nvm
+  debug:
+    msg: >
+      WARNING: nodejs is installed via pacman alongside nvm.
+      Consider removing it: sudo pacman -R nodejs npm
+  when: system_node.rc == 0

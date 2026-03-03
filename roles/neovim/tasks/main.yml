@@ -5,13 +5,35 @@
     name: neovim
     state: present
 
-- name: Check if AstroNvim config exists
+- name: Check if nvim config directory exists
   stat:
     path: "{{ user_home }}/.config/nvim"
   register: nvim_config
+
+- name: Check if nvim config is a git repo
+  stat:
+    path: "{{ user_home }}/.config/nvim/.git"
+  register: nvim_config_git
+  when: nvim_config.stat.exists
 
 - name: Clone AstroNvim config
   git:
     repo: "{{ astronvim_repo }}"
     dest: "{{ user_home }}/.config/nvim"
   when: not nvim_config.stat.exists
+
+- name: Update existing AstroNvim config
+  git:
+    repo: "{{ astronvim_repo }}"
+    dest: "{{ user_home }}/.config/nvim"
+    update: true
+  when:
+    - nvim_config.stat.exists
+    - nvim_config_git.stat.exists | default(false)
+
+- name: Warn if nvim config exists but is not a git repo
+  debug:
+    msg: "WARNING: ~/.config/nvim exists but is not a git repo. Skipping AstroNvim clone."
+  when:
+    - nvim_config.stat.exists
+    - not (nvim_config_git.stat.exists | default(false))

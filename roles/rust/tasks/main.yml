@@ -1,5 +1,5 @@
 ---
-- name: Install rustup
+- name: Install rustup and llvm
   become: true
   community.general.pacman:
     name:
@@ -7,7 +7,12 @@
       - llvm
     state: present
 
+- name: Check current default Rust toolchain
+  command: rustup default
+  register: rustup_current
+  changed_when: false
+  failed_when: false
+
 - name: Set Rust stable as default toolchain
   command: rustup default stable
-  register: rustup_default
-  changed_when: "'unchanged' not in rustup_default.stdout"
+  when: "'stable' not in (rustup_current.stdout | default(''))"

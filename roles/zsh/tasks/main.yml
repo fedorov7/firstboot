@@ -5,22 +5,48 @@
     name: zsh
     state: present
 
+- name: Check if yay is available
+  command: which yay
+  register: yay_available
+  changed_when: false
+  failed_when: false
+
+- name: Check if antidote is already installed
+  stat:
+    path: /usr/share/zsh-antidote
+  register: antidote_installed
+
 - name: Install zsh-antidote from AUR
   command: yay -S --noconfirm zsh-antidote
-  args:
-    creates: /usr/share/zsh-antidote
+  when:
+    - not antidote_installed.stat.exists
+    - yay_available.rc == 0
+
+- name: Warn if yay unavailable and antidote missing
+  debug:
+    msg: "WARNING: yay is not installed and antidote is missing. Run the yay role first."
+  when:
+    - not antidote_installed.stat.exists
+    - yay_available.rc != 0
+
+- name: Check current default shell
+  command: "getent passwd {{ user_name }}"
+  register: current_shell
+  changed_when: false
 
 - name: Set zsh as default shell
   become: true
   user:
     name: "{{ user_name }}"
     shell: /bin/zsh
+  when: "'/zsh' not in current_shell.stdout"
 
 - name: Copy .zshrc
   copy:
     src: zshrc
     dest: "{{ user_home }}/.zshrc"
     backup: true
+
 - name: Copy .zsh_plugins.txt
   copy:
     src: zsh_plugins.txt
