@@ -54,3 +54,16 @@
     value: "{{ user_email }}"
     scope: global
   when: git_current_email.stdout != user_email
+
+- name: Configure git defaults
+  community.general.git_config:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { name: "core.editor", value: "nvim" }
+    - { name: "init.defaultBranch", value: "main" }
+    - { name: "pull.rebase", value: "true" }
+    - { name: "push.autoSetupRemote", value: "true" }
+    - { name: "diff.algorithm", value: "histogram" }
+    - { name: "merge.conflictstyle", value: "zdiff3" }
