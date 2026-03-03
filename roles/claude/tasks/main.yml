@@ -1,0 +1,79 @@
+---
+- name: Check if Claude CLI is installed
+  command: which claude
+  register: claude_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Claude CLI
+  shell: curl -fsSL https://claude.ai/install.sh | bash
+  when: claude_check.rc != 0
+
+# ── Settings ──
+
+- name: Ensure .claude directory exists
+  file:
+    path: "{{ user_home }}/.claude"
+    state: directory
+    mode: "0700"
+
+- name: Deploy Claude settings.json
+  copy:
+    src: settings.json
+    dest: "{{ user_home }}/.claude/settings.json"
+    backup: true
+
+# ── MCP servers ──
+
+- name: Configure Claude MCP — context7
+  command: claude mcp add --transport http context7 https://mcp.context7.com/mcp
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-context7-configured"
+  register: claude_mcp_context7
+
+- name: Mark context7 MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-context7-configured"
+    state: touch
+  when: claude_mcp_context7.changed
+
+- name: Configure Claude MCP — sentry
+  command: claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+  args:
+    creates: "{{ user_home }}/.claude/.mcp-sentry-configured"
+  register: claude_mcp_sentry
+
+- name: Mark sentry MCP as configured
+  file:
+    path: "{{ user_home }}/.claude/.mcp-sentry-configured"
+    state: touch
+  when: claude_mcp_sentry.changed
+
+# ── Plugins / Marketplaces ──
+
+- name: Install Claude plugin marketplaces
+  command: claude plugin marketplace add {{ item.name }} {{ item.url }}
+  args:
+    creates: "{{ user_home }}/.claude/plugins/marketplaces/{{ item.name }}"
+  loop:
+    - name: claude-plugins-official
+      url: https://github.com/anthropics/claude-code-plugins.git
+    - name: context-engineering-marketplace
+      url: https://github.com/anthropics/claude-code-plugins.git
+    - name: fullstack-dev-skills
+      url: https://github.com/anthropics/claude-code-plugins.git
+    - name: superpowers-marketplace
+      url: https://github.com/obra/superpowers.git
+
+- name: Enable Claude plugins
+  command: claude plugin enable "{{ item }}"
+  loop:
+    - superpowers@claude-plugins-official
+    - context-engineering-fundamentals@context-engineering-marketplace
+    - agent-architecture@context-engineering-marketplace
+    - agent-evaluation@context-engineering-marketplace
+    - agent-development@context-engineering-marketplace
+    - cognitive-architecture@context-engineering-marketplace
+    - fullstack-dev-skills@fullstack-dev-skills
+    - clangd-lsp@claude-plugins-official
+  changed_when: false
