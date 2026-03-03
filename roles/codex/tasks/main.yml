@@ -29,13 +29,7 @@
     executable: /bin/bash
     creates: "{{ user_home }}/.codex/mcp/playwright"
 
-# ── Skills ──
-
-- name: Clone superpowers skills repo
-  git:
-    repo: https://github.com/obra/superpowers.git
-    dest: "{{ user_home }}/.codex/superpowers"
-    update: true
+# ── Skills: curated (from openai/skills) ──
 
 - name: Install curated codex skills
   shell: |
@@ -49,21 +43,36 @@
   loop:
     - pdf
     - doc
-    - cpp-pro
-    - python-pro
-    - pandas-pro
-    - architecture-designer
-    - cli-developer
-    - code-documenter
-    - code-reviewer
-    - debugging-wizard
-    - embedded-systems
-    - fullstack-guardian
-    - legacy-modernizer
-    - rust-engineer
-    - secure-code-guardian
-    - security-reviewer
-    - spec-miner
-    - test-master
-    - the-fool
-    - api-designer
+
+# ── Skills: superpowers (clone + symlink) ──
+
+- name: Clone superpowers skills repo
+  git:
+    repo: https://github.com/obra/superpowers.git
+    dest: "{{ user_home }}/.codex/superpowers"
+    update: true
+
+- name: Ensure agents skills directory exists
+  file:
+    path: "{{ user_home }}/.agents/skills"
+    state: directory
+
+- name: Symlink superpowers skills
+  file:
+    src: "{{ user_home }}/.codex/superpowers/skills"
+    dest: "{{ user_home }}/.agents/skills/superpowers"
+    state: link
+
+# ── Skills: claude-skills / fullstack-dev-skills (clone + symlink) ──
+
+- name: Clone claude-skills repo
+  git:
+    repo: https://github.com/Jeffallan/claude-skills.git
+    dest: "{{ user_home }}/.codex/claude-skills"
+    update: true
+
+- name: Symlink claude-skills skills
+  file:
+    src: "{{ user_home }}/.codex/claude-skills/skills"
+    dest: "{{ user_home }}/.agents/skills/claude-skills"
+    state: link
