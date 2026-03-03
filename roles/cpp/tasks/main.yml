@@ -1,0 +1,11 @@
+---
+- name: Install C/C++ toolchain
+  become: true
+  community.general.pacman:
+    name:
+      - cmake
+      - gcc
+      - clang
+      - gcovr
+      - lcov
+    state: present
