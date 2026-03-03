@@ -1,0 +1,16 @@
+---
+- name: Arch Linux firstboot setup
+  hosts: all
+  become: false
+
+  roles:
+    - base
+    - yay
+    - zsh
+    - ssh
+    - neovim
+    - nodejs
+    - python
+    - rust
+    - cpp
+    - cli_tools
