@@ -1,0 +1,69 @@
+---
+- name: Install OpenAI Codex CLI via npm (nvm)
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    npm ls -g @openai/codex 2>/dev/null || npm i -g @openai/codex
+  args:
+    executable: /bin/bash
+  register: codex_install
+  changed_when: "'added' in codex_install.stdout"
+
+# ── MCP servers ──
+
+- name: Configure Codex MCP — context7
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add context7 -- npx -y @upstash/context7-mcp
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/mcp/context7"
+
+- name: Configure Codex MCP — playwright
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add playwright npx "@playwright/mcp@latest"
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/mcp/playwright"
+
+# ── Skills ──
+
+- name: Clone superpowers skills repo
+  git:
+    repo: https://github.com/obra/superpowers.git
+    dest: "{{ user_home }}/.codex/superpowers"
+    update: true
+
+- name: Install curated codex skills
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    python3 {{ user_home }}/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+      --repo openai/skills --path skills/.curated/{{ item }}
+  args:
+    executable: /bin/bash
+    creates: "{{ user_home }}/.codex/skills/{{ item }}"
+  loop:
+    - pdf
+    - doc
+    - cpp-pro
+    - python-pro
+    - pandas-pro
+    - architecture-designer
+    - cli-developer
+    - code-documenter
+    - code-reviewer
+    - debugging-wizard
+    - embedded-systems
+    - fullstack-guardian
+    - legacy-modernizer
+    - rust-engineer
+    - secure-code-guardian
+    - security-reviewer
+    - spec-miner
+    - test-master
+    - the-fool
+    - api-designer
