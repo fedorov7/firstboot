@@ -12,11 +12,20 @@
         path: /proc/sys/fs/binfmt_misc/WSLInterop
       register: wsl_check
 
-    - name: Configure wsl.conf to disable Windows PATH
+    - name: Configure wsl.conf — disable Windows PATH
       become: true
       ini_file:
         path: /etc/wsl.conf
         section: interop
         option: appendWindowsPath
         value: "false"
+      when: wsl_check.stat.exists
+
+    - name: Configure wsl.conf — automount with metadata
+      become: true
+      ini_file:
+        path: /etc/wsl.conf
+        section: automount
+        option: options
+        value: "metadata,umask=22,fmask=11"
       when: wsl_check.stat.exists
