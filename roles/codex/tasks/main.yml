@@ -1,15 +1,56 @@
 ---
+# ── Prerequisites check ──
+
+- name: Check if nvm is available
+  stat:
+    path: "{{ user_home }}/.nvm/nvm.sh"
+  register: nvm_available
+
+- name: Fail if nvm is not installed (run nodejs role first)
+  fail:
+    msg: "nvm is not installed. Run the nodejs role first: ansible-playbook site.yml --tags nodejs"
+  when: not nvm_available.stat.exists
+
+- name: Check if uv is available (needed for fetch MCP)
+  command: which uv
+  register: uv_available
+  changed_when: false
+  failed_when: false
+
+# ── Install Codex CLI ──
+
+- name: Check if codex is installed
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    npm ls -g @openai/codex 2>/dev/null
+  args:
+    executable: /bin/bash
+  register: codex_check
+  changed_when: false
+  failed_when: false
+
 - name: Install OpenAI Codex CLI via npm (nvm)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
-    npm ls -g @openai/codex 2>/dev/null || npm i -g @openai/codex
+    npm i -g @openai/codex
   args:
     executable: /bin/bash
-  register: codex_install
-  changed_when: "'added' in codex_install.stdout"
+  when: codex_check.rc != 0
 
 # ── MCP servers ──
+# Codex stores MCP in ~/.codex/config.toml under [mcp_servers.<name>]
+
+- name: Read codex config.toml
+  slurp:
+    src: "{{ user_home }}/.codex/config.toml"
+  register: codex_config_raw
+  failed_when: false
+
+- name: Set codex config content
+  set_fact:
+    codex_config: "{{ (codex_config_raw.content | default('') | b64decode) if codex_config_raw.content is defined else '' }}"
 
 - name: Configure Codex MCP — context7 (library documentation)
   shell: |
@@ -18,7 +59,7 @@
     codex mcp add context7 -- npx -y @upstash/context7-mcp
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/context7"
+  when: "'[mcp_servers.context7]' not in codex_config"
 
 - name: Configure Codex MCP — memory (persistent knowledge graph)
   shell: |
@@ -27,7 +68,7 @@
     codex mcp add memory --env MEMORY_FILE_PATH={{ user_home }}/.local/share/codex/memory.jsonl -- npx -y @modelcontextprotocol/server-memory
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/memory"
+  when: "'[mcp_servers.memory]' not in codex_config"
 
 - name: Ensure Codex memory directory exists
   file:
@@ -41,7 +82,9 @@
     codex mcp add fetch -- uvx mcp-server-fetch
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/fetch"
+  when:
+    - "'[mcp_servers.fetch]' not in codex_config"
+    - uv_available.rc == 0
 
 - name: Configure Codex MCP — sequential-thinking (structured reasoning)
   shell: |
@@ -50,7 +93,7 @@
     codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/sequential-thinking"
+  when: "'[mcp_servers.sequential-thinking]' not in codex_config"
 
 - name: Configure Codex MCP — github (code search, issues, PRs)
   shell: |
@@ -59,8 +102,30 @@
     codex mcp add github --env GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }} -- npx -y @modelcontextprotocol/server-github
   args:
     executable: /bin/bash
-    creates: "{{ user_home }}/.codex/mcp/github"
-  when: github_token is defined and github_token | length > 0
+  when:
+    - "'[mcp_servers.github]' not in codex_config"
+    - github_token is defined
+    - github_token | length > 0
+
+# ── Remove obsolete MCP servers ──
+
+- name: Remove playwright MCP if present
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp remove playwright
+  args:
+    executable: /bin/bash
+  when: "'[mcp_servers.playwright]' in codex_config"
+
+- name: Remove sentry MCP if present
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp remove sentry
+  args:
+    executable: /bin/bash
+  when: "'[mcp_servers.sentry]' in codex_config"
 
 # ── Skills: curated (from openai/skills) ──
 
@@ -95,6 +160,7 @@
     src: "{{ user_home }}/.codex/superpowers/skills"
     dest: "{{ user_home }}/.agents/skills/superpowers"
     state: link
+    force: true
 
 # ── Skills: claude-skills / fullstack-dev-skills (clone + symlink) ──
 
@@ -109,3 +175,4 @@
     src: "{{ user_home }}/.codex/claude-skills/skills"
     dest: "{{ user_home }}/.agents/skills/claude-skills"
     state: link
+    force: true

@@ -1,4 +1,6 @@
 ---
+# ── Install Claude CLI ──
+
 - name: Check if Claude CLI is installed
   command: which claude
   register: claude_check
@@ -23,19 +25,32 @@
     dest: "{{ user_home }}/.claude/settings.json"
     backup: true
 
+# ── Prerequisites check ──
+
+- name: Check if uv is available (needed for fetch MCP)
+  command: which uv
+  register: uv_available
+  changed_when: false
+  failed_when: false
+
 # ── MCP servers ──
+# Claude stores user-scope MCP in ~/.claude.json under "mcpServers"
+# and project-scope under "projects.<path>.mcpServers".
+# We use --scope user so all projects see the same servers.
+
+- name: Read current Claude user config
+  slurp:
+    src: "{{ user_home }}/.claude.json"
+  register: claude_json_raw
+  failed_when: false
+
+- name: Parse Claude user config
+  set_fact:
+    claude_mcp_servers: "{{ ((claude_json_raw.content | b64decode | from_json).mcpServers | default({})) if claude_json_raw.content is defined else {} }}"
 
 - name: Configure Claude MCP — context7 (library documentation)
   command: claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-context7-configured"
-  register: claude_mcp_context7
-
-- name: Mark context7 MCP as configured
-  file:
-    path: "{{ user_home }}/.claude/.mcp-context7-configured"
-    state: touch
-  when: claude_mcp_context7.changed
+  when: "'context7' not in claude_mcp_servers"
 
 - name: Ensure Claude memory directory exists
   file:
@@ -47,62 +62,82 @@
     claude mcp add --scope user memory
     -e MEMORY_FILE_PATH={{ user_home }}/.local/share/claude/memory.jsonl
     -- npx -y @modelcontextprotocol/server-memory
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-memory-configured"
-  register: claude_mcp_memory
-
-- name: Mark memory MCP as configured
-  file:
-    path: "{{ user_home }}/.claude/.mcp-memory-configured"
-    state: touch
-  when: claude_mcp_memory.changed
+  when: "'memory' not in claude_mcp_servers"
 
 - name: Configure Claude MCP — fetch (web documentation retrieval)
   command: claude mcp add --scope user fetch -- uvx mcp-server-fetch
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-fetch-configured"
-  register: claude_mcp_fetch
-
-- name: Mark fetch MCP as configured
-  file:
-    path: "{{ user_home }}/.claude/.mcp-fetch-configured"
-    state: touch
-  when: claude_mcp_fetch.changed
+  when:
+    - "'fetch' not in claude_mcp_servers"
+    - uv_available.rc == 0
 
 - name: Configure Claude MCP — sequential-thinking (structured reasoning)
   command: claude mcp add --scope user sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-sequential-thinking-configured"
-  register: claude_mcp_seqthink
-
-- name: Mark sequential-thinking MCP as configured
-  file:
-    path: "{{ user_home }}/.claude/.mcp-sequential-thinking-configured"
-    state: touch
-  when: claude_mcp_seqthink.changed
+  when: "'sequential-thinking' not in claude_mcp_servers"
 
 - name: Configure Claude MCP — github (code search, issues, PRs)
   command: >
     claude mcp add --scope user github
     -e GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }}
     -- npx -y @modelcontextprotocol/server-github
-  args:
-    creates: "{{ user_home }}/.claude/.mcp-github-configured"
-  register: claude_mcp_github
-  when: github_token is defined and github_token | length > 0
+  when:
+    - "'github' not in claude_mcp_servers"
+    - github_token is defined
+    - github_token | length > 0
 
-- name: Mark github MCP as configured
-  file:
-    path: "{{ user_home }}/.claude/.mcp-github-configured"
-    state: touch
-  when: claude_mcp_github is changed
+# ── Remove obsolete MCP servers ──
+
+- name: Remove sentry MCP from user scope if present
+  command: claude mcp remove --scope user sentry
+  when: "'sentry' in claude_mcp_servers"
+
+- name: Remove playwright MCP from user scope if present
+  command: claude mcp remove --scope user playwright
+  when: "'playwright' in claude_mcp_servers"
+
+# ── Clean up old project-scope MCPs ──
+# Earlier MCPs may have been added at project scope (default).
+# We migrate them to user scope above and remove project-scope duplicates.
+
+- name: Read Claude config for project-scope cleanup
+  slurp:
+    src: "{{ user_home }}/.claude.json"
+  register: claude_json_updated
+  failed_when: false
+
+- name: Find projects with legacy project-scope MCPs
+  set_fact:
+    projects_with_mcp: >-
+      {{ ((claude_json_updated.content | b64decode | from_json).projects | default({}))
+         | dict2items
+         | selectattr('value.mcpServers', 'defined')
+         | selectattr('value.mcpServers', 'mapping')
+         | list }}
+  when: claude_json_updated.content is defined
+
+- name: Remove obsolete project-scope sentry MCP
+  command: claude mcp remove --scope project sentry
+  args:
+    chdir: "{{ item.key }}"
+  loop: "{{ projects_with_mcp | default([]) }}"
+  when:
+    - "'sentry' in (item.value.mcpServers | default({}))"
+  failed_when: false
+
+- name: Remove obsolete project-scope playwright MCP
+  command: claude mcp remove --scope project playwright
+  args:
+    chdir: "{{ item.key }}"
+  loop: "{{ projects_with_mcp | default([]) }}"
+  when:
+    - "'playwright' in (item.value.mcpServers | default({}))"
+  failed_when: false
 
 # ── Plugins / Marketplaces ──
 
-- name: Install Claude plugin marketplaces
-  command: claude plugin marketplace add {{ item.name }} {{ item.url }}
-  args:
-    creates: "{{ user_home }}/.claude/plugins/marketplaces/{{ item.name }}"
+- name: Check installed marketplaces
+  stat:
+    path: "{{ user_home }}/.claude/plugins/marketplaces/{{ item.name }}"
+  register: marketplace_checks
   loop:
     - name: claude-plugins-official
       url: https://github.com/anthropics/claude-code-plugins.git
@@ -112,6 +147,13 @@
       url: https://github.com/obra/superpowers.git
     - name: fullstack-dev-skills
       url: https://github.com/Jeffallan/claude-skills.git
+
+- name: Install missing Claude plugin marketplaces
+  command: claude plugin marketplace add {{ item.item.name }} {{ item.item.url }}
+  loop: "{{ marketplace_checks.results }}"
+  when: not item.stat.exists
+  loop_control:
+    label: "{{ item.item.name }}"
 
 - name: Enable Claude plugins
   command: claude plugin enable "{{ item }}"
@@ -125,3 +167,4 @@
     - fullstack-dev-skills@fullstack-dev-skills
     - clangd-lsp@claude-plugins-official
   changed_when: false
+  failed_when: false
