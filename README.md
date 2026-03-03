@@ -11,11 +11,13 @@ Ansible playbook for automated provisioning of a fresh Arch Linux workstation (i
 | **zsh** | Installs zsh, [antidote](https://getantidote.github.io/) plugin manager, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) prompt, sets zsh as default shell, deploys dotfiles (`.zshrc`, `.zsh_plugins.txt`, `.p10k.zsh`) |
 | **ssh** | Generates an ed25519 SSH keypair, configures global git `user.name` and `user.email` |
 | **neovim** | Installs Neovim and clones [AstroNvim](https://astronvim.com/) user config to `~/.config/nvim` |
-| **nodejs** | Installs [nvm](https://github.com/nvm-sh/nvm), Node.js LTS, and global npm packages (`@openai/codex`) |
+| **nodejs** | Installs [nvm](https://github.com/nvm-sh/nvm) and Node.js LTS |
 | **python** | Installs [uv](https://github.com/astral-sh/uv) package manager and Python 3.12 via `uv python install` |
 | **rust** | Installs `rustup` + `llvm`, sets stable as default toolchain |
 | **cpp** | Installs C/C++ toolchain: `cmake`, `gcc`, `clang`, `gcovr`, `lcov` |
-| **cli_tools** | Installs `lua`, [Claude CLI](https://claude.ai/code), configures WSL `interop` settings when applicable |
+| **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, playwright), clones [superpowers](https://github.com/obra/superpowers) skills, installs curated skills (cpp-pro, python-pro, debugging-wizard, etc.) |
+| **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, sentry), enables plugin marketplaces and plugins (superpowers, context-engineering, fullstack-dev-skills, clangd-lsp) |
 
 ## Prerequisites
 
@@ -127,7 +129,11 @@ firstboot/
     ├── python/tasks/main.yml
     ├── rust/tasks/main.yml
     ├── cpp/tasks/main.yml
-    └── cli_tools/tasks/main.yml
+    ├── cli_tools/tasks/main.yml
+    ├── codex/tasks/main.yml
+    └── claude/
+        ├── tasks/main.yml
+        └── files/settings.json
 ```
 
 ## Idempotency
