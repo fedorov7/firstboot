@@ -1,0 +1,11 @@
+---
+- name: Install uv (Python package manager)
+  become: true
+  community.general.pacman:
+    name: uv
+    state: present
+
+- name: Install Python 3.12 via uv
+  command: uv python install 3.12
+  register: uv_python
+  changed_when: "'Installed' in uv_python.stdout"
