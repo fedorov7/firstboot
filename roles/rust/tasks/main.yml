@@ -1,0 +1,13 @@
+---
+- name: Install rustup
+  become: true
+  community.general.pacman:
+    name:
+      - rustup
+      - llvm
+    state: present
+
+- name: Set Rust stable as default toolchain
+  command: rustup default stable
+  register: rustup_default
+  changed_when: "'unchanged' not in rustup_default.stdout"
