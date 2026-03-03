@@ -1,0 +1,42 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+## ---- Completion system must be up BEFORE plugins (compdef) ----
+autoload -Uz compinit bashcompinit
+
+ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION}"
+mkdir -p "${ZSH_COMPDUMP:h}"
+
+compinit -d "$ZSH_COMPDUMP"
+# optional, helps some tools with bash completion scripts:
+bashcompinit
+
+# source antidote
+source /usr/share/zsh-antidote/antidote.zsh
+
+# initialize plugins statically with ${ZDOTDIR:-~}/.zsh_plugins.txt
+antidote load
+
+# Rust completions (requires rustup)
+if command -v rustup >/dev/null 2>&1; then
+  # This works even if you don't have the completion files yet
+  # Generate on demand and cache them
+  RUST_ZSH_COMP_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/rust-completions"
+  mkdir -p "$RUST_ZSH_COMP_DIR"
+  fpath=("$RUST_ZSH_COMP_DIR" $fpath)
+
+  # Generate completion files if missing
+  [[ -f "$RUST_ZSH_COMP_DIR/_cargo"  ]] || rustup completions zsh cargo  > "$RUST_ZSH_COMP_DIR/_cargo"  2>/dev/null
+  [[ -f "$RUST_ZSH_COMP_DIR/_rustup" ]] || rustup completions zsh rustup > "$RUST_ZSH_COMP_DIR/_rustup" 2>/dev/null
+fi
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
