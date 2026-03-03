@@ -4,8 +4,13 @@
   community.general.pacman:
     name:
       - cmake
+      - ninja
       - gcc
       - clang
+      - clang-tools-extra
+      - ccache
+      - mold
+      - cppcheck
       - gcovr
       - lcov
     state: present
