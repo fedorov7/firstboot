@@ -62,8 +62,11 @@
     scope: global
   loop:
     - { name: "core.editor", value: "nvim" }
+    - { name: "core.pager", value: "delta" }
     - { name: "init.defaultBranch", value: "main" }
     - { name: "pull.rebase", value: "true" }
     - { name: "push.autoSetupRemote", value: "true" }
     - { name: "diff.algorithm", value: "histogram" }
     - { name: "merge.conflictstyle", value: "zdiff3" }
+    - { name: "interactive.diffFilter", value: "delta --color-only --features=interactive" }
+    - { name: "delta.navigate", value: "true" }

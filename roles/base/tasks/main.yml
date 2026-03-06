@@ -43,6 +43,26 @@
       - bat
       # Data processing
       - jq
+      - go-yq
+      # Git and collaboration
+      - github-cli
+      - git-delta
+      # Task runners and benchmarking
+      - just
+      - entr
+      - hyperfine
+      - direnv
+      # Validation and linting
+      - shellcheck
+      - shfmt
+      - yamllint
+      - ansible-lint
+      - pre-commit
+      # Networking and system inspection
+      - lsof
+      - rsync
+      - socat
+      - tcpdump
       # Debugging and profiling
       - strace
       - ltrace

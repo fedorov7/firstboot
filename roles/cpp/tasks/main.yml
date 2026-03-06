@@ -5,12 +5,16 @@
     name:
       - cmake
       - ninja
+      - meson
       - gcc
       - clang
       - clang-tools-extra
       - ccache
       - mold
+      - lldb
       - cppcheck
+      - bear
+      - bpftrace
       - gcovr
       - lcov
     state: present

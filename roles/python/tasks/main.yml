@@ -6,6 +6,11 @@
       - uv
       - ruff
       - python-pip
+      - python-pytest
+      - mypy
+      - pyright
+      - python-black
+      - python-pipx
     state: present
 
 - name: Install Python 3.12 via uv

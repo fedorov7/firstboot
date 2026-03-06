@@ -6,18 +6,18 @@ Ansible playbook for automated provisioning of a fresh Arch Linux workstation (i
 
 | Role | Description |
 |------|-------------|
-| **base** | System upgrade, `base-devel`, core CLI utilities (`git`, `htop`, `gdu`, `duf`, `fzf`, `curl`, `wget`, `openssh`, `openbsd-netcat`, `vim`, `zip`/`unzip`) |
+| **base** | System upgrade, `base-devel`, core CLI utilities, lint/format tools (`shellcheck`, `shfmt`, `yamllint`, `ansible-lint`), GitHub/dev productivity tools (`github-cli`, `git-delta`, `just`, `hyperfine`), and network diagnostics (`lsof`, `rsync`, `socat`, `tcpdump`) |
 | **yay** | Builds and installs [yay](https://github.com/Jguer/yay) AUR helper from source |
 | **zsh** | Installs zsh, [antidote](https://getantidote.github.io/) plugin manager, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) prompt, sets zsh as default shell, deploys dotfiles (`.zshrc`, `.zsh_plugins.txt`, `.p10k.zsh`) |
 | **ssh** | Generates an ed25519 SSH keypair, configures global git `user.name` and `user.email` |
 | **neovim** | Installs Neovim and clones [AstroNvim](https://astronvim.com/) user config to `~/.config/nvim` |
 | **nodejs** | Installs [nvm](https://github.com/nvm-sh/nvm) and Node.js LTS |
-| **python** | Installs [uv](https://github.com/astral-sh/uv) package manager and Python 3.12 via `uv python install` |
+| **python** | Installs [uv](https://github.com/astral-sh/uv), Python 3.12 via `uv python install`, and Python QA/tooling (`ruff`, `pytest`, `mypy`, `pyright`, `black`, `pipx`) |
 | **rust** | Installs `rustup` + `llvm`, sets stable as default toolchain |
-| **cpp** | Installs C/C++ toolchain: `cmake`, `gcc`, `clang`, `gcovr`, `lcov` |
+| **cpp** | Installs C/C++ and systems toolchain: `cmake`, `ninja`, `meson`, `gcc`, `clang`, `clang-tools-extra`, `lldb`, `cppcheck`, `bear`, `bpftrace`, coverage tools |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
-| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, playwright), clones [superpowers](https://github.com/obra/superpowers) skills, installs curated skills (cpp-pro, python-pro, debugging-wizard, etc.) |
-| **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, sentry), enables plugin marketplaces and plugins (superpowers, context-engineering, fullstack-dev-skills, clangd-lsp) |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and installs skills from curated + superpowers/claude-skills sources |
+| **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
 
