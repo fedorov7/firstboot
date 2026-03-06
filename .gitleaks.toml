@@ -1,0 +1,10 @@
+title = "firstboot gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow placeholder examples only."
+regexes = [
+  '''ghp_xxx''',
+]

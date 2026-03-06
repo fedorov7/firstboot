@@ -90,8 +90,8 @@ All tuneable variables live in `group_vars/all.yml`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `user_email` | `fedorov7@gmail.com` | Used for SSH key comment and git config |
-| `git_user_name` | `Alexander Fedorov` | Global `git user.name` |
+| `user_email` | `your-email@example.com` | Used for SSH key comment and git config |
+| `git_user_name` | `Your Name` | Global `git user.name` |
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
 | `nvm_version` | `v0.39.7` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
@@ -101,6 +101,16 @@ Override at runtime:
 ```bash
 ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version=22"
 ```
+
+## Secret Scanning
+
+Run a local secret scan before pushing:
+
+```bash
+gitleaks git --source . --config .gitleaks.toml --redact
+```
+
+CI runs the same check on `push` (main) and `pull_request` via GitHub Actions.
 
 ## Customizing dotfiles
 
