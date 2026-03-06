@@ -59,6 +59,13 @@ To skip roles:
 ansible-playbook site.yml --ask-become-pass --skip-tags rust,cpp
 ```
 
+If Ansible exits with `ERROR: Ansible could not initialize the preferred locale: unsupported locale setting`, force a UTF-8 locale for the current shell:
+
+```bash
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+```
+
 ## Targeting a remote host
 
 Edit `inventory.yml` to add remote machines:

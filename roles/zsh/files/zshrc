@@ -5,6 +5,16 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# Keep shell locale in a valid UTF-8 state for tools that fail early (e.g. Ansible).
+if command -v locale >/dev/null 2>&1; then
+  _locale_charmap="$(locale charmap 2>/dev/null || true)"
+  if [[ -z "$_locale_charmap" || "$_locale_charmap" != "UTF-8" ]]; then
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+  fi
+  unset _locale_charmap
+fi
+
 ## ---- Completion system must be up BEFORE plugins (compdef) ----
 autoload -Uz compinit bashcompinit
 
