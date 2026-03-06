@@ -87,11 +87,11 @@
   "model": "opus",
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true,
-    "context-engineering-fundamentals@claude-plugins-official": true,
-    "agent-architecture@claude-plugins-official": true,
-    "agent-evaluation@claude-plugins-official": true,
-    "agent-development@claude-plugins-official": true,
-    "cognitive-architecture@claude-plugins-official": true,
+    "context-engineering-fundamentals@context-engineering-marketplace": true,
+    "agent-architecture@context-engineering-marketplace": true,
+    "agent-evaluation@context-engineering-marketplace": true,
+    "agent-development@context-engineering-marketplace": true,
+    "cognitive-architecture@context-engineering-marketplace": true,
     "fullstack-dev-skills@fullstack-dev-skills": true,
     "clangd-lsp@claude-plugins-official": true
   },

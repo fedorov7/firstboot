@@ -155,13 +155,17 @@
 
 - name: Enable Claude plugins
   command: claude plugin enable "{{ item }}"
+  register: claude_plugin_enable
   loop:
     - superpowers@claude-plugins-official
-    - context-engineering-fundamentals@claude-plugins-official
-    - agent-architecture@claude-plugins-official
-    - agent-evaluation@claude-plugins-official
-    - agent-development@claude-plugins-official
-    - cognitive-architecture@claude-plugins-official
+    - context-engineering-fundamentals@context-engineering-marketplace
+    - agent-architecture@context-engineering-marketplace
+    - agent-evaluation@context-engineering-marketplace
+    - agent-development@context-engineering-marketplace
+    - cognitive-architecture@context-engineering-marketplace
     - fullstack-dev-skills@fullstack-dev-skills
     - clangd-lsp@claude-plugins-official
-  changed_when: false
+  changed_when: claude_plugin_enable.rc == 0
+  failed_when:
+    - claude_plugin_enable.rc != 0
+    - "'already enabled' not in (claude_plugin_enable.stderr | lower)"
