@@ -165,4 +165,3 @@
     - fullstack-dev-skills@fullstack-dev-skills
     - clangd-lsp@claude-plugins-official
   changed_when: false
-  failed_when: false
