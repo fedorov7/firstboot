@@ -28,6 +28,10 @@ bashcompinit
 # source antidote
 source /usr/share/zsh-antidote/antidote.zsh
 
+# Some Oh My Zsh plugins (e.g., gh) expect this cache path to exist.
+: "${ZSH_CACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/ohmyzsh}"
+mkdir -p "${ZSH_CACHE_DIR}/completions"
+
 # initialize plugins statically with ${ZDOTDIR:-~}/.zsh_plugins.txt
 antidote load
 
