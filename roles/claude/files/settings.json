@@ -21,6 +21,7 @@
       "Bash(git branch:*)",
       "Bash(git stash list:*)",
       "Bash(grep:*)",
+      "Bash(rg:*)",
       "Bash(head:*)",
       "Bash(jq:*)",
       "Bash(less:*)",
@@ -36,7 +37,35 @@
       "Bash(wc:*)",
       "Bash(which:*)",
       "Bash(whoami:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(fd:*)",
+      "Bash(ansible-playbook:*)",
+      "Bash(ansible-lint:*)",
+      "Bash(yamllint:*)",
+      "Bash(shellcheck:*)",
+      "Bash(shfmt:*)",
+      "Bash(pre-commit:*)",
+      "Bash(cmake:*)",
+      "Bash(ctest:*)",
+      "Bash(ninja:*)",
+      "Bash(meson:*)",
+      "Bash(make:*)",
+      "Bash(cargo:*)",
+      "Bash(rustc:*)",
+      "Bash(clang:*)",
+      "Bash(gcc:*)",
+      "Bash(g++:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(pyright:*)",
+      "Bash(black:*)",
+      "Bash(uv:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch:*)"
     ],
     "deny": [
       "Bash(rm:*)",
@@ -66,5 +95,5 @@
     "fullstack-dev-skills@fullstack-dev-skills": true,
     "clangd-lsp@claude-plugins-official": true
   },
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": false
 }
