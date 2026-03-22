@@ -63,6 +63,8 @@
       - rsync
       - socat
       - tcpdump
+      # Structural diff
+      - difftastic
       # Debugging and profiling
       - strace
       - ltrace

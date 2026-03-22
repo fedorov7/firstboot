@@ -111,7 +111,11 @@ Winget packages:
 | `junegunn.fzf` | Fuzzy finder |
 | `jqlang.jq` | JSON processor |
 | `MikeFarah.yq` | YAML processor |
+| `eza-community.eza` | Modern ls with git status |
 | `muesli.duf` | Disk usage (modern df) |
+| `7zip.7zip` | Archive manager (no built-in tar/gz for all formats) |
+| `voidtools.Everything` | Instant file search via NTFS index |
+| `Microsoft.PowerToys` | FancyZones, File Locksmith, dev utilities |
 | `Git.Git` | Git for Windows |
 | `GitHub.cli` | GitHub CLI |
 
@@ -140,6 +144,10 @@ Note: `tree.com` is built into Windows; no winget package needed.
    - `core.pager = delta`
    - `interactive.diffFilter = delta --color-only --features=interactive`
    - `delta.navigate = true`
+   - `diff.external = difft`
+   - `diff.tool = difftastic`
+   - `difftool.difftastic.cmd = difft "$LOCAL" "$REMOTE"`
+   - `difftool.prompt = false`
    - `diff.algorithm = histogram`
    - `merge.conflictstyle = zdiff3`
    - `init.defaultBranch = main`
@@ -180,7 +188,10 @@ Note: `tree.com` is built into Windows; no winget package needed.
 3. `winget install Ninja-build.Ninja`
 4. `winget install LLVM.LLVM` (clang, clang-format, clangd)
 5. `winget install mesonbuild.meson`
-6. Optional: cppcheck
+6. `winget install Microsoft.WinDbg` (native code / crash dump debugging)
+7. `winget install Microsoft.Sysinternals.Suite` (Process Monitor, Process Explorer, Handle, VMMap)
+8. Clone vcpkg: `git clone https://github.com/microsoft/vcpkg.git` + bootstrap
+9. Optional: cppcheck
 
 ### cli_tools.ps1
 
@@ -193,8 +204,9 @@ Winget packages:
 | `Casey.Just` | Task runner | just |
 | `Watchexec.Watchexec` | File watcher | entr |
 | `XAMPPRocky.tokei` | Code stats | tokei |
-| `koalaman.shellcheck` | Shell linter | shellcheck |
-| `mvdan.shfmt` | Shell formatter | shfmt |
+| `JesseDuffield.lazygit` | Git TUI | lazygit |
+| `bootandy.dust` | Visual disk usage | du |
+| `Wilfred.difftastic` | Structural diff (syntax-aware) | difftastic |
 
 ### codex.ps1
 

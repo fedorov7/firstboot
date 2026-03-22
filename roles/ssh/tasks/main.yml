@@ -70,3 +70,7 @@
     - { name: "merge.conflictstyle", value: "zdiff3" }
     - { name: "interactive.diffFilter", value: "delta --color-only --features=interactive" }
     - { name: "delta.navigate", value: "true" }
+    - { name: "diff.external", value: "difft" }
+    - { name: "diff.tool", value: "difftastic" }
+    - { name: "difftool.difftastic.cmd", value: "difft \"$LOCAL\" \"$REMOTE\"" }
+    - { name: "difftool.prompt", value: "false" }
