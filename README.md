@@ -1,6 +1,6 @@
 # firstboot
 
-Ansible playbook for automated provisioning of a fresh Arch Linux workstation (including WSL2). Derived from real shell history to capture the exact set of packages, tools, and dotfiles needed for a productive development environment.
+Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShell). Derived from real shell history to capture the exact set of packages, tools, and dotfiles needed for systems programming (C++, Python, Rust) with AI agent support (Claude, Codex).
 
 ## What gets installed
 
@@ -129,33 +129,78 @@ Edit these files directly, then re-run the zsh role. Existing dotfiles are backe
 
 ```
 firstboot/
-├── ansible.cfg
-├── inventory.yml
-├── site.yml
+├── ansible.cfg              # Ansible config (Linux)
+├── inventory.yml            # Ansible inventory (Linux)
+├── site.yml                 # Ansible playbook entry point (Linux)
 ├── group_vars/
 │   └── all.yml
-└── roles/
-    ├── base/tasks/main.yml
-    ├── yay/tasks/main.yml
-    ├── zsh/
-    │   ├── tasks/main.yml
-    │   └── files/{zshrc,zsh_plugins.txt,p10k.zsh}
-    ├── ssh/tasks/main.yml
-    ├── neovim/tasks/main.yml
-    ├── nodejs/tasks/main.yml
-    ├── python/tasks/main.yml
-    ├── rust/tasks/main.yml
-    ├── cpp/tasks/main.yml
-    ├── cli_tools/tasks/main.yml
-    ├── codex/tasks/main.yml
-    └── claude/
-        ├── tasks/main.yml
-        └── files/settings.json
+├── roles/                   # Ansible roles (Linux)
+│   ├── base, yay, zsh, ssh, neovim, nodejs,
+│   │   python, rust, cpp, cli_tools, codex, claude
+│   └── ...
+└── windows/                 # PowerShell provisioning (Windows 11)
+    ├── bootstrap.ps1        # Entry point
+    ├── modules/
+    │   ├── base, shell, ssh, neovim, nodejs,
+    │   │   python, rust, cpp, cli_tools, codex, claude
+    │   └── ...
+    └── files/
+        ├── profile.ps1      # PowerShell profile
+        └── oh-my-posh.json  # Prompt theme
 ```
+
+## Windows 11 quick start
+
+Requires **PowerShell 7+** and **Administrator** privileges.
+
+```powershell
+git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
+.\bootstrap.ps1
+```
+
+### Running specific modules
+
+```powershell
+# Only set up shell and Rust
+.\bootstrap.ps1 -Modules shell,rust
+
+# Override config
+.\bootstrap.ps1 -UserEmail "user@example.com" -GitUserName "Name"
+```
+
+### What gets installed (Windows)
+
+| Module | Description |
+|--------|-------------|
+| **base** | Core CLI utilities via winget (ripgrep, fd, bat, fzf, jq, yq, eza, duf, 7-Zip, Everything, PowerToys, Git, GitHub CLI) |
+| **shell** | oh-my-posh + PSReadLine + posh-git + Terminal-Icons + zoxide + PSFzf, PowerShell profile |
+| **ssh** | OpenSSH agent, ed25519 key, git config with delta and difftastic |
+| **neovim** | Neovim + AstroNvim config |
+| **nodejs** | fnm + Node.js LTS |
+| **python** | uv + ruff + Python 3.12 + dev tools (pyright, mypy, black, pytest) |
+| **rust** | rustup + stable toolchain + components + sccache |
+| **cpp** | VS Build Tools check, CMake, Ninja, LLVM, meson, WinDbg, Sysinternals, vcpkg |
+| **cli_tools** | delta, hyperfine, just, watchexec, tokei, lazygit, dust, difftastic |
+| **codex** | Codex CLI + MCP servers + skills |
+| **claude** | Claude CLI + settings + MCP servers + marketplaces + plugins |
+
+### Windows configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-UserEmail` | `your-email@example.com` | Git and SSH key comment |
+| `-GitUserName` | `Your Name` | Global `git user.name` |
+| `-NodeVersion` | `lts-latest` | fnm install target |
+| `-AstroNvimRepo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repo |
+| `-GithubToken` | (empty) | Optional GitHub PAT for MCP github server |
 
 ## Idempotency
 
-All tasks are idempotent — safe to re-run at any time. Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting.
+All tasks are idempotent — safe to re-run at any time.
+
+**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting.
+
+**Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups.
 
 ## License
 
