@@ -7,6 +7,14 @@ mirroring the existing Ansible roles for Arch Linux. Each Linux role maps to a
 PowerShell module script. A single `bootstrap.ps1` entry point orchestrates
 execution, supports selective module runs, and enforces idempotency.
 
+The Windows provisioning is complementary to the Linux playbook. WSL2
+configuration is handled by the Linux side (`cli_tools` role); the two systems
+are independent and can be run in any order.
+
+**Note on Claude CLI:** Linux installs via `curl install.sh`; Windows uses
+`npm install -g @anthropic-ai/claude-code` since npm is the official
+distribution channel for Windows.
+
 ## Decisions
 
 | Decision | Choice | Rationale |
@@ -29,9 +37,9 @@ windows/
 │   ├── ssh.ps1                # OpenSSH agent, ssh-keygen, git config
 │   ├── neovim.ps1             # Neovim + AstroNvim config
 │   ├── nodejs.ps1             # fnm + Node.js LTS
-│   ├── python.ps1             # uv + Python 3.12
+│   ├── python.ps1             # uv + Python 3.12 + ruff
 │   ├── rust.ps1               # rustup + stable toolchain + components
-│   ├── cpp.ps1                # VS Build Tools check, cmake, ninja, llvm
+│   ├── cpp.ps1                # VS Build Tools check, cmake, ninja, llvm, meson
 │   ├── cli_tools.ps1          # delta, hyperfine, just, watchexec, tokei
 │   ├── codex.ps1              # Codex CLI + MCP servers + skills
 │   └── claude.ps1             # Claude CLI + settings + MCP + marketplaces
@@ -78,8 +86,16 @@ Defined in `bootstrap.ps1`, available to all modules via dot-sourcing:
 
 - `Write-Step <message>` — colored progress output
 - `Test-CommandExists <name>` — `Get-Command` wrapper returning bool
-- `Install-WingetPackage <id> [-Name <display>]` — idempotent winget install
+- `Install-WingetPackage <id> [-Name <display>]` — idempotent winget install (checks both exit code and output text, uses `--accept-source-agreements --disable-interactivity`)
 - `Install-PSModule <name>` — idempotent `Install-Module` wrapper
+- `Initialize-Fnm` — evaluates `fnm env` into the current session; called by bootstrap after nodejs.ps1 and by any module needing npm/npx
+
+### Module Execution Order
+
+bootstrap.ps1 runs modules sequentially. After `nodejs.ps1` completes,
+`Initialize-Fnm` is called to make `npm`/`npx` available for downstream
+modules (`codex.ps1`, `claude.ps1`). This mirrors the Linux pattern where
+each Ansible task sources nvm inline.
 
 ## Module Specifications
 
@@ -95,12 +111,11 @@ Winget packages:
 | `junegunn.fzf` | Fuzzy finder |
 | `jqlang.jq` | JSON processor |
 | `MikeFarah.yq` | YAML processor |
-| `gnuwin32.tree` | Directory tree |
-| `dundee.gdu` | Disk usage analyzer |
 | `muesli.duf` | Disk usage (modern df) |
-| `aristocratos.btop4win` | System monitor |
 | `Git.Git` | Git for Windows |
 | `GitHub.cli` | GitHub CLI |
+
+Note: `tree.com` is built into Windows; no winget package needed.
 
 ### shell.ps1
 
@@ -112,7 +127,7 @@ Winget packages:
    - `Terminal-Icons`
    - `PSFzf`
 4. Install zoxide: `winget install ajeetdsouza.zoxide`
-5. Deploy `files/profile.ps1` to `$PROFILE.CurrentUserAllHosts` (with backup)
+5. Deploy `files/profile.ps1` to `$PROFILE.CurrentUserCurrentHost` (with backup)
 
 ### ssh.ps1
 
@@ -124,7 +139,9 @@ Winget packages:
    - `core.editor = nvim`
    - `core.pager = delta`
    - `interactive.diffFilter = delta --color-only --features=interactive`
-   - `delta.navigate = true`, `delta.side-by-side = true`
+   - `delta.navigate = true`
+   - `diff.algorithm = histogram`
+   - `merge.conflictstyle = zdiff3`
    - `init.defaultBranch = main`
    - `pull.rebase = true`
    - `push.autoSetupRemote = true`
@@ -138,19 +155,22 @@ Winget packages:
 ### nodejs.ps1
 
 1. `winget install Schniz.fnm`
-2. Add fnm init to PowerShell profile (handled by shell.ps1)
+2. Initialize fnm into current session (`Initialize-Fnm`)
 3. `fnm install --lts` + `fnm default lts-latest`
+4. fnm init in PowerShell profile is handled by shell.ps1
 
 ### python.ps1
 
 1. `winget install astral-sh.uv`
-2. `uv python install 3.12`
+2. `winget install astral-sh.ruff`
+3. `uv python install 3.12`
+4. `uv tool install pyright mypy black pytest`
 
 ### rust.ps1
 
 1. `winget install Rustlang.Rustup`
 2. `rustup default stable`
-3. Install components: `rust-analyzer`, `clippy`, `rustfmt`
+3. Install components: `rust-analyzer`, `clippy`, `rustfmt` (check `rustup component list --installed` first)
 4. `cargo install sccache`
 
 ### cpp.ps1
@@ -159,7 +179,8 @@ Winget packages:
 2. `winget install Kitware.CMake`
 3. `winget install Ninja-build.Ninja`
 4. `winget install LLVM.LLVM` (clang, clang-format, clangd)
-5. Optional: cppcheck, meson
+5. `winget install mesonbuild.meson`
+6. Optional: cppcheck
 
 ### cli_tools.ps1
 
@@ -177,25 +198,38 @@ Winget packages:
 
 ### codex.ps1
 
-1. Verify fnm/node available
+1. Verify fnm/node available; call `Initialize-Fnm` if npm not in session
 2. `npm install -g @openai/codex`
 3. Create `$env:USERPROFILE\.codex\` directory structure
 4. Write/merge MCP servers into `config.toml`:
    - context7, memory, fetch, sequential-thinking, github (conditional)
-5. Clone and symlink skills:
-   - `openai/codex-skills` (curated: pdf, doc)
-   - `anthropics/superpowers` → symlink
-   - `Jeffallan/claude-skills` → symlink
+5. Install curated skills via the Codex skill installer script
+   (`~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py`).
+   Requires running `codex` once to bootstrap the directory structure.
+   Curated skills: pdf, doc
+6. Clone and symlink non-curated skills:
+   - `obra/superpowers` → clone to `~/.codex/skills/superpowers`, symlink entries
+   - `Jeffallan/claude-skills` → clone to `~/.codex/skills/claude-skills`, symlink entries
 
 ### claude.ps1
 
-1. Install Claude CLI: `npm install -g @anthropic-ai/claude-code`
-2. Deploy `roles/claude/files/settings.json` to `$env:USERPROFILE\.claude\settings.json`
-3. Write/merge MCP servers into `$env:USERPROFILE\.claude.json`:
+1. Verify fnm/node available; call `Initialize-Fnm` if npm not in session
+2. `npm install -g @anthropic-ai/claude-code`
+3. Deploy `roles/claude/files/settings.json` to `$env:USERPROFILE\.claude\settings.json`
+4. Write/merge MCP servers into `$env:USERPROFILE\.claude.json`:
    - context7, memory, fetch, sequential-thinking, github (conditional)
-4. Add plugin marketplaces:
+5. Add plugin marketplaces:
    - claude-plugins-official, superpowers-dev, fullstack-dev-skills
-5. Enable plugins (same set as Linux)
+6. Enable plugins:
+   - `superpowers@claude-plugins-official`
+   - `context-engineering-fundamentals@context-engineering-marketplace`
+   - `agent-architecture@context-engineering-marketplace`
+   - `agent-evaluation@context-engineering-marketplace`
+   - `agent-development@context-engineering-marketplace`
+   - `cognitive-architecture@context-engineering-marketplace`
+   - `fullstack-dev-skills@fullstack-dev-skills`
+   - `clangd-lsp@claude-plugins-official`
+   - `pyright-lsp@claude-plugins-official`
 
 ## Idempotency Strategy
 
@@ -203,12 +237,13 @@ Every action is guarded:
 
 | Check | Method |
 |---|---|
-| Winget package installed | `winget list --id <PackageId> --exact` exit code |
+| Winget package installed | `winget list --id <PackageId> --exact` — check both exit code and output contains the ID |
 | Command available | `Get-Command <name> -ErrorAction SilentlyContinue` |
 | File/directory exists | `Test-Path <path>` |
 | PS module installed | `Get-Module -ListAvailable <name>` |
 | Windows service state | `Get-Service <name>` |
 | Git repo present | `Test-Path <path>\.git` |
+| Rust components | `rustup component list --installed` before adding |
 | Config key present | Parse existing file, check for key before writing |
 
 ## Scope Exclusions
@@ -218,12 +253,18 @@ Every action is guarded:
 - **VS Build Tools installation** — pre-installed, only verified
 - **Windows Defender / firewall rules** — out of scope
 - **Windows Update** — out of scope
+- **Scoop / Chocolatey** — not needed; all packages available via winget
 
 ## PowerShell Profile (files/profile.ps1)
 
+All tool initializations are guarded with `Get-Command` checks so the profile
+works even when only a subset of modules has been run.
+
 ```powershell
 # oh-my-posh
-oh-my-posh init pwsh --config "$env:USERPROFILE\.config\oh-my-posh.json" | Invoke-Expression
+if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+    oh-my-posh init pwsh --config "$env:USERPROFILE\.config\oh-my-posh.json" | Invoke-Expression
+}
 
 # PSReadLine
 Set-PSReadLineOption -PredictionSource HistoryAndPlugin
@@ -233,19 +274,31 @@ Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
 Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
 
 # Modules
-Import-Module posh-git
-Import-Module Terminal-Icons
-Import-Module PSFzf
-Set-PsFzfOption -PSReadlineChordProvider 'Ctrl+t' -PSReadlineChordReverseHistory 'Ctrl+r'
+if (Get-Module -ListAvailable posh-git) { Import-Module posh-git }
+if (Get-Module -ListAvailable Terminal-Icons) { Import-Module Terminal-Icons }
+if (Get-Module -ListAvailable PSFzf) {
+    Import-Module PSFzf
+    Set-PsFzfOption -PSReadlineChordProvider 'Ctrl+t' -PSReadlineChordReverseHistory 'Ctrl+r'
+}
 
 # zoxide
-Invoke-Expression (& { (zoxide init powershell | Out-String) })
+if (Get-Command zoxide -ErrorAction SilentlyContinue) {
+    Invoke-Expression (& { (zoxide init powershell | Out-String) })
+}
 
 # fnm
-fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+if (Get-Command fnm -ErrorAction SilentlyContinue) {
+    fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+}
 
 # Completions
-rustup completions powershell | Out-String | Invoke-Expression
-uv generate-shell-completion powershell | Out-String | Invoke-Expression
-gh completion -s powershell | Out-String | Invoke-Expression
+if (Get-Command rustup -ErrorAction SilentlyContinue) {
+    rustup completions powershell | Out-String | Invoke-Expression
+}
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    uv generate-shell-completion powershell | Out-String | Invoke-Expression
+}
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    gh completion -s powershell | Out-String | Invoke-Expression
+}
 ```
