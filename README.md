@@ -173,7 +173,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | Module | Description |
 |--------|-------------|
 | **base** | Core CLI utilities via winget (ripgrep, fd, bat, fzf, jq, yq, eza, duf, 7-Zip, Everything, PowerToys, Git, GitHub CLI) |
-| **shell** | oh-my-posh + PSReadLine + posh-git + Terminal-Icons + zoxide + PSFzf, PowerShell profile |
+| **shell** | oh-my-posh + PSReadLine + posh-git + Terminal-Icons + zoxide + PSFzf, PowerShell profile, and a non-destructive Windows Terminal font patch (`CaskaydiaCove Nerd Font Mono`) |
 | **ssh** | OpenSSH agent, ed25519 key, git config with delta and difftastic |
 | **neovim** | Neovim + AstroNvim config |
 | **nodejs** | fnm + Node.js LTS |
