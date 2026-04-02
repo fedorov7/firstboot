@@ -47,11 +47,18 @@ $gitConfig = @(
     @('diff.tool',                          'difftastic')
     @('difftool.difftastic.cmd',            'difft "$LOCAL" "$REMOTE"')
     @('difftool.prompt',                    'false')
+    @('pager.difftool',                     'true')
     @('diff.algorithm',                     'histogram')
     @('merge.conflictstyle',                'zdiff3')
     @('init.defaultBranch',                 'main')
+    @('fetch.prune',                        'true')
     @('pull.rebase',                        'true')
+    @('rebase.autoStash',                   'true')
     @('push.autoSetupRemote',               'true')
+    @('rerere.enabled',                     'true')
+    @('alias.dft',                          '-c diff.external=difft diff')
+    @('alias.ds',                           '-c diff.external=difft show --ext-diff')
+    @('alias.dl',                           '-c diff.external=difft log -p --ext-diff')
 )
 
 foreach ($entry in $gitConfig) {

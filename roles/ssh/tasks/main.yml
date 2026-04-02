@@ -64,8 +64,11 @@
     - { name: "core.editor", value: "nvim" }
     - { name: "core.pager", value: "delta" }
     - { name: "init.defaultBranch", value: "main" }
+    - { name: "fetch.prune", value: "true" }
     - { name: "pull.rebase", value: "true" }
+    - { name: "rebase.autoStash", value: "true" }
     - { name: "push.autoSetupRemote", value: "true" }
+    - { name: "rerere.enabled", value: "true" }
     - { name: "diff.algorithm", value: "histogram" }
     - { name: "merge.conflictstyle", value: "zdiff3" }
     - { name: "interactive.diffFilter", value: "delta --color-only --features=interactive" }
@@ -74,3 +77,7 @@
     - { name: "diff.tool", value: "difftastic" }
     - { name: "difftool.difftastic.cmd", value: "difft \"$LOCAL\" \"$REMOTE\"" }
     - { name: "difftool.prompt", value: "false" }
+    - { name: "pager.difftool", value: "true" }
+    - { name: "alias.dft", value: "-c diff.external=difft diff" }
+    - { name: "alias.ds", value: "-c diff.external=difft show --ext-diff" }
+    - { name: "alias.dl", value: "-c diff.external=difft log -p --ext-diff" }
