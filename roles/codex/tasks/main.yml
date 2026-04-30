@@ -23,6 +23,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     npm ls -g @openai/codex 2>/dev/null
   args:
     executable: /bin/bash
@@ -34,6 +35,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     npm i -g @openai/codex
   args:
     executable: /bin/bash
@@ -72,6 +74,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp remove {{ item }}
   args:
     executable: /bin/bash
@@ -83,6 +86,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp remove github
   args:
     executable: /bin/bash
@@ -94,6 +98,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp remove context7
   args:
     executable: /bin/bash
@@ -117,6 +122,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add context7 -- npx -y @upstash/context7-mcp
   args:
     executable: /bin/bash
@@ -128,6 +134,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
   args:
     executable: /bin/bash
@@ -145,6 +152,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add memory --env MEMORY_FILE_PATH={{ user_home }}/.local/share/codex/memory.jsonl -- npx -y @modelcontextprotocol/server-memory
   args:
     executable: /bin/bash
@@ -156,6 +164,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add fetch -- uvx mcp-server-fetch
   args:
     executable: /bin/bash
@@ -168,6 +177,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
   args:
     executable: /bin/bash
@@ -179,6 +189,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add github --url https://api.githubcopilot.com/mcp/ --bearer-token-env-var {{ codex_github_token_env_var | default('GITHUB_PERSONAL_ACCESS_TOKEN') }}
   args:
     executable: /bin/bash
@@ -197,6 +208,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     codex mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --project-from-cwd --context=codex
   args:
     executable: /bin/bash
@@ -241,6 +253,7 @@
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
     python3 {{ user_home }}/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
       --repo openai/skills --path skills/.curated/{{ item }}
   args:
