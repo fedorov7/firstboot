@@ -16,7 +16,7 @@ Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShe
 | **rust** | Installs `rustup` + `llvm`, sets stable as default toolchain |
 | **cpp** | Installs C/C++ and systems toolchain: `cmake`, `ninja`, `meson`, `gcc`, `clang`, `clang-tools-extra`, `lldb`, `cppcheck`, `bear`, `bpftrace`, coverage tools |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
-| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and installs skills from curated + superpowers/claude-skills sources |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and installs an optimized allowlist of skills from curated + superpowers/claude-skills sources |
 | **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
@@ -95,12 +95,22 @@ All tuneable variables live in `group_vars/all.yml`:
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
 | `nvm_version` | `v0.39.7` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
+| `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
+| `codex_superpowers_skills` | systems/dev workflow allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
+| `codex_karpathy_skills` | `karpathy-guidelines` | Karpathy-inspired behavioral guidelines symlinked into `~/.agents/skills/karpathy-skills` |
+| `codex_claude_skills` | C/C++ embedded allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
 
 Override at runtime:
 
 ```bash
 ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version=22"
 ```
+
+The Codex role keeps skills intentionally narrow to avoid Codex startup context
+warnings from large skill packs. Re-running the role removes stale managed
+entries from `~/.agents/skills/superpowers`, `~/.agents/skills/claude-skills`,
+`~/.agents/skills/karpathy-skills`, and legacy curated skill directories
+previously installed by this playbook.
 
 ## Secret Scanning
 

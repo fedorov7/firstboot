@@ -127,9 +127,39 @@
     executable: /bin/bash
   when: "'[mcp_servers.sentry]' in codex_config"
 
-# ── Skills: curated (from openai/skills) ──
+# ── Skills: optimized allowlist ──
 
-- name: Install curated codex skills
+- name: Set legacy Codex curated skills managed by this role
+  set_fact:
+    codex_legacy_curated_skills:
+      - api-designer
+      - architecture-designer
+      - cli-developer
+      - code-documenter
+      - code-reviewer
+      - cpp-pro
+      - debugging-wizard
+      - doc
+      - embedded-systems
+      - fullstack-guardian
+      - legacy-modernizer
+      - pandas-pro
+      - pdf
+      - python-pro
+      - rust-engineer
+      - secure-code-guardian
+      - security-reviewer
+      - spec-miner
+      - test-master
+      - the-fool
+
+- name: Remove obsolete curated Codex skills managed by this role
+  file:
+    path: "{{ user_home }}/.codex/skills/{{ item }}"
+    state: absent
+  loop: "{{ codex_legacy_curated_skills | difference(codex_curated_skills | default([])) }}"
+
+- name: Install curated Codex skills from allowlist
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
@@ -138,41 +168,220 @@
   args:
     executable: /bin/bash
     creates: "{{ user_home }}/.codex/skills/{{ item }}"
+  loop: "{{ codex_curated_skills | default([]) }}"
+
+- name: Ensure Codex skill source directory exists
+  file:
+    path: "{{ user_home }}/.local/share/codex/skill-sources"
+    state: directory
+
+- name: Remove obsolete Codex external skill source directories
+  file:
+    path: "{{ item }}"
+    state: absent
   loop:
-    - pdf
-    - doc
-
-# ── Skills: superpowers (clone + symlink) ──
-
-- name: Clone superpowers skills repo
-  git:
-    repo: https://github.com/obra/superpowers.git
-    dest: "{{ user_home }}/.codex/superpowers"
-    update: true
+    - "{{ user_home }}/.codex/superpowers"
+    - "{{ user_home }}/.codex/claude-skills"
 
 - name: Ensure agents skills directory exists
   file:
     path: "{{ user_home }}/.agents/skills"
     state: directory
 
-- name: Symlink superpowers skills
+# ── Skills: superpowers (clone source + symlink allowlist) ──
+
+- name: Clone superpowers skills repo
+  git:
+    repo: https://github.com/obra/superpowers.git
+    dest: "{{ user_home }}/.local/share/codex/skill-sources/superpowers"
+    update: true
+  when: (codex_superpowers_skills | default([]) | length) > 0
+
+- name: Stat Codex superpowers namespace
+  stat:
+    path: "{{ user_home }}/.agents/skills/superpowers"
+    follow: false
+  register: codex_superpowers_namespace
+
+- name: Remove incompatible Codex superpowers namespace
   file:
-    src: "{{ user_home }}/.codex/superpowers/skills"
-    dest: "{{ user_home }}/.agents/skills/superpowers"
+    path: "{{ user_home }}/.agents/skills/superpowers"
+    state: absent
+  when:
+    - codex_superpowers_namespace.stat.exists
+    - not (codex_superpowers_namespace.stat.isdir | default(false))
+
+- name: Ensure Codex superpowers namespace directory exists
+  file:
+    path: "{{ user_home }}/.agents/skills/superpowers"
+    state: directory
+
+- name: Find existing Codex superpowers skill entries
+  find:
+    paths: "{{ user_home }}/.agents/skills/superpowers"
+    file_type: any
+    recurse: false
+  register: codex_superpowers_existing
+
+- name: Remove stale Codex superpowers skills
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ codex_superpowers_existing.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in (codex_superpowers_skills | default([]))
+
+- name: Check selected Codex superpowers skills exist
+  stat:
+    path: "{{ user_home }}/.local/share/codex/skill-sources/superpowers/skills/{{ item }}"
+  register: codex_superpowers_skill_checks
+  loop: "{{ codex_superpowers_skills | default([]) }}"
+
+- name: Fail if selected Codex superpowers skill is missing
+  fail:
+    msg: "Selected superpowers skill '{{ item.item }}' was not found in the cloned source repo."
+  loop: "{{ codex_superpowers_skill_checks.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not (item.stat.isdir | default(false))
+
+- name: Symlink selected Codex superpowers skills
+  file:
+    src: "{{ user_home }}/.local/share/codex/skill-sources/superpowers/skills/{{ item }}"
+    dest: "{{ user_home }}/.agents/skills/superpowers/{{ item }}"
     state: link
     force: true
+  loop: "{{ codex_superpowers_skills | default([]) }}"
 
-# ── Skills: claude-skills / fullstack-dev-skills (clone + symlink) ──
+# ── Skills: claude-skills / fullstack-dev-skills (clone source + symlink allowlist) ──
 
 - name: Clone claude-skills repo
   git:
     repo: https://github.com/Jeffallan/claude-skills.git
-    dest: "{{ user_home }}/.codex/claude-skills"
+    dest: "{{ user_home }}/.local/share/codex/skill-sources/claude-skills"
     update: true
+  when: (codex_claude_skills | default([]) | length) > 0
 
-- name: Symlink claude-skills skills
+- name: Stat Codex claude-skills namespace
+  stat:
+    path: "{{ user_home }}/.agents/skills/claude-skills"
+    follow: false
+  register: codex_claude_skills_namespace
+
+- name: Remove incompatible Codex claude-skills namespace
   file:
-    src: "{{ user_home }}/.codex/claude-skills/skills"
-    dest: "{{ user_home }}/.agents/skills/claude-skills"
+    path: "{{ user_home }}/.agents/skills/claude-skills"
+    state: absent
+  when:
+    - codex_claude_skills_namespace.stat.exists
+    - not (codex_claude_skills_namespace.stat.isdir | default(false))
+
+- name: Ensure Codex claude-skills namespace directory exists
+  file:
+    path: "{{ user_home }}/.agents/skills/claude-skills"
+    state: directory
+
+- name: Find existing Codex claude-skills skill entries
+  find:
+    paths: "{{ user_home }}/.agents/skills/claude-skills"
+    file_type: any
+    recurse: false
+  register: codex_claude_skills_existing
+
+- name: Remove stale Codex claude-skills
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ codex_claude_skills_existing.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in (codex_claude_skills | default([]))
+
+- name: Check selected Codex claude-skills exist
+  stat:
+    path: "{{ user_home }}/.local/share/codex/skill-sources/claude-skills/skills/{{ item }}"
+  register: codex_claude_skills_checks
+  loop: "{{ codex_claude_skills | default([]) }}"
+
+- name: Fail if selected Codex claude-skill is missing
+  fail:
+    msg: "Selected claude-skill '{{ item.item }}' was not found in the cloned source repo."
+  loop: "{{ codex_claude_skills_checks.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not (item.stat.isdir | default(false))
+
+- name: Symlink selected Codex claude-skills
+  file:
+    src: "{{ user_home }}/.local/share/codex/skill-sources/claude-skills/skills/{{ item }}"
+    dest: "{{ user_home }}/.agents/skills/claude-skills/{{ item }}"
     state: link
     force: true
+  loop: "{{ codex_claude_skills | default([]) }}"
+
+# ── Skills: Karpathy guidelines (clone source + symlink allowlist) ──
+
+- name: Clone Karpathy guidelines skills repo
+  git:
+    repo: https://github.com/forrestchang/andrej-karpathy-skills.git
+    dest: "{{ user_home }}/.local/share/codex/skill-sources/karpathy-skills"
+    update: true
+  when: (codex_karpathy_skills | default([]) | length) > 0
+
+- name: Stat Codex Karpathy guidelines namespace
+  stat:
+    path: "{{ user_home }}/.agents/skills/karpathy-skills"
+    follow: false
+  register: codex_karpathy_skills_namespace
+
+- name: Remove incompatible Codex Karpathy guidelines namespace
+  file:
+    path: "{{ user_home }}/.agents/skills/karpathy-skills"
+    state: absent
+  when:
+    - codex_karpathy_skills_namespace.stat.exists
+    - not (codex_karpathy_skills_namespace.stat.isdir | default(false))
+
+- name: Ensure Codex Karpathy guidelines namespace directory exists
+  file:
+    path: "{{ user_home }}/.agents/skills/karpathy-skills"
+    state: directory
+
+- name: Find existing Codex Karpathy guidelines skill entries
+  find:
+    paths: "{{ user_home }}/.agents/skills/karpathy-skills"
+    file_type: any
+    recurse: false
+  register: codex_karpathy_skills_existing
+
+- name: Remove stale Codex Karpathy guidelines skills
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ codex_karpathy_skills_existing.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in (codex_karpathy_skills | default([]))
+
+- name: Check selected Codex Karpathy guidelines skills exist
+  stat:
+    path: "{{ user_home }}/.local/share/codex/skill-sources/karpathy-skills/skills/{{ item }}"
+  register: codex_karpathy_skills_checks
+  loop: "{{ codex_karpathy_skills | default([]) }}"
+
+- name: Fail if selected Codex Karpathy guidelines skill is missing
+  fail:
+    msg: "Selected Karpathy guidelines skill '{{ item.item }}' was not found in the cloned source repo."
+  loop: "{{ codex_karpathy_skills_checks.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not (item.stat.isdir | default(false))
+
+- name: Symlink selected Codex Karpathy guidelines skills
+  file:
+    src: "{{ user_home }}/.local/share/codex/skill-sources/karpathy-skills/skills/{{ item }}"
+    dest: "{{ user_home }}/.agents/skills/karpathy-skills/{{ item }}"
+    state: link
+    force: true
+  loop: "{{ codex_karpathy_skills | default([]) }}"
