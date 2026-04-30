@@ -22,6 +22,12 @@
       tags: [rust]
     - role: cpp
       tags: [cpp]
+    - role: embedded
+      tags: [embedded]
+    - role: uefi
+      tags: [uefi]
+    - role: security_tools
+      tags: [security_tools]
     - role: cli_tools
       tags: [cli_tools]
     - role: codex

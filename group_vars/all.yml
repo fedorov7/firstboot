@@ -9,29 +9,49 @@ astronvim_repo: "https://github.com/fedorov7/astronvim-config-v4.git"
 nvm_version: "v0.39.7"
 node_version: "--lts"
 
-# GitHub Personal Access Token for MCP github server (optional).
-# Pass at runtime: -e github_token=ghp_xxx
-# If unset, the github MCP server is skipped.
+# GitHub Personal Access Token for Claude MCP github server (optional).
+# Pass at runtime: -e github_token=ghp_xxx.
+# Codex uses codex_github_token_env_var instead to avoid storing PATs in config.
 github_token: ""
+
+# Embedded / UEFI workstation profile.
+embedded_probe_udev_rules_enabled: true
+embedded_access_groups:
+  - uucp
+  - lock
+embedded_probe_access_group: plugdev
 
 # Codex skills profile.
 #
 # Keep this list narrow: Codex loads skill descriptions into the startup
 # context, so broad packs create duplicate entries and trigger context-budget
 # truncation warnings.
+codex_mcp_allowlist:
+  - context7
+  - openaiDeveloperDocs
+  - memory
+  - fetch
+  - sequential-thinking
+codex_context7_remove_inline_api_key: true
+
+# Optional MCP servers with broader access or heavier runtime behavior.
+codex_github_mcp_enabled: false
+codex_github_token_env_var: GITHUB_PERSONAL_ACCESS_TOKEN
+codex_serena_enabled: false
+
 codex_curated_skills:
   - pdf
   # - doc                         # Enable when editing .docx documents.
 
 codex_superpowers_skills:
-  - using-superpowers
   - systematic-debugging
-  - test-driven-development
   - verification-before-completion
-  - writing-plans
-  - executing-plans
-  - receiving-code-review
-  - requesting-code-review
+  # - using-superpowers          # Broad trigger; useful only if you want skills enforced every turn.
+  # - test-driven-development    # Enable for strict TDD workflows.
+  # - writing-plans              # Enable for large planned implementations.
+  # - executing-plans            # Enable when executing saved plans across sessions.
+  # - receiving-code-review      # Enable when iterating on external review feedback.
+  # - requesting-code-review     # Enable when you want formal review checkpoints.
   # - brainstorming               # Broad creative workflow gate.
   # - dispatching-parallel-agents  # Parallel research/development workflow.
   # - subagent-driven-development  # Multi-agent implementation workflow.
@@ -43,18 +63,18 @@ codex_karpathy_skills:
   - karpathy-guidelines
 
 codex_claude_skills:
-  - architecture-designer
-  - cli-developer
-  - code-documenter
   - code-reviewer
   - cpp-pro
   - debugging-wizard
   - embedded-systems
-  - legacy-modernizer
-  - secure-code-guardian
   - security-reviewer
   - test-master
-  - the-fool
+  # - architecture-designer      # Enable for ADRs and high-level system architecture.
+  # - cli-developer              # Enable when building command-line tools.
+  # - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
+  # - legacy-modernizer          # Enable for large migrations of older codebases.
+  # - secure-code-guardian       # Enable for auth/input-validation implementation work.
+  # - the-fool                   # Enable for explicit red-team / devil's advocate review.
   # - api-designer                 # API/backend work.
   # - csharp-developer             # .NET/C# work.
   # - database-optimizer           # Database tuning.

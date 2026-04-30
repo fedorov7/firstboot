@@ -15,8 +15,11 @@ Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShe
 | **python** | Installs [uv](https://github.com/astral-sh/uv), Python 3.12 via `uv python install`, and Python QA/tooling (`ruff`, `pytest`, `mypy`, `pyright`, `black`, `pipx`) |
 | **rust** | Installs `rustup` + `llvm`, sets stable as default toolchain |
 | **cpp** | Installs C/C++ and systems toolchain: `cmake`, `ninja`, `meson`, `gcc`, `clang`, `clang-tools-extra`, `lldb`, `cppcheck`, `bear`, `bpftrace`, coverage tools |
+| **embedded** | Installs embedded host tooling (`dtc`, `dfu-util`, `gperf`, `openocd`, `probe-rs`, `stlink`, serial tools, Python HEX/ELF/serial helpers) and configures non-root debug-probe access |
+| **uefi** | Installs UEFI/EDK2/QEMU tooling (`nasm`, `acpica`, QEMU system emulators, `edk2-ovmf`, FAT image tools, Secure Boot signing tools, firmware analysis utilities) |
+| **security_tools** | Installs local security/compliance scanners (`gitleaks`, `trivy`, `osv-scanner`, `cargo-audit`, `cargo-deny`, `flawfinder`, `codespell`, `reuse`) |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
-| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and installs an optimized allowlist of skills from curated + superpowers/claude-skills sources |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, memory, fetch, sequential-thinking, optional official GitHub/Serena), and installs an optimized allowlist of skills from curated + superpowers/claude-skills sources |
 | **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
@@ -95,8 +98,16 @@ All tuneable variables live in `group_vars/all.yml`:
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
 | `nvm_version` | `v0.39.7` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
+| `embedded_probe_udev_rules_enabled` | `true` | Install common udev rules for ST-Link, J-Link, CMSIS-DAP, Black Magic, and ESP debug probes |
+| `embedded_access_groups` | `uucp`, `lock` | Groups added to the user for serial device access |
+| `embedded_probe_access_group` | `plugdev` | Group granted debug-probe USB access by udev rules |
+| `codex_mcp_allowlist` | context/docs/memory defaults | MCP servers kept in `~/.codex/config.toml`; stale managed entries outside this list are removed |
+| `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
+| `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
+| `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
+| `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
 | `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
-| `codex_superpowers_skills` | systems/dev workflow allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
+| `codex_superpowers_skills` | debugging/completion allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
 | `codex_karpathy_skills` | `karpathy-guidelines` | Karpathy-inspired behavioral guidelines symlinked into `~/.agents/skills/karpathy-skills` |
 | `codex_claude_skills` | C/C++ embedded allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
 
@@ -107,17 +118,31 @@ ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version
 ```
 
 The Codex role keeps skills intentionally narrow to avoid Codex startup context
-warnings from large skill packs. Re-running the role removes stale managed
-entries from `~/.agents/skills/superpowers`, `~/.agents/skills/claude-skills`,
+warnings from large skill packs. The default profile targets C/C++ systems,
+embedded, UEFI-adjacent firmware work, debugging, security review, and tests.
+Re-running the role removes stale managed entries from
+`~/.agents/skills/superpowers`, `~/.agents/skills/claude-skills`,
 `~/.agents/skills/karpathy-skills`, and legacy curated skill directories
 previously installed by this playbook.
+
+The Codex MCP configuration is also allowlist-driven. The default profile keeps
+documentation and reasoning tools enabled while leaving broader access tools
+disabled. To enable GitHub MCP, export a token in the configured environment
+variable and run:
+
+```bash
+export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxx
+ansible-playbook site.yml --ask-become-pass --tags codex -e codex_github_mcp_enabled=true
+```
 
 ## Secret Scanning
 
 Run a local secret scan before pushing:
 
 ```bash
-gitleaks git --source . --config .gitleaks.toml --redact
+gitleaks git --redact .
+trivy fs .
+osv-scanner -r .
 ```
 
 CI runs the same check on `push` (main) and `pull_request` via GitHub Actions.
@@ -146,7 +171,8 @@ firstboot/
 │   └── all.yml
 ├── roles/                   # Ansible roles (Linux)
 │   ├── base, yay, zsh, ssh, neovim, nodejs,
-│   │   python, rust, cpp, cli_tools, codex, claude
+│   │   python, rust, cpp, embedded, uefi,
+│   │   security_tools, cli_tools, codex, claude
 │   └── ...
 └── windows/                 # PowerShell provisioning (Windows 11)
     ├── bootstrap.ps1        # Entry point

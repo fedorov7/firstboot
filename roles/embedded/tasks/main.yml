@@ -1,0 +1,64 @@
+---
+- name: Install embedded systems tooling
+  become: true
+  community.general.pacman:
+    name:
+      - dtc
+      - dfu-util
+      - gperf
+      - openocd
+      - probe-rs
+      - stlink
+      - picocom
+      - usbutils
+      - tk
+      - which
+      - python-intelhex
+      - python-pyelftools
+      - python-pyserial
+    state: present
+
+- name: Ensure serial access groups exist
+  become: true
+  group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ embedded_access_groups | default([]) }}"
+
+- name: Add user to serial access groups
+  become: true
+  user:
+    name: "{{ user_name }}"
+    groups: "{{ embedded_access_groups | default([]) }}"
+    append: true
+  when: (embedded_access_groups | default([]) | length) > 0
+
+- name: Ensure debug probe access group exists
+  become: true
+  group:
+    name: "{{ embedded_probe_access_group }}"
+    state: present
+    system: true
+  when: embedded_probe_udev_rules_enabled | default(true) | bool
+
+- name: Add user to debug probe access group
+  become: true
+  user:
+    name: "{{ user_name }}"
+    groups:
+      - "{{ embedded_probe_access_group }}"
+    append: true
+  when: embedded_probe_udev_rules_enabled | default(true) | bool
+
+- name: Install common debug probe udev rules
+  become: true
+  template:
+    src: 60-embedded-debug-probes.rules.j2
+    dest: /etc/udev/rules.d/60-embedded-debug-probes.rules
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload udev rules
+    - Trigger udev rules
+  when: embedded_probe_udev_rules_enabled | default(true) | bool

@@ -1,0 +1,8 @@
+# Common debug probes for embedded development.
+# Access is limited to the configured probe group and active local seat.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1366", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0d28", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="c251", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1d50", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="303a", MODE="0660", GROUP="{{ embedded_probe_access_group }}", TAG+="uaccess"

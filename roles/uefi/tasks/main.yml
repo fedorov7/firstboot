@@ -1,0 +1,25 @@
+---
+- name: Install UEFI, EDK2, and firmware tooling
+  become: true
+  community.general.pacman:
+    name:
+      - nasm
+      - acpica
+      - qemu-system-x86
+      - qemu-system-aarch64
+      - qemu-system-arm
+      - qemu-system-riscv
+      - edk2-ovmf
+      - mtools
+      - dosfstools
+      - efitools
+      - sbsigntools
+      - pesign
+      - flashrom
+      - fwupd
+      - dmidecode
+      - binwalk
+      - bloaty
+      - elfutils
+      - pahole
+    state: present

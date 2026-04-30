@@ -1,0 +1,14 @@
+---
+- name: Install local security and compliance tooling
+  become: true
+  community.general.pacman:
+    name:
+      - gitleaks
+      - trivy
+      - osv-scanner
+      - cargo-audit
+      - cargo-deny
+      - flawfinder
+      - codespell
+      - reuse
+    state: present

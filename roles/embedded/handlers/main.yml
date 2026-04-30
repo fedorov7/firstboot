@@ -1,0 +1,10 @@
+---
+- name: Reload udev rules
+  become: true
+  command: udevadm control --reload-rules
+  changed_when: false
+
+- name: Trigger udev rules
+  become: true
+  command: udevadm trigger
+  changed_when: false

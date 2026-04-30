@@ -52,6 +52,67 @@
   set_fact:
     codex_config: "{{ (codex_config_raw.content | default('') | b64decode) if codex_config_raw.content is defined else '' }}"
 
+- name: Set desired Codex MCP server allowlist
+  set_fact:
+    codex_mcp_desired_servers: >-
+      {{ ((codex_mcp_allowlist | default([]))
+          + (['github'] if (codex_github_mcp_enabled | default(false) | bool) else [])
+          + (['serena'] if (codex_serena_enabled | default(false) | bool) else []))
+         | unique | list }}
+
+- name: Find existing top-level Codex MCP servers
+  set_fact:
+    codex_mcp_existing_servers: "{{ codex_config | regex_findall('(?m)^\\[mcp_servers\\.([^.\\]]+)\\]\\s*$') | unique | list }}"
+
+- name: Set Codex context7 MCP config block
+  set_fact:
+    codex_context7_mcp_block: "{{ codex_config | regex_search('(?ms)^\\[mcp_servers\\.context7\\].*?(?=^\\[mcp_servers\\.|\\Z)') | default('', true) }}"
+
+- name: Remove stale Codex MCP servers outside allowlist
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp remove {{ item }}
+  args:
+    executable: /bin/bash
+  loop: "{{ codex_mcp_existing_servers | difference(codex_mcp_desired_servers) }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Remove archived Codex GitHub MCP if present
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp remove github
+  args:
+    executable: /bin/bash
+  when:
+    - "'github' in codex_mcp_desired_servers"
+    - "'@modelcontextprotocol/server-github' in codex_config"
+
+- name: Remove Codex context7 MCP with inline API key
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp remove context7
+  args:
+    executable: /bin/bash
+  when:
+    - codex_context7_remove_inline_api_key | default(true) | bool
+    - "'context7' in codex_mcp_desired_servers"
+    - "'@upstash/context7-mcp' in codex_context7_mcp_block"
+    - "'--api-key' in codex_context7_mcp_block"
+
+- name: Read codex config.toml after MCP cleanup
+  slurp:
+    src: "{{ user_home }}/.codex/config.toml"
+  register: codex_config_clean_raw
+  failed_when: false
+
+- name: Set cleaned codex config content
+  set_fact:
+    codex_config_clean: "{{ (codex_config_clean_raw.content | default('') | b64decode) if codex_config_clean_raw.content is defined else '' }}"
+
 - name: Configure Codex MCP — context7 (library documentation)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
@@ -59,12 +120,26 @@
     codex mcp add context7 -- npx -y @upstash/context7-mcp
   args:
     executable: /bin/bash
-  when: "'[mcp_servers.context7]' not in codex_config"
+  when:
+    - "'context7' in codex_mcp_desired_servers"
+    - "'[mcp_servers.context7]' not in codex_config_clean"
+
+- name: Configure Codex MCP — OpenAI Developer Docs
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
+  args:
+    executable: /bin/bash
+  when:
+    - "'openaiDeveloperDocs' in codex_mcp_desired_servers"
+    - "'[mcp_servers.openaiDeveloperDocs]' not in codex_config_clean"
 
 - name: Ensure Codex memory directory exists
   file:
     path: "{{ user_home }}/.local/share/codex"
     state: directory
+  when: "'memory' in codex_mcp_desired_servers"
 
 - name: Configure Codex MCP — memory (persistent knowledge graph)
   shell: |
@@ -73,7 +148,9 @@
     codex mcp add memory --env MEMORY_FILE_PATH={{ user_home }}/.local/share/codex/memory.jsonl -- npx -y @modelcontextprotocol/server-memory
   args:
     executable: /bin/bash
-  when: "'[mcp_servers.memory]' not in codex_config"
+  when:
+    - "'memory' in codex_mcp_desired_servers"
+    - "'[mcp_servers.memory]' not in codex_config_clean"
 
 - name: Configure Codex MCP — fetch (web documentation retrieval)
   shell: |
@@ -83,7 +160,8 @@
   args:
     executable: /bin/bash
   when:
-    - "'[mcp_servers.fetch]' not in codex_config"
+    - "'fetch' in codex_mcp_desired_servers"
+    - "'[mcp_servers.fetch]' not in codex_config_clean"
     - uv_available.rc == 0
 
 - name: Configure Codex MCP — sequential-thinking (structured reasoning)
@@ -93,39 +171,39 @@
     codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
   args:
     executable: /bin/bash
-  when: "'[mcp_servers.sequential-thinking]' not in codex_config"
+  when:
+    - "'sequential-thinking' in codex_mcp_desired_servers"
+    - "'[mcp_servers.sequential-thinking]' not in codex_config_clean"
 
-- name: Configure Codex MCP — github (code search, issues, PRs)
+- name: Configure Codex MCP — github (official remote server)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
-    codex mcp add github --env GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }} -- npx -y @modelcontextprotocol/server-github
+    codex mcp add github --url https://api.githubcopilot.com/mcp/ --bearer-token-env-var {{ codex_github_token_env_var | default('GITHUB_PERSONAL_ACCESS_TOKEN') }}
   args:
     executable: /bin/bash
   when:
-    - "'[mcp_servers.github]' not in codex_config"
-    - github_token is defined
-    - github_token | length > 0
+    - "'github' in codex_mcp_desired_servers"
+    - "'[mcp_servers.github]' not in codex_config_clean"
 
-# ── Remove obsolete MCP servers ──
+- name: Fail if Serena MCP is requested but uv is unavailable
+  fail:
+    msg: "Serena MCP requires uv/uvx. Run the python role first or disable codex_serena_enabled."
+  when:
+    - "'serena' in codex_mcp_desired_servers"
+    - uv_available.rc != 0
 
-- name: Remove playwright MCP if present
+- name: Configure Codex MCP — serena (semantic code tools)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
-    codex mcp remove playwright
+    codex mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --project-from-cwd --context=codex
   args:
     executable: /bin/bash
-  when: "'[mcp_servers.playwright]' in codex_config"
-
-- name: Remove sentry MCP if present
-  shell: |
-    export NVM_DIR="{{ user_home }}/.nvm"
-    . "$NVM_DIR/nvm.sh"
-    codex mcp remove sentry
-  args:
-    executable: /bin/bash
-  when: "'[mcp_servers.sentry]' in codex_config"
+  when:
+    - "'serena' in codex_mcp_desired_servers"
+    - "'[mcp_servers.serena]' not in codex_config_clean"
+    - uv_available.rc == 0
 
 # ── Skills: optimized allowlist ──
 
