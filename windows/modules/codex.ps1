@@ -1,15 +1,125 @@
 Write-Step "Setting up Codex CLI..."
 
-# Ensure npm is available
-if (-not (Test-CommandExists npm)) {
-    Initialize-Fnm
-    if (-not (Test-CommandExists npm)) {
-        Write-Warn "npm not available. Run nodejs module first."
+function Get-CodexConfigContent {
+    if (Test-Path $script:ConfigToml) {
+        return Get-Content $script:ConfigToml -Raw
+    }
+    return ''
+}
+
+function Test-CodexMcpConfigured {
+    param([Parameter(Mandatory)][string]$Name)
+    (Get-CodexConfigContent) -match "\[mcp_servers\.$([regex]::Escape($Name))\]"
+}
+
+function Add-CodexMcpIfMissing {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][scriptblock]$ScriptBlock
+    )
+    if (Test-CodexMcpConfigured $Name) {
+        Write-Skip "MCP $Name already configured"
         return
+    }
+    Write-Step "Adding MCP: $Name..."
+    & $ScriptBlock
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to add Codex MCP server: $Name"
+    }
+    Write-Ok "MCP $Name added"
+}
+
+function Sync-CodexSkillNamespace {
+    param(
+        [Parameter(Mandatory)][string]$Namespace,
+        [Parameter(Mandatory)][string]$Repo,
+        [Parameter(Mandatory)][string]$SourceDirName,
+        [Parameter(Mandatory)][string[]]$Skills
+    )
+
+    if ($Skills.Count -eq 0) {
+        return
+    }
+
+    $sourceDir = Join-Path $script:SkillSourceRoot $SourceDirName
+    if (-not (Test-Path (Join-Path $sourceDir '.git'))) {
+        Write-Step "Cloning $Namespace skills..."
+        git clone $Repo $sourceDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to clone $Namespace skills from $Repo"
+        }
+        Write-Ok "$Namespace skills cloned"
+    } else {
+        git -C $sourceDir pull --ff-only 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to update $Namespace skills in $sourceDir"
+        }
+        Write-Skip "$Namespace skills already cloned, updated"
+    }
+
+    $namespaceDir = Join-Path $script:AgentsSkillsDir $Namespace
+    if (Test-Path $namespaceDir) {
+        $namespaceItem = Get-Item -LiteralPath $namespaceDir -Force
+        if (-not $namespaceItem.PSIsContainer) {
+            Remove-Item -LiteralPath $namespaceDir -Recurse -Force
+            Write-Ok "Removed incompatible $Namespace skill namespace"
+        }
+    }
+    if (-not (Test-Path $namespaceDir)) {
+        New-Item -ItemType Directory -Path $namespaceDir -Force | Out-Null
+    }
+
+    Get-ChildItem $namespaceDir -Force | ForEach-Object {
+        if ($_.Name -notin $Skills) {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+            Write-Ok "Removed stale $Namespace skill: $($_.Name)"
+        }
+    }
+
+    foreach ($skill in $Skills) {
+        $sourceSkill = Join-Path $sourceDir "skills\$skill"
+        if (-not (Test-Path $sourceSkill)) {
+            throw "Selected $Namespace skill '$skill' was not found in $sourceDir."
+        }
+
+        $destSkill = Join-Path $namespaceDir $skill
+        $shouldCreateLink = $true
+        if (Test-Path $destSkill) {
+            $destItem = Get-Item -LiteralPath $destSkill -Force
+            $destTargets = @($destItem.Target)
+            if ($destItem.LinkType -eq 'SymbolicLink' -and $sourceSkill -in $destTargets) {
+                Write-Skip "$Namespace skill already present: $skill"
+                $shouldCreateLink = $false
+            } else {
+                Remove-Item -LiteralPath $destSkill -Recurse -Force
+                Write-Ok "Removed stale $Namespace skill entry: $skill"
+            }
+        }
+
+        if ($shouldCreateLink) {
+            New-Item -ItemType SymbolicLink -Path $destSkill -Target $sourceSkill -Force | Out-Null
+            Write-Ok "$Namespace skill symlinked: $skill"
+        }
     }
 }
 
-# Install Codex CLI
+# Ensure npm is available from the configured fnm-managed Node.js.
+Initialize-Fnm
+if (Test-CommandExists fnm) {
+    fnm use $NodeVersion 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Node.js $NodeVersion is not available via fnm. Run nodejs module first."
+        return
+    }
+    Initialize-Fnm
+}
+
+if (-not (Test-CommandExists npm)) {
+    Write-Warn "npm not available. Run nodejs module first."
+    return
+}
+
+# Install Codex CLI into the selected Node.js prefix.
 $codexInstalled = npm ls -g @openai/codex 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Step "Installing Codex CLI..."
@@ -19,65 +129,128 @@ if ($LASTEXITCODE -ne 0) {
     Write-Skip "Codex CLI already installed"
 }
 
-# ── MCP Servers ──
+if (-not (Test-CommandExists codex)) {
+    Write-Warn "codex not found in PATH after npm install. Restart shell and re-run this module."
+    return
+}
+
+# MCP servers
 $codexDir = Join-Path $env:USERPROFILE '.codex'
-$configToml = Join-Path $codexDir 'config.toml'
-$configContent = if (Test-Path $configToml) { Get-Content $configToml -Raw } else { '' }
-
-# context7
-if ($configContent -notmatch '\[mcp_servers\.context7\]') {
-    Write-Step "Adding MCP: context7..."
-    codex mcp add context7 -- npx -y @upstash/context7-mcp
-    Write-Ok "MCP context7 added"
-} else { Write-Skip "MCP context7 already configured" }
-
-# memory
-$memoryDir = Join-Path $env:USERPROFILE '.local\share\codex'
-if (-not (Test-Path $memoryDir)) { New-Item -ItemType Directory -Path $memoryDir -Force | Out-Null }
-$memoryFile = Join-Path $memoryDir 'memory.jsonl'
-if ($configContent -notmatch '\[mcp_servers\.memory\]') {
-    Write-Step "Adding MCP: memory..."
-    codex mcp add memory --env "MEMORY_FILE_PATH=$memoryFile" -- npx -y @modelcontextprotocol/server-memory
-    Write-Ok "MCP memory added"
-} else { Write-Skip "MCP memory already configured" }
-
-# fetch (requires uv/uvx)
-if ((Test-CommandExists uvx) -and ($configContent -notmatch '\[mcp_servers\.fetch\]')) {
-    Write-Step "Adding MCP: fetch..."
-    codex mcp add fetch -- uvx mcp-server-fetch
-    Write-Ok "MCP fetch added"
-} elseif ($configContent -match '\[mcp_servers\.fetch\]') {
-    Write-Skip "MCP fetch already configured"
+$script:ConfigToml = Join-Path $codexDir 'config.toml'
+if (-not (Test-Path $codexDir)) {
+    New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
 }
 
-# sequential-thinking
-if ($configContent -notmatch '\[mcp_servers\.sequential-thinking\]') {
-    Write-Step "Adding MCP: sequential-thinking..."
-    codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
-    Write-Ok "MCP sequential-thinking added"
-} else { Write-Skip "MCP sequential-thinking already configured" }
+$desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
+if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) {
+    $desiredMcpServers += 'github'
+}
+if ($CodexSerenaEnabled) {
+    $desiredMcpServers += 'serena'
+}
+$desiredMcpServers = @($desiredMcpServers | Select-Object -Unique)
 
-# github (conditional)
-if ($GithubToken -and ($configContent -notmatch '\[mcp_servers\.github\]')) {
-    Write-Step "Adding MCP: github..."
-    codex mcp add github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GithubToken" -- npx -y @modelcontextprotocol/server-github
-    Write-Ok "MCP github added"
-} elseif ($configContent -match '\[mcp_servers\.github\]') {
-    Write-Skip "MCP github already configured"
+if (-not [string]::IsNullOrWhiteSpace($GithubToken)) {
+    [System.Environment]::SetEnvironmentVariable($CodexGithubTokenEnvVar, $GithubToken, 'User')
+    Set-Item -Path "Env:\$CodexGithubTokenEnvVar" -Value $GithubToken
 }
 
-# Remove obsolete MCPs
-foreach ($obsolete in @('playwright', 'sentry')) {
-    if ($configContent -match "\[mcp_servers\.$obsolete\]") {
-        codex mcp remove $obsolete
-        Write-Ok "Removed obsolete MCP: $obsolete"
+$configContent = Get-CodexConfigContent
+$existingMcpServers = @([regex]::Matches($configContent, '(?m)^\[mcp_servers\.([^.\]]+)\]\s*$') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+
+if ($CodexMcpPruneUnmanaged) {
+    foreach ($server in $existingMcpServers) {
+        if ($server -notin $desiredMcpServers) {
+            codex mcp remove $server
+            Write-Ok "Removed unmanaged MCP: $server"
+        }
     }
 }
 
-# ── Skills: curated (pdf, doc) ──
+$configContent = Get-CodexConfigContent
+if ('github' -in $desiredMcpServers -and $configContent -match '@modelcontextprotocol/server-github') {
+    codex mcp remove github
+    Write-Ok "Removed archived GitHub MCP"
+}
+
+$context7Block = [regex]::Match($configContent, '(?ms)^\[mcp_servers\.context7\].*?(?=^\[mcp_servers\.|\z)').Value
+if ('context7' -in $desiredMcpServers -and $context7Block -match '@upstash/context7-mcp' -and $context7Block -match '--api-key') {
+    codex mcp remove context7
+    Write-Ok "Removed context7 MCP with inline API key"
+}
+
+if ('context7' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'context7' { codex mcp add context7 -- npx -y @upstash/context7-mcp }
+}
+
+if ('openaiDeveloperDocs' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'openaiDeveloperDocs' { codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp }
+}
+
+if ('memory' -in $desiredMcpServers) {
+    $memoryDir = Join-Path $env:USERPROFILE '.local\share\codex'
+    if (-not (Test-Path $memoryDir)) { New-Item -ItemType Directory -Path $memoryDir -Force | Out-Null }
+    $memoryFile = Join-Path $memoryDir 'memory.jsonl'
+    Add-CodexMcpIfMissing 'memory' {
+        codex mcp add memory --env "MEMORY_FILE_PATH=$memoryFile" -- npx -y @modelcontextprotocol/server-memory
+    }
+}
+
+if ('fetch' -in $desiredMcpServers) {
+    if (Test-CommandExists uvx) {
+        Add-CodexMcpIfMissing 'fetch' { codex mcp add fetch -- uvx mcp-server-fetch }
+    } else {
+        Write-Warn "uvx not available. Run python module first to enable fetch MCP."
+    }
+}
+
+if ('sequential-thinking' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'sequential-thinking' {
+        codex mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
+    }
+}
+
+if ('github' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'github' {
+        codex mcp add github --url https://api.githubcopilot.com/mcp/ --bearer-token-env-var $CodexGithubTokenEnvVar
+    }
+}
+
+if ('serena' -in $desiredMcpServers) {
+    if (Test-CommandExists uvx) {
+        Add-CodexMcpIfMissing 'serena' {
+            codex mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --project-from-cwd --context=codex
+        }
+    } else {
+        Write-Warn "uvx not available. Run python module first to enable Serena MCP."
+    }
+}
+
+# Skills
+$script:SkillSourceRoot = Join-Path $env:USERPROFILE '.local\share\codex\skill-sources'
+$script:AgentsSkillsDir = Join-Path $env:USERPROFILE '.agents\skills'
+New-Item -ItemType Directory -Path $script:SkillSourceRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $script:AgentsSkillsDir -Force | Out-Null
+
+$curatedSkills = ConvertTo-NameList $CodexCuratedSkills
+$legacyCuratedSkills = @(
+    'api-designer', 'architecture-designer', 'cli-developer', 'code-documenter',
+    'code-reviewer', 'cpp-pro', 'debugging-wizard', 'doc', 'embedded-systems',
+    'fullstack-guardian', 'legacy-modernizer', 'pandas-pro', 'pdf', 'python-pro',
+    'rust-engineer', 'secure-code-guardian', 'security-reviewer', 'spec-miner',
+    'test-master', 'the-fool'
+)
+foreach ($skill in $legacyCuratedSkills) {
+    $skillDir = Join-Path $codexDir "skills\$skill"
+    if ($skill -notin $curatedSkills -and (Test-Path $skillDir)) {
+        Remove-Item -LiteralPath $skillDir -Recurse -Force
+        Write-Ok "Removed obsolete curated skill: $skill"
+    }
+}
+
 $skillInstaller = Join-Path $codexDir 'skills\.system\skill-installer\scripts\install-skill-from-github.py'
 if (Test-Path $skillInstaller) {
-    foreach ($skill in @('pdf', 'doc')) {
+    foreach ($skill in $curatedSkills) {
         $skillDir = Join-Path $codexDir "skills\$skill"
         if (-not (Test-Path $skillDir)) {
             Write-Step "Installing curated skill: $skill..."
@@ -91,41 +264,20 @@ if (Test-Path $skillInstaller) {
     Write-Warn "Codex skill installer not found. Run 'codex' once to bootstrap, then re-run this module."
 }
 
-# ── Skills: superpowers (clone + symlink) ──
-$superpowersDir = Join-Path $codexDir 'superpowers'
-if (-not (Test-Path (Join-Path $superpowersDir '.git'))) {
-    Write-Step "Cloning superpowers skills..."
-    git clone https://github.com/obra/superpowers.git $superpowersDir
-    Write-Ok "Superpowers cloned"
-} else {
-    git -C $superpowersDir pull --ff-only 2>&1 | Out-Null
-    Write-Skip "Superpowers already cloned, updated"
-}
+Sync-CodexSkillNamespace `
+    -Namespace 'superpowers' `
+    -Repo 'https://github.com/obra/superpowers.git' `
+    -SourceDirName 'superpowers' `
+    -Skills (ConvertTo-NameList $CodexSuperpowersSkills)
 
-$agentsSkillsDir = Join-Path $env:USERPROFILE '.agents\skills'
-if (-not (Test-Path $agentsSkillsDir)) { New-Item -ItemType Directory -Path $agentsSkillsDir -Force | Out-Null }
+Sync-CodexSkillNamespace `
+    -Namespace 'claude-skills' `
+    -Repo 'https://github.com/Jeffallan/claude-skills.git' `
+    -SourceDirName 'claude-skills' `
+    -Skills (ConvertTo-NameList $CodexClaudeSkills)
 
-$spLink = Join-Path $agentsSkillsDir 'superpowers'
-$spTarget = Join-Path $superpowersDir 'skills'
-if (-not (Test-Path $spLink)) {
-    New-Item -ItemType SymbolicLink -Path $spLink -Target $spTarget -Force | Out-Null
-    Write-Ok "Superpowers skills symlinked"
-} else { Write-Skip "Superpowers symlink exists" }
-
-# ── Skills: claude-skills (clone + symlink) ──
-$claudeSkillsDir = Join-Path $codexDir 'claude-skills'
-if (-not (Test-Path (Join-Path $claudeSkillsDir '.git'))) {
-    Write-Step "Cloning claude-skills..."
-    git clone https://github.com/Jeffallan/claude-skills.git $claudeSkillsDir
-    Write-Ok "Claude-skills cloned"
-} else {
-    git -C $claudeSkillsDir pull --ff-only 2>&1 | Out-Null
-    Write-Skip "Claude-skills already cloned, updated"
-}
-
-$csLink = Join-Path $agentsSkillsDir 'claude-skills'
-$csTarget = Join-Path $claudeSkillsDir 'skills'
-if (-not (Test-Path $csLink)) {
-    New-Item -ItemType SymbolicLink -Path $csLink -Target $csTarget -Force | Out-Null
-    Write-Ok "Claude-skills symlinked"
-} else { Write-Skip "Claude-skills symlink exists" }
+Sync-CodexSkillNamespace `
+    -Namespace 'karpathy-skills' `
+    -Repo 'https://github.com/forrestchang/andrej-karpathy-skills.git' `
+    -SourceDirName 'karpathy-skills' `
+    -Skills (ConvertTo-NameList $CodexKarpathySkills)

@@ -17,6 +17,10 @@
     Git URL for Neovim config.
 .PARAMETER GithubToken
     Optional GitHub PAT for MCP github server.
+.PARAMETER ForceNeovimCleanup
+    Remove Neovim config/data/state/cache before cloning AstroNvim.
+.PARAMETER CodexMcpPruneUnmanaged
+    Remove Codex MCP servers outside the configured allowlist.
 .EXAMPLE
     .\bootstrap.ps1
     .\bootstrap.ps1 -Modules shell,rust,claude
@@ -29,7 +33,17 @@ param(
     [string]$GitUserName = "Your Name",
     [string]$NodeVersion = "lts-latest",
     [string]$AstroNvimRepo = "https://github.com/fedorov7/astronvim-config-v4.git",
-    [string]$GithubToken = ""
+    [string]$GithubToken = "",
+    [switch]$ForceNeovimCleanup,
+    [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,memory,fetch,sequential-thinking",
+    [switch]$CodexMcpPruneUnmanaged,
+    [switch]$CodexGithubMcpEnabled,
+    [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
+    [switch]$CodexSerenaEnabled,
+    [string]$CodexCuratedSkills = "pdf,doc",
+    [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
+    [string]$CodexKarpathySkills = "karpathy-guidelines",
+    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,debugging-wizard,embedded-systems,security-reviewer,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,python-pro,secure-code-guardian,spec-miner,the-fool"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,6 +74,14 @@ function Write-Warn {
 function Test-CommandExists {
     param([string]$Name)
     $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function ConvertTo-NameList {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @()
+    }
+    return @($Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
 function Install-WingetPackage {
@@ -94,8 +116,47 @@ function Install-PSModule {
 
 function Initialize-Fnm {
     if (Test-CommandExists fnm) {
-        fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+        $fnmEnv = fnm env --use-on-cd --shell powershell 2>$null | Out-String
+        if (-not [string]::IsNullOrWhiteSpace($fnmEnv)) {
+            Invoke-Expression $fnmEnv
+        }
     }
+}
+
+function Install-CargoBinary {
+    param(
+        [Parameter(Mandatory)][string]$Command,
+        [string]$Package = $Command
+    )
+    if (Test-CommandExists $Command) {
+        Write-Skip "$Command already available"
+        return
+    }
+    if (-not (Test-CommandExists cargo)) {
+        Write-Warn "cargo not available. Run rust module first to install $Package."
+        return
+    }
+    Write-Step "Installing $Package via cargo..."
+    cargo install $Package
+    Write-Ok "$Package installed"
+}
+
+function Install-UvTool {
+    param(
+        [Parameter(Mandatory)][string]$Command,
+        [string]$Package = $Command
+    )
+    if (Test-CommandExists $Command) {
+        Write-Skip "$Command already available"
+        return
+    }
+    if (-not (Test-CommandExists uv)) {
+        Write-Warn "uv not available. Run python module first to install $Package."
+        return
+    }
+    Write-Step "Installing $Package via uv tool..."
+    uv tool install $Package
+    Write-Ok "$Package installed"
 }
 
 function Refresh-Path {

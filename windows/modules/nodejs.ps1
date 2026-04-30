@@ -9,15 +9,11 @@ Refresh-Path
 Initialize-Fnm
 
 if (Test-CommandExists fnm) {
-    $installed = fnm list 2>&1
-    if ($installed -notmatch 'lts-latest|v\d+\.\d+\.\d+') {
-        Write-Step "Installing Node.js $NodeVersion..."
-        fnm install $NodeVersion
-        fnm default $NodeVersion
-        Write-Ok "Node.js $NodeVersion installed and set as default"
-    } else {
-        Write-Skip "Node.js already installed via fnm"
-    }
+    Write-Step "Ensuring Node.js $NodeVersion via fnm..."
+    fnm install $NodeVersion
+    fnm default $NodeVersion
+    Write-Ok "Node.js $NodeVersion installed and set as default"
+
     # Re-initialize to pick up the installed version
     Initialize-Fnm
 } else {
