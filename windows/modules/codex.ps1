@@ -29,6 +29,14 @@ function Add-CodexMcpIfMissing {
     Write-Ok "MCP $Name added"
 }
 
+function Remove-CodexMcp {
+    param([Parameter(Mandatory)][string]$Name)
+    codex mcp remove $Name
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to remove Codex MCP server: $Name"
+    }
+}
+
 function Sync-CodexSkillNamespace {
     param(
         [Parameter(Mandatory)][string]$Namespace,
@@ -36,26 +44,6 @@ function Sync-CodexSkillNamespace {
         [Parameter(Mandatory)][string]$SourceDirName,
         [Parameter(Mandatory)][string[]]$Skills
     )
-
-    if ($Skills.Count -eq 0) {
-        return
-    }
-
-    $sourceDir = Join-Path $script:SkillSourceRoot $SourceDirName
-    if (-not (Test-Path (Join-Path $sourceDir '.git'))) {
-        Write-Step "Cloning $Namespace skills..."
-        git clone $Repo $sourceDir
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to clone $Namespace skills from $Repo"
-        }
-        Write-Ok "$Namespace skills cloned"
-    } else {
-        git -C $sourceDir pull --ff-only 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to update $Namespace skills in $sourceDir"
-        }
-        Write-Skip "$Namespace skills already cloned, updated"
-    }
 
     $namespaceDir = Join-Path $script:AgentsSkillsDir $Namespace
     if (Test-Path $namespaceDir) {
@@ -74,6 +62,27 @@ function Sync-CodexSkillNamespace {
             Remove-Item -LiteralPath $_.FullName -Recurse -Force
             Write-Ok "Removed stale $Namespace skill: $($_.Name)"
         }
+    }
+
+    if ($Skills.Count -eq 0) {
+        Write-Skip "$Namespace skill allowlist is empty"
+        return
+    }
+
+    $sourceDir = Join-Path $script:SkillSourceRoot $SourceDirName
+    if (-not (Test-Path (Join-Path $sourceDir '.git'))) {
+        Write-Step "Cloning $Namespace skills..."
+        git clone $Repo $sourceDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to clone $Namespace skills from $Repo"
+        }
+        Write-Ok "$Namespace skills cloned"
+    } else {
+        git -C $sourceDir pull --ff-only 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to update $Namespace skills in $sourceDir"
+        }
+        Write-Skip "$Namespace skills already cloned, updated"
     }
 
     foreach ($skill in $Skills) {
@@ -161,7 +170,7 @@ $existingMcpServers = @([regex]::Matches($configContent, '(?m)^\[mcp_servers\.([
 if ($CodexMcpPruneUnmanaged) {
     foreach ($server in $existingMcpServers) {
         if ($server -notin $desiredMcpServers) {
-            codex mcp remove $server
+            Remove-CodexMcp $server
             Write-Ok "Removed unmanaged MCP: $server"
         }
     }
@@ -169,13 +178,13 @@ if ($CodexMcpPruneUnmanaged) {
 
 $configContent = Get-CodexConfigContent
 if ('github' -in $desiredMcpServers -and $configContent -match '@modelcontextprotocol/server-github') {
-    codex mcp remove github
+    Remove-CodexMcp 'github'
     Write-Ok "Removed archived GitHub MCP"
 }
 
 $context7Block = [regex]::Match($configContent, '(?ms)^\[mcp_servers\.context7\].*?(?=^\[mcp_servers\.|\z)').Value
 if ('context7' -in $desiredMcpServers -and $context7Block -match '@upstash/context7-mcp' -and $context7Block -match '--api-key') {
-    codex mcp remove context7
+    Remove-CodexMcp 'context7'
     Write-Ok "Removed context7 MCP with inline API key"
 }
 

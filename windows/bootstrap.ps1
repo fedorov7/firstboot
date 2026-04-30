@@ -97,10 +97,9 @@ function Install-WingetPackage {
     Write-Step "Installing $Name..."
     winget install --id $Id --exact --accept-source-agreements --disable-interactivity --accept-package-agreements
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "winget install $Id returned exit code $LASTEXITCODE"
-    } else {
-        Write-Ok "$Name installed"
+        throw "winget install $Id returned exit code $LASTEXITCODE"
     }
+    Write-Ok "$Name installed"
 }
 
 function Install-PSModule {
