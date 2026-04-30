@@ -10,7 +10,7 @@ Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShe
 | **yay** | Builds and installs [yay](https://github.com/Jguer/yay) AUR helper from source |
 | **zsh** | Installs zsh, [antidote](https://getantidote.github.io/) plugin manager, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) prompt, sets zsh as default shell, deploys dotfiles (`.zshrc`, `.zsh_plugins.txt`, `.p10k.zsh`) |
 | **ssh** | Generates an ed25519 SSH keypair, configures global git `user.name` and `user.email` |
-| **neovim** | Installs Neovim and clones [AstroNvim](https://astronvim.com/) user config to `~/.config/nvim` |
+| **neovim** | Installs Neovim, removes existing Neovim config/data/state/cache directories, and clones [AstroNvim](https://astronvim.com/) user config to `~/.config/nvim` |
 | **nodejs** | Installs [nvm](https://github.com/nvm-sh/nvm) and Node.js LTS |
 | **python** | Installs [uv](https://github.com/astral-sh/uv), Python 3.12 via `uv python install`, and Python QA/tooling (`ruff`, `pytest`, `mypy`, `pyright`, `black`, `pipx`) |
 | **rust** | Installs `rustup` + `llvm`, sets stable as default toolchain |
@@ -96,6 +96,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `user_email` | `your-email@example.com` | Used for SSH key comment and git config |
 | `git_user_name` | `Your Name` | Global `git user.name` |
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
+| `neovim_cleanup_paths` | Neovim XDG config/data/state/cache paths | Directories removed before cloning AstroNvim to avoid stale plugins, Mason tools, parser caches, and old configs |
 | `nvm_version` | `v0.39.7` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
 | `embedded_probe_udev_rules_enabled` | `true` | Install common udev rules for ST-Link, J-Link, CMSIS-DAP, Black Magic, and ESP debug probes |
@@ -235,9 +236,10 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 
 ## Idempotency
 
-All tasks are idempotent — safe to re-run at any time.
+The playbook is designed to be safe to re-run at any time, with role-specific
+exceptions documented below.
 
-**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting.
+**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role is intentionally destructive for Neovim-owned XDG paths: each run removes configured Neovim config/data/state/cache directories and reclones AstroNvim to avoid stale plugin or tool conflicts.
 
 **Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups.
 

@@ -5,6 +5,11 @@ user_email: "your-email@example.com"
 git_user_name: "Your Name"
 
 astronvim_repo: "https://github.com/fedorov7/astronvim-config-v4.git"
+neovim_cleanup_paths:
+  - "{{ user_home }}/.config/nvim"
+  - "{{ user_home }}/.local/share/nvim"
+  - "{{ user_home }}/.local/state/nvim"
+  - "{{ user_home }}/.cache/nvim"
 
 nvm_version: "v0.39.7"
 node_version: "--lts"
