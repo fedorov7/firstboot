@@ -30,9 +30,19 @@ function Invoke-ProfileEval {
     }
 }
 
+function Test-CodexShell {
+    return (
+        -not [string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID) -or
+        -not [string]::IsNullOrWhiteSpace($env:CODEX_SANDBOX_NETWORK_DISABLED) -or
+        -not [string]::IsNullOrWhiteSpace($env:CODEX_MANAGED_BY_NPM)
+    )
+}
+
+$IsCodexShell = Test-CodexShell
+
 # oh-my-posh
-if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-    Invoke-ProfileEval { oh-my-posh init pwsh --config "$env:USERPROFILE\.config\oh-my-posh.json" }
+if (-not $IsCodexShell -and (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) {
+    Invoke-ProfileEval { oh-my-posh init pwsh --print --config "$env:USERPROFILE\.config\oh-my-posh.json" }
 }
 
 # PSReadLine

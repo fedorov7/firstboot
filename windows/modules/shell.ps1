@@ -9,6 +9,40 @@ Install-PSModule 'posh-git'
 Install-PSModule 'Terminal-Icons'
 Install-PSModule 'PSFzf'
 
+function Remove-UnsafeOhMyPoshProfileInit {
+    $profileTargets = @(
+        @{ Scope = 'AllUsersAllHosts';     Path = $PROFILE.AllUsersAllHosts }
+        @{ Scope = 'AllUsersCurrentHost';  Path = $PROFILE.AllUsersCurrentHost }
+        @{ Scope = 'CurrentUserAllHosts';  Path = $PROFILE.CurrentUserAllHosts }
+    )
+
+    foreach ($target in $profileTargets) {
+        $profilePath = $target.Path
+        if ([string]::IsNullOrWhiteSpace($profilePath) -or -not (Test-Path $profilePath)) {
+            continue
+        }
+
+        $lines = @(Get-Content -LiteralPath $profilePath)
+        $filteredLines = @(
+            $lines | Where-Object {
+                $_ -notmatch '^\s*oh-my-posh\s+init\s+\S+.*\|\s*Invoke-Expression\s*$'
+            }
+        )
+
+        if ($filteredLines.Count -eq $lines.Count) {
+            Write-Skip "No unsafe oh-my-posh init in $($target.Scope) profile"
+            continue
+        }
+
+        $backupPath = "$profilePath.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        Copy-Item -LiteralPath $profilePath -Destination $backupPath -Force
+        Set-Content -LiteralPath $profilePath -Value $filteredLines -Encoding utf8
+        Write-Ok "Removed unsafe oh-my-posh init from $($target.Scope) profile"
+    }
+}
+
+Remove-UnsafeOhMyPoshProfileInit
+
 # Update PSReadLine to latest (ships with PS but may be outdated)
 $currentPSRL = (Get-Module PSReadLine -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1).Version
 if ($currentPSRL -lt [version]'2.3.0') {
