@@ -106,10 +106,10 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
-| `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
-| `codex_superpowers_skills` | debugging/completion allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
+| `codex_curated_skills` | `pdf`, `doc` | Curated OpenAI skills installed directly into `~/.codex/skills` |
+| `codex_superpowers_skills` | workflow discipline allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
 | `codex_karpathy_skills` | `karpathy-guidelines` | Karpathy-inspired behavioral guidelines symlinked into `~/.agents/skills/karpathy-skills` |
-| `codex_claude_skills` | C/C++ embedded allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
+| `codex_claude_skills` | systems + workflow allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
 
 Override at runtime:
 
@@ -117,13 +117,16 @@ Override at runtime:
 ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version=22"
 ```
 
-The Codex role keeps skills intentionally narrow to avoid Codex startup context
-warnings from large skill packs. The default profile targets C/C++ systems,
-embedded, UEFI-adjacent firmware work, debugging, security review, and tests.
-Re-running the role removes stale managed entries from
-`~/.agents/skills/superpowers`, `~/.agents/skills/claude-skills`,
-`~/.agents/skills/karpathy-skills`, and legacy curated skill directories
-previously installed by this playbook.
+The Codex role keeps skills allowlist-driven to avoid accidental growth from
+large skill packs. The default profile is broader than the minimal embedded
+profile: it targets C/C++ systems, embedded and UEFI-adjacent firmware work,
+debugging, security review, tests, planning/TDD workflows, code review,
+documentation, API design, DevOps, Python, legacy analysis, and critical
+reasoning. This broader set is useful for mixed systems work, but it may bring
+back a small Codex startup warning about the skills context budget. Re-running
+the role removes stale managed entries from `~/.agents/skills/superpowers`,
+`~/.agents/skills/claude-skills`, `~/.agents/skills/karpathy-skills`, and
+legacy curated skill directories previously installed by this playbook.
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
 documentation and reasoning tools enabled while leaving broader access tools

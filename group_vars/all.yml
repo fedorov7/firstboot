@@ -41,23 +41,23 @@ codex_serena_enabled: false
 
 codex_curated_skills:
   - pdf
-  # - doc                         # Enable when editing .docx documents.
+  - doc                         # Enable when editing .docx documents.
 
 codex_superpowers_skills:
   - systematic-debugging
   - verification-before-completion
-  # - using-superpowers          # Broad trigger; useful only if you want skills enforced every turn.
-  # - test-driven-development    # Enable for strict TDD workflows.
-  # - writing-plans              # Enable for large planned implementations.
-  # - executing-plans            # Enable when executing saved plans across sessions.
-  # - receiving-code-review      # Enable when iterating on external review feedback.
-  # - requesting-code-review     # Enable when you want formal review checkpoints.
-  # - brainstorming               # Broad creative workflow gate.
+  - using-superpowers          # Broad trigger; useful only if you want skills enforced every turn.
+  - test-driven-development    # Enable for strict TDD workflows.
+  - writing-plans              # Enable for large planned implementations.
+  - executing-plans            # Enable when executing saved plans across sessions.
+  - receiving-code-review      # Enable when iterating on external review feedback.
+  - requesting-code-review     # Enable when you want formal review checkpoints.
+  - brainstorming               # Broad creative workflow gate.
+  - writing-skills
   # - dispatching-parallel-agents  # Parallel research/development workflow.
   # - subagent-driven-development  # Multi-agent implementation workflow.
   # - using-git-worktrees          # Isolated feature branch workflow.
   # - finishing-a-development-branch
-  # - writing-skills
 
 codex_karpathy_skills:
   - karpathy-guidelines
@@ -69,24 +69,24 @@ codex_claude_skills:
   - embedded-systems
   - security-reviewer
   - test-master
-  # - architecture-designer      # Enable for ADRs and high-level system architecture.
-  # - cli-developer              # Enable when building command-line tools.
-  # - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
-  # - legacy-modernizer          # Enable for large migrations of older codebases.
-  # - secure-code-guardian       # Enable for auth/input-validation implementation work.
-  # - the-fool                   # Enable for explicit red-team / devil's advocate review.
-  # - api-designer                 # API/backend work.
+  - api-designer               # API/backend work.
+  - architecture-designer      # Enable for ADRs and high-level system architecture.
+  - cli-developer              # Enable when building command-line tools.
+  - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
+  - devops-engineer            # CI/CD and infrastructure.
+  - legacy-modernizer          # Enable for large migrations of older codebases.
+  - python-pro                 # Python application development.
+  - secure-code-guardian       # Enable for auth/input-validation implementation work.
+  - spec-miner                 # Legacy/undocumented system discovery.
+  - the-fool                   # Enable for explicit red-team / devil's advocate review.
   # - csharp-developer             # .NET/C# work.
   # - database-optimizer           # Database tuning.
-  # - devops-engineer              # CI/CD and infrastructure.
   # - fullstack-guardian           # Full-stack feature work.
   # - golang-pro                   # Go development.
   # - java-architect               # Java/Spring architecture.
   # - kubernetes-specialist        # Kubernetes operations.
   # - microservices-architect      # Distributed services design.
-  # - python-pro                   # Python application development.
   # - rust-engineer                # Rust systems development.
-  # - spec-miner                   # Legacy/undocumented system discovery.
   # - sql-pro                      # SQL design and optimization.
   # - terraform-engineer           # Terraform infrastructure.
   # - typescript-pro               # TypeScript development.
