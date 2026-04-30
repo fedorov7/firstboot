@@ -5,11 +5,32 @@
     name: neovim
     state: present
 
+- name: Check existing Neovim config directory
+  stat:
+    path: "{{ user_home }}/.config/nvim"
+  register: neovim_config_dir
+
+- name: Check existing Neovim config git metadata
+  stat:
+    path: "{{ user_home }}/.config/nvim/.git"
+  register: neovim_config_git
+
+- name: Determine if Neovim cleanup is needed
+  set_fact:
+    neovim_should_cleanup: >-
+      {{ neovim_force_cleanup | default(false) | bool
+         or (
+           neovim_cleanup_stale | default(true) | bool
+           and neovim_config_dir.stat.exists
+           and not (neovim_config_git.stat.exists | default(false))
+         ) }}
+
 - name: Remove existing Neovim config, plugins, tools, state, and cache
   file:
     path: "{{ item }}"
     state: absent
   loop: "{{ neovim_cleanup_paths }}"
+  when: neovim_should_cleanup | bool
 
 - name: Clone AstroNvim config
   git:

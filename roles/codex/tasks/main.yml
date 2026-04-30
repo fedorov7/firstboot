@@ -81,6 +81,7 @@
   loop: "{{ codex_mcp_existing_servers | difference(codex_mcp_desired_servers) }}"
   loop_control:
     label: "{{ item }}"
+  when: codex_mcp_prune_unmanaged | default(false) | bool
 
 - name: Remove archived Codex GitHub MCP if present
   shell: |
@@ -273,6 +274,7 @@
   loop:
     - "{{ user_home }}/.codex/superpowers"
     - "{{ user_home }}/.codex/claude-skills"
+  when: codex_remove_legacy_external_skill_sources | default(false) | bool
 
 - name: Ensure agents skills directory exists
   file:

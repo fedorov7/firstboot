@@ -24,10 +24,19 @@
       tags: [cpp]
     - role: embedded
       tags: [embedded]
+      when: >
+        workstation_profile_embedded_enabled | default(false) | bool
+        or 'embedded' in ansible_run_tags
     - role: uefi
       tags: [uefi]
+      when: >
+        workstation_profile_uefi_enabled | default(false) | bool
+        or 'uefi' in ansible_run_tags
     - role: security_tools
       tags: [security_tools]
+      when: >
+        workstation_profile_security_tools_enabled | default(false) | bool
+        or 'security_tools' in ansible_run_tags
     - role: cli_tools
       tags: [cli_tools]
     - role: codex
