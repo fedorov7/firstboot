@@ -18,6 +18,13 @@
     update_cache: true
     upgrade: true
 
+- name: Remove packages that conflict with base package selections
+  become: true
+  community.general.pacman:
+    name:
+      - gnu-netcat
+    state: absent
+
 - name: Install base packages
   become: true
   community.general.pacman:
