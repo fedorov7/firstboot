@@ -1,5 +1,37 @@
 Write-Step "Configuring SSH and Git..."
 
+function Get-FirstbootGitConfigEntries {
+    param(
+        [Parameter(Mandatory)][string]$GitUserName,
+        [Parameter(Mandatory)][string]$UserEmail
+    )
+
+    @(
+        [pscustomobject]@{ Key = 'user.name';               Value = $GitUserName }
+        [pscustomobject]@{ Key = 'user.email';              Value = $UserEmail }
+        [pscustomobject]@{ Key = 'core.editor';             Value = 'nvim' }
+        [pscustomobject]@{ Key = 'core.pager';              Value = 'delta' }
+        [pscustomobject]@{ Key = 'interactive.diffFilter';  Value = 'delta --color-only --features=interactive' }
+        [pscustomobject]@{ Key = 'delta.navigate';          Value = 'true' }
+        [pscustomobject]@{ Key = 'diff.external';           Value = 'difft' }
+        [pscustomobject]@{ Key = 'diff.tool';               Value = 'difftastic' }
+        [pscustomobject]@{ Key = 'difftool.difftastic.cmd'; Value = 'difft "$LOCAL" "$REMOTE"' }
+        [pscustomobject]@{ Key = 'difftool.prompt';         Value = 'false' }
+        [pscustomobject]@{ Key = 'pager.difftool';          Value = 'true' }
+        [pscustomobject]@{ Key = 'diff.algorithm';          Value = 'histogram' }
+        [pscustomobject]@{ Key = 'merge.conflictstyle';     Value = 'zdiff3' }
+        [pscustomobject]@{ Key = 'init.defaultBranch';      Value = 'main' }
+        [pscustomobject]@{ Key = 'fetch.prune';             Value = 'true' }
+        [pscustomobject]@{ Key = 'pull.rebase';             Value = 'true' }
+        [pscustomobject]@{ Key = 'rebase.autoStash';        Value = 'true' }
+        [pscustomobject]@{ Key = 'push.autoSetupRemote';    Value = 'true' }
+        [pscustomobject]@{ Key = 'rerere.enabled';          Value = 'true' }
+        [pscustomobject]@{ Key = 'alias.dft';               Value = '-c diff.external=difft diff' }
+        [pscustomobject]@{ Key = 'alias.ds';                Value = '-c diff.external=difft show --ext-diff' }
+        [pscustomobject]@{ Key = 'alias.dl';                Value = '-c diff.external=difft log -p --ext-diff' }
+    )
+}
+
 # Enable ssh-agent service
 $sshAgent = Get-Service ssh-agent -ErrorAction SilentlyContinue
 if ($sshAgent) {
@@ -36,37 +68,17 @@ if (-not (Test-Path $sshKey)) {
 }
 
 # Git config
-$gitConfig = @(
-    @('user.name',                          $GitUserName)
-    @('user.email',                         $UserEmail)
-    @('core.editor',                        'nvim')
-    @('core.pager',                         'delta')
-    @('interactive.diffFilter',             'delta --color-only --features=interactive')
-    @('delta.navigate',                     'true')
-    @('diff.external',                      'difft')
-    @('diff.tool',                          'difftastic')
-    @('difftool.difftastic.cmd',            'difft "$LOCAL" "$REMOTE"')
-    @('difftool.prompt',                    'false')
-    @('pager.difftool',                     'true')
-    @('diff.algorithm',                     'histogram')
-    @('merge.conflictstyle',                'zdiff3')
-    @('init.defaultBranch',                 'main')
-    @('fetch.prune',                        'true')
-    @('pull.rebase',                        'true')
-    @('rebase.autoStash',                   'true')
-    @('push.autoSetupRemote',               'true')
-    @('rerere.enabled',                     'true')
-    @('alias.dft',                          '-c diff.external=difft diff')
-    @('alias.ds',                           '-c diff.external=difft show --ext-diff')
-    @('alias.dl',                           '-c diff.external=difft log -p --ext-diff')
-)
+$gitConfig = @(Get-FirstbootGitConfigEntries -GitUserName $GitUserName -UserEmail $UserEmail)
 
 foreach ($entry in $gitConfig) {
-    $current = git config --global $entry[0] 2>$null
-    if ($current -ne $entry[1]) {
-        git config --global $entry[0] $entry[1]
-        Write-Ok "git config $($entry[0]) = $($entry[1])"
+    $current = git config --global $entry.Key 2>$null
+    if ($current -ne $entry.Value) {
+        git config --global $entry.Key $entry.Value
+        if ($LASTEXITCODE -ne 0) {
+            throw "git config --global $($entry.Key) failed with exit code $LASTEXITCODE"
+        }
+        Write-Ok "git config $($entry.Key) = $($entry.Value)"
     } else {
-        Write-Skip "git config $($entry[0]) already set"
+        Write-Skip "git config $($entry.Key) already set"
     }
 }

@@ -143,7 +143,8 @@ function Initialize-Fnm {
 function Install-CargoBinary {
     param(
         [Parameter(Mandatory)][string]$Command,
-        [string]$Package = $Command
+        [string]$Package = $Command,
+        [string[]]$InstallArgs = @()
     )
     if (Test-CommandExists $Command) {
         Write-Skip "$Command already available"
@@ -153,8 +154,9 @@ function Install-CargoBinary {
         Write-Warn "cargo not available. Run rust module first to install $Package."
         return
     }
-    Write-Step "Installing $Package via cargo..."
-    cargo install $Package
+    $installArgsText = if ($InstallArgs.Count -gt 0) { " $($InstallArgs -join ' ')" } else { '' }
+    Write-Step "Installing $Package via cargo$installArgsText..."
+    cargo install $Package @InstallArgs
     if ($LASTEXITCODE -ne 0) {
         throw "cargo install $Package returned exit code $LASTEXITCODE"
     }

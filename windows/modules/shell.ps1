@@ -9,6 +9,36 @@ Install-PSModule 'posh-git'
 Install-PSModule 'Terminal-Icons'
 Install-PSModule 'PSFzf'
 
+function Resolve-CurrentUserCurrentHostProfilePath {
+    param(
+        [object]$ProfileObject = $PROFILE,
+        [string]$DocumentsPath = [Environment]::GetFolderPath('MyDocuments'),
+        [string]$UserProfilePath = $env:USERPROFILE,
+        [string]$PowerShellEdition = $PSVersionTable.PSEdition
+    )
+
+    if ($null -ne $ProfileObject) {
+        $currentHostProperty = $ProfileObject.PSObject.Properties['CurrentUserCurrentHost']
+        if ($null -ne $currentHostProperty -and -not [string]::IsNullOrWhiteSpace([string]$currentHostProperty.Value)) {
+            return [string]$currentHostProperty.Value
+        }
+
+        if ($ProfileObject -is [string] -and -not [string]::IsNullOrWhiteSpace([string]$ProfileObject)) {
+            return [string]$ProfileObject
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($DocumentsPath)) {
+        if ([string]::IsNullOrWhiteSpace($UserProfilePath)) {
+            throw 'Unable to resolve PowerShell profile path: PROFILE, DocumentsPath, and USERPROFILE are empty.'
+        }
+        $DocumentsPath = Join-Path $UserProfilePath 'Documents'
+    }
+
+    $profileRootName = if ($PowerShellEdition -eq 'Core') { 'PowerShell' } else { 'WindowsPowerShell' }
+    Join-Path (Join-Path $DocumentsPath $profileRootName) 'Microsoft.PowerShell_profile.ps1'
+}
+
 function Remove-UnsafeOhMyPoshProfileInit {
     $profileTargets = @(
         @{ Scope = 'AllUsersAllHosts';     Path = $PROFILE.AllUsersAllHosts }
@@ -115,13 +145,14 @@ if (Test-Path $terminalSettings) {
 }
 
 # Deploy PowerShell profile
-$profileDir = Split-Path $PROFILE.CurrentUserCurrentHost
-if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-if (Test-Path $PROFILE.CurrentUserCurrentHost) {
-    $backupPath = "$($PROFILE.CurrentUserCurrentHost).backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-    Copy-Item $PROFILE.CurrentUserCurrentHost $backupPath
+$currentUserCurrentHostProfile = Resolve-CurrentUserCurrentHostProfilePath
+$profileDir = Split-Path -Path $currentUserCurrentHostProfile -Parent
+if (-not (Test-Path -LiteralPath $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
+if (Test-Path -LiteralPath $currentUserCurrentHostProfile) {
+    $backupPath = "$currentUserCurrentHostProfile.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    Copy-Item -LiteralPath $currentUserCurrentHostProfile -Destination $backupPath -Force
     Write-Ok "Existing profile backed up to $backupPath"
 }
 $profileSource = Join-Path $ScriptRoot 'files\profile.ps1'
-Copy-Item -Path $profileSource -Destination $PROFILE.CurrentUserCurrentHost -Force
-Write-Ok "PowerShell profile deployed to $($PROFILE.CurrentUserCurrentHost)"
+Copy-Item -Path $profileSource -Destination $currentUserCurrentHostProfile -Force
+Write-Ok "PowerShell profile deployed to $currentUserCurrentHostProfile"

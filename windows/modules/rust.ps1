@@ -31,13 +31,14 @@ if (Test-CommandExists rustup) {
         @{ Command = 'sccache';        Package = 'sccache' }
         @{ Command = 'cargo-add';      Package = 'cargo-edit' }
         @{ Command = 'cargo-watch';    Package = 'cargo-watch' }
-        @{ Command = 'cargo-nextest';  Package = 'cargo-nextest' }
+        @{ Command = 'cargo-nextest';  Package = 'cargo-nextest'; InstallArgs = @('--locked') }
         @{ Command = 'bacon';          Package = 'bacon' }
         @{ Command = 'taplo';          Package = 'taplo-cli' }
     )
 
     foreach ($tool in $cargoTools) {
-        Install-CargoBinary -Command $tool.Command -Package $tool.Package
+        $installArgs = if ($tool.ContainsKey('InstallArgs')) { @($tool.InstallArgs) } else { @() }
+        Install-CargoBinary -Command $tool.Command -Package $tool.Package -InstallArgs $installArgs
     }
 } else {
     Write-Warn "rustup not found in PATH after install — restart shell and re-run"
