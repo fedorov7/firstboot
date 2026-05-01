@@ -26,13 +26,18 @@ if (Test-CommandExists rustup) {
         }
     }
 
-    # Install sccache
-    if (-not (Test-CommandExists sccache)) {
-        Write-Step "Installing sccache..."
-        cargo install sccache
-        Write-Ok "sccache installed"
-    } else {
-        Write-Skip "sccache already installed"
+    # Install app-development cargo utilities.
+    $cargoTools = @(
+        @{ Command = 'sccache';        Package = 'sccache' }
+        @{ Command = 'cargo-add';      Package = 'cargo-edit' }
+        @{ Command = 'cargo-watch';    Package = 'cargo-watch' }
+        @{ Command = 'cargo-nextest';  Package = 'cargo-nextest' }
+        @{ Command = 'bacon';          Package = 'bacon' }
+        @{ Command = 'taplo';          Package = 'taplo-cli' }
+    )
+
+    foreach ($tool in $cargoTools) {
+        Install-CargoBinary -Command $tool.Command -Package $tool.Package
     }
 } else {
     Write-Warn "rustup not found in PATH after install — restart shell and re-run"

@@ -4,7 +4,7 @@
     Firstboot provisioning for Windows 11.
 .DESCRIPTION
     Installs development tools and configures the environment for systems
-    programming (C++, Python, Rust) with AI agent support (Claude, Codex).
+    programming (C++, Rust, Lua, Python) and ML work with AI agent support (Claude, Codex).
 .PARAMETER Modules
     Comma-separated list of modules to run. If omitted, all modules run in order.
 .PARAMETER UserEmail
@@ -21,6 +21,12 @@
     Remove Neovim config/data/state/cache before cloning AstroNvim.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
+.PARAMETER MlEnvironmentPath
+    Path for the reusable Windows ML Python virtual environment.
+.PARAMETER MlPythonVersion
+    Python version used for the reusable Windows ML environment.
+.PARAMETER MlPythonPackages
+    Comma-separated Python packages installed into the ML environment.
 .EXAMPLE
     .\bootstrap.ps1
     .\bootstrap.ps1 -Modules shell,rust,claude
@@ -43,7 +49,10 @@ param(
     [string]$CodexCuratedSkills = "pdf,doc",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
-    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,debugging-wizard,embedded-systems,security-reviewer,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,python-pro,secure-code-guardian,spec-miner,the-fool"
+    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",
+    [string]$MlPythonVersion = "3.12",
+    [string]$MlEnvironmentPath = "",
+    [string]$MlPythonPackages = "numpy,pandas,polars,duckdb,scikit-learn,matplotlib,seaborn,jupyterlab,ipykernel,ipywidgets,mlflow,optuna,xgboost,pyarrow,tqdm"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -137,6 +146,9 @@ function Install-CargoBinary {
     }
     Write-Step "Installing $Package via cargo..."
     cargo install $Package
+    if ($LASTEXITCODE -ne 0) {
+        throw "cargo install $Package returned exit code $LASTEXITCODE"
+    }
     Write-Ok "$Package installed"
 }
 
@@ -155,6 +167,9 @@ function Install-UvTool {
     }
     Write-Step "Installing $Package via uv tool..."
     uv tool install $Package
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv tool install $Package returned exit code $LASTEXITCODE"
+    }
     Write-Ok "$Package installed"
 }
 
@@ -178,6 +193,8 @@ $AllModules = @(
     'python'
     'rust'
     'cpp'
+    'lua'
+    'ml'
     'cli_tools'
     'codex'
     'claude'

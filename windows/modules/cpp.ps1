@@ -18,6 +18,10 @@ Install-WingetPackage -Id 'Kitware.CMake' -Name 'CMake'
 Install-WingetPackage -Id 'Ninja-build.Ninja' -Name 'Ninja'
 Install-WingetPackage -Id 'LLVM.LLVM' -Name 'LLVM (clang, clangd, clang-format)'
 Install-WingetPackage -Id 'mesonbuild.meson' -Name 'Meson'
+Install-WingetPackage -Id 'Cppcheck.Cppcheck' -Name 'Cppcheck'
+Install-WingetPackage -Id 'DimitriVanHeesch.Doxygen' -Name 'Doxygen'
+Install-WingetPackage -Id 'Graphviz.Graphviz' -Name 'Graphviz'
+Install-WingetPackage -Id 'Ccache.Ccache' -Name 'Ccache'
 
 # Debugging tools
 Install-WingetPackage -Id 'Microsoft.WinDbg' -Name 'WinDbg'

@@ -17,7 +17,7 @@ if (Test-CommandExists uv) {
     }
 
     # Install global tools
-    $uvTools = @('pyright', 'mypy', 'black', 'pytest')
+    $uvTools = @('pyright', 'mypy', 'black', 'pytest', 'pre-commit', 'tox', 'nox', 'ipython')
     foreach ($tool in $uvTools) {
         if (-not (Test-CommandExists $tool)) {
             Write-Step "Installing $tool via uv tool..."

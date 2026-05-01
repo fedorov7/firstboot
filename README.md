@@ -19,7 +19,7 @@ Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShe
 | **uefi** | Optional role for UEFI/EDK2/QEMU tooling (`nasm`, `acpica`, QEMU emulators, `edk2-ovmf`, signing and firmware analysis utilities) |
 | **security_tools** | Optional role for local security/compliance scanners (`gitleaks`, `trivy`, `osv-scanner`, `cargo-audit`, `cargo-deny`, `flawfinder`, `codespell`, `reuse`) |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
-| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, memory, fetch, sequential-thinking, optional official GitHub/Serena), and installs an optimized allowlist of skills from curated + superpowers/claude-skills sources |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, memory, fetch, sequential-thinking, optional official GitHub/Serena), and installs an optimized allowlist of skills for app development, systems work, Python data/ML, review, and workflow discipline |
 | **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
@@ -129,13 +129,12 @@ ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version
 ```
 
 The Codex role keeps skills allowlist-driven to avoid accidental growth from
-large skill packs. The default profile is broader than the minimal embedded
-profile: it targets C/C++ systems, embedded and UEFI-adjacent firmware work,
-debugging, security review, tests, planning/TDD workflows, code review,
-documentation, API design, DevOps, Python, legacy analysis, and critical
-reasoning. This broader set is useful for mixed systems work, but it may bring
-back a small Codex startup warning about the skills context budget. Re-running
-the role removes stale managed entries from `~/.agents/skills/superpowers`,
+large skill packs. The default Windows profile targets C++/Rust/Lua/Python
+application development and Python data/ML work: code review, debugging,
+testing, C++/Rust/Python specialists, pandas, ML pipelines, fine-tuning,
+documentation, API design, DevOps, legacy analysis, security review, and
+critical reasoning. Embedded-specific tooling remains opt-in. Re-running the
+role removes stale managed entries from `~/.agents/skills/superpowers`,
 `~/.agents/skills/claude-skills`, `~/.agents/skills/karpathy-skills`, and
 legacy curated skill directories previously installed by this playbook. It only
 removes MCP entries outside `codex_mcp_allowlist` when
@@ -194,7 +193,7 @@ firstboot/
     |-- bootstrap.ps1        # Entry point
     |-- modules/
     |   |-- base, shell, ssh, neovim, nodejs,
-    |   |-- python, rust, cpp, embedded, uefi,
+    |   |-- python, rust, cpp, lua, ml, embedded, uefi,
     |   |-- security_tools, cli_tools, codex, claude
     |   `-- ...
     `-- files/
@@ -230,9 +229,11 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | **ssh** | OpenSSH agent, ed25519 key, git config with delta and difftastic |
 | **neovim** | Neovim + AstroNvim config |
 | **nodejs** | fnm + Node.js LTS |
-| **python** | uv + ruff + Python 3.12 + dev tools (pyright, mypy, black, pytest) |
-| **rust** | rustup + stable toolchain + components + sccache |
-| **cpp** | VS Build Tools check, CMake, Ninja, LLVM, meson, WinDbg, Sysinternals, vcpkg |
+| **python** | uv + ruff + Python 3.12 + dev tools (pyright, mypy, black, pytest, pre-commit, tox, nox, IPython) |
+| **rust** | rustup + stable toolchain + components + app-dev cargo tools (sccache, cargo-edit, cargo-watch, nextest, bacon, Taplo) |
+| **cpp** | VS Build Tools check, CMake, Ninja, LLVM, meson, Cppcheck, Doxygen, Graphviz, Ccache, WinDbg, Sysinternals, vcpkg |
+| **lua** | Lua, LuaJIT, Lua Language Server, and StyLua formatter |
+| **ml** | Reusable `uv` Python environment for data/ML packages, JupyterLab, and a registered `firstboot-ml` kernel |
 | **embedded** | Optional module for OpenOCD xPack and probe-rs tooling |
 | **uefi** | Optional module for NASM, QEMU, LLVM tools, and binwalk |
 | **security_tools** | Optional module for gitleaks, trivy, osv-scanner, cargo-audit, cargo-deny, flawfinder, codespell, and reuse |
@@ -255,6 +256,9 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
+| `-MlPythonVersion` | `3.12` | Python version used for the ML virtual environment |
+| `-MlEnvironmentPath` | `~\.virtualenvs\firstboot-ml` | Reusable ML virtual environment path |
+| `-MlPythonPackages` | NumPy/pandas/sklearn/Jupyter defaults | Comma-separated ML package allowlist installed with `uv pip` |
 
 ## Idempotency
 
