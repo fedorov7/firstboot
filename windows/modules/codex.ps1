@@ -112,6 +112,68 @@ function Sync-CodexSkillNamespace {
     }
 }
 
+function Sync-CodexRepoPathSkill {
+    param(
+        [Parameter(Mandatory)][string]$Namespace,
+        [Parameter(Mandatory)][string]$Repo,
+        [Parameter(Mandatory)][string]$SourceDirName,
+        [Parameter(Mandatory)][string]$SkillPath,
+        [Parameter(Mandatory)][string]$SkillName
+    )
+
+    $sourceDir = Join-Path $script:SkillSourceRoot $SourceDirName
+    if (-not (Test-Path (Join-Path $sourceDir '.git'))) {
+        Write-Step "Cloning $Namespace skill source..."
+        git clone $Repo $sourceDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to clone $Namespace skill source from $Repo"
+        }
+        Write-Ok "$Namespace skill source cloned"
+    } else {
+        git -C $sourceDir pull --ff-only 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to update $Namespace skill source in $sourceDir"
+        }
+        Write-Skip "$Namespace skill source already cloned, updated"
+    }
+
+    $sourceSkill = Join-Path $sourceDir $SkillPath
+    if (-not (Test-Path (Join-Path $sourceSkill 'SKILL.md'))) {
+        throw "Selected $Namespace skill '$SkillName' was not found at $sourceSkill."
+    }
+
+    $namespaceDir = Join-Path $script:AgentsSkillsDir $Namespace
+    if (-not (Test-Path $namespaceDir)) {
+        New-Item -ItemType Directory -Path $namespaceDir -Force | Out-Null
+    }
+
+    Get-ChildItem $namespaceDir -Force | ForEach-Object {
+        if ($_.Name -ne $SkillName) {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+            Write-Ok "Removed stale $Namespace skill: $($_.Name)"
+        }
+    }
+
+    $destSkill = Join-Path $namespaceDir $SkillName
+    $shouldCreateLink = $true
+    if (Test-Path $destSkill) {
+        $destItem = Get-Item -LiteralPath $destSkill -Force
+        $destTargets = @($destItem.Target)
+        if ($destItem.LinkType -eq 'SymbolicLink' -and $sourceSkill -in $destTargets) {
+            Write-Skip "$Namespace skill already present: $SkillName"
+            $shouldCreateLink = $false
+        } else {
+            Remove-Item -LiteralPath $destSkill -Recurse -Force
+            Write-Ok "Removed stale $Namespace skill entry: $SkillName"
+        }
+    }
+
+    if ($shouldCreateLink) {
+        New-Item -ItemType SymbolicLink -Path $destSkill -Target $sourceSkill -Force | Out-Null
+        Write-Ok "$Namespace skill symlinked: $SkillName"
+    }
+}
+
 # Ensure npm is available from the configured fnm-managed Node.js.
 Initialize-Fnm
 if (Test-CommandExists fnm) {
@@ -290,3 +352,12 @@ Sync-CodexSkillNamespace `
     -Repo 'https://github.com/forrestchang/andrej-karpathy-skills.git' `
     -SourceDirName 'karpathy-skills' `
     -Skills (ConvertTo-NameList $CodexKarpathySkills)
+
+if ($CodexTimesFmSkillEnabled) {
+    Sync-CodexRepoPathSkill `
+        -Namespace 'timesfm' `
+        -Repo $CodexTimesFmSkillRepo `
+        -SourceDirName 'timesfm' `
+        -SkillPath $CodexTimesFmSkillPath `
+        -SkillName 'timesfm-forecasting'
+}

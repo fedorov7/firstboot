@@ -21,12 +21,16 @@
     Remove Neovim config/data/state/cache before cloning AstroNvim.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
+.PARAMETER CodexTimesFmSkillEnabled
+    Install the TimesFM forecasting skill from google-research/timesfm.
 .PARAMETER MlEnvironmentPath
     Path for the reusable Windows ML Python virtual environment.
 .PARAMETER MlPythonVersion
     Python version used for the reusable Windows ML environment.
 .PARAMETER MlPythonPackages
     Comma-separated Python packages installed into the ML environment.
+.PARAMETER MlTimesFmEnabled
+    Install TimesFM runtime packages into the ML environment.
 .EXAMPLE
     .\bootstrap.ps1
     .\bootstrap.ps1 -Modules shell,rust,claude
@@ -50,9 +54,14 @@ param(
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
     [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",
+    [switch]$CodexTimesFmSkillEnabled,
+    [string]$CodexTimesFmSkillRepo = "https://github.com/google-research/timesfm.git",
+    [string]$CodexTimesFmSkillPath = "timesfm-forecasting",
     [string]$MlPythonVersion = "3.12",
     [string]$MlEnvironmentPath = "",
-    [string]$MlPythonPackages = "numpy,pandas,polars,duckdb,scikit-learn,matplotlib,seaborn,jupyterlab,ipykernel,ipywidgets,mlflow,optuna,xgboost,pyarrow,tqdm"
+    [string]$MlPythonPackages = "numpy,pandas,polars,duckdb,scikit-learn,matplotlib,seaborn,jupyterlab,ipykernel,ipywidgets,mlflow,optuna,xgboost,pyarrow,tqdm",
+    [switch]$MlTimesFmEnabled,
+    [string]$MlTimesFmBackend = "torch-cpu"
 )
 
 $ErrorActionPreference = 'Stop'

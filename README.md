@@ -133,8 +133,10 @@ large skill packs. The default Windows profile targets C++/Rust/Lua/Python
 application development and Python data/ML work: code review, debugging,
 testing, C++/Rust/Python specialists, pandas, ML pipelines, fine-tuning,
 documentation, API design, DevOps, legacy analysis, security review, and
-critical reasoning. Embedded-specific tooling remains opt-in. Re-running the
-role removes stale managed entries from `~/.agents/skills/superpowers`,
+critical reasoning. Embedded-specific tooling remains opt-in. The Google
+TimesFM forecasting skill is also opt-in because it is narrow and resource-aware
+for time-series forecasting workflows. Re-running the role removes stale managed
+entries from `~/.agents/skills/superpowers`,
 `~/.agents/skills/claude-skills`, `~/.agents/skills/karpathy-skills`, and
 legacy curated skill directories previously installed by this playbook. It only
 removes MCP entries outside `codex_mcp_allowlist` when
@@ -218,6 +220,9 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 
 # Override config
 .\bootstrap.ps1 -UserEmail "user@example.com" -GitUserName "Name"
+
+# Enable TimesFM forecasting skill and runtime in the ML environment
+.\bootstrap.ps1 -Modules python,ml,codex -MlTimesFmEnabled -CodexTimesFmSkillEnabled
 ```
 
 ### What gets installed (Windows)
@@ -233,7 +238,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | **rust** | rustup + stable toolchain + components + app-dev cargo tools (sccache, cargo-edit, cargo-watch, nextest, bacon, Taplo) |
 | **cpp** | VS Build Tools check, CMake, Ninja, LLVM, meson, Cppcheck, Doxygen, Graphviz, Ccache, WinDbg, Sysinternals, vcpkg |
 | **lua** | Lua, LuaJIT, Lua Language Server, and StyLua formatter |
-| **ml** | Reusable `uv` Python environment for data/ML packages, JupyterLab, and a registered `firstboot-ml` kernel |
+| **ml** | Reusable `uv` Python environment for data/ML packages, JupyterLab, a registered `firstboot-ml` kernel, and optional TimesFM runtime |
 | **embedded** | Optional module for OpenOCD xPack and probe-rs tooling |
 | **uefi** | Optional module for NASM, QEMU, LLVM tools, and binwalk |
 | **security_tools** | Optional module for gitleaks, trivy, osv-scanner, cargo-audit, cargo-deny, flawfinder, codespell, and reuse |
@@ -256,9 +261,14 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
+| `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
+| `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |
+| `-CodexTimesFmSkillPath` | `timesfm-forecasting` | Skill directory inside the TimesFM repo |
 | `-MlPythonVersion` | `3.12` | Python version used for the ML virtual environment |
 | `-MlEnvironmentPath` | `~\.virtualenvs\firstboot-ml` | Reusable ML virtual environment path |
 | `-MlPythonPackages` | NumPy/pandas/sklearn/Jupyter defaults | Comma-separated ML package allowlist installed with `uv pip` |
+| `-MlTimesFmEnabled` | off | Install TimesFM runtime into the ML virtual environment |
+| `-MlTimesFmBackend` | `torch-cpu` | TimesFM backend: `torch-cpu`, `torch-cuda121`, `torch-default`, or `flax` |
 
 ## Idempotency
 
