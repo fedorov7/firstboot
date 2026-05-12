@@ -1,0 +1,70 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Keep shell locale in a valid UTF-8 state for tools that fail early.
+if command -v locale >/dev/null 2>&1; then
+  _locale_charmap="$(locale charmap 2>/dev/null || true)"
+  if [[ -z "$_locale_charmap" || "$_locale_charmap" != "UTF-8" ]]; then
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+  fi
+  unset _locale_charmap
+fi
+
+## ---- Completion system must be up BEFORE plugins (compdef) ----
+autoload -Uz compinit bashcompinit
+
+ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-${ZSH_VERSION}"
+mkdir -p "${ZSH_COMPDUMP:h}"
+
+compinit -d "$ZSH_COMPDUMP"
+bashcompinit
+
+_antidote_loaded=0
+for _antidote_path in \
+  /opt/homebrew/share/antidote/antidote.zsh \
+  /usr/local/share/antidote/antidote.zsh \
+  /usr/share/zsh-antidote/antidote.zsh; do
+  if [[ -r "$_antidote_path" ]]; then
+    source "$_antidote_path"
+    _antidote_loaded=1
+    break
+  fi
+done
+
+if [[ "$_antidote_loaded" -eq 1 ]]; then
+  : "${ZSH_CACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/ohmyzsh}"
+  mkdir -p "${ZSH_CACHE_DIR}/completions"
+  antidote load
+else
+  print -u2 "WARNING: antidote not found. Install via Homebrew: brew install antidote"
+fi
+unset _antidote_loaded _antidote_path
+
+# Rust completions (requires rustup).
+if command -v rustup >/dev/null 2>&1; then
+  RUST_ZSH_COMP_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/rust-completions"
+  mkdir -p "$RUST_ZSH_COMP_DIR"
+  fpath=("$RUST_ZSH_COMP_DIR" $fpath)
+  [[ -f "$RUST_ZSH_COMP_DIR/_cargo" ]] || rustup completions zsh cargo >"$RUST_ZSH_COMP_DIR/_cargo" 2>/dev/null
+  [[ -f "$RUST_ZSH_COMP_DIR/_rustup" ]] || rustup completions zsh rustup >"$RUST_ZSH_COMP_DIR/_rustup" 2>/dev/null
+fi
+
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# uv completions
+if command -v uv >/dev/null 2>&1; then
+  eval "$(uv generate-shell-completion zsh)"
+fi
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi
