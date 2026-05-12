@@ -1,6 +1,6 @@
 # firstboot
 
-Automated provisioning for **Arch Linux** (Ansible) and **Windows 11** (PowerShell). Derived from real shell history to capture the exact set of packages, tools, and dotfiles needed for systems programming (C++, Python, Rust) with AI agent support (Claude, Codex).
+Automated provisioning for **Arch Linux** (Ansible), **macOS** (Bash + Homebrew), and **Windows 11** (PowerShell). Derived from real shell history to capture the exact set of packages, tools, and dotfiles needed for systems programming (C++, Python, Rust) with AI agent support (Claude, Codex).
 
 ## What gets installed
 
@@ -191,6 +191,15 @@ firstboot/
 |   |-- python, rust, cpp, embedded, uefi,
 |   |-- security_tools, cli_tools, codex, claude
 |   `-- ...
+|-- macos/                   # Bash provisioning (macOS)
+|   |-- bootstrap.sh         # Entry point
+|   |-- modules/
+|   |   |-- base, shell, ssh, neovim, nodejs,
+|   |   |-- python, rust, cpp, lua, ml, embedded, uefi,
+|   |   |-- security_tools, cli_tools, codex, claude
+|   |   `-- ...
+|   `-- files/
+|       `-- zshrc            # macOS shell profile template
 `-- windows/                 # PowerShell provisioning (Windows 11)
     |-- bootstrap.ps1        # Entry point
     |-- modules/
@@ -202,6 +211,68 @@ firstboot/
         |-- profile.ps1      # PowerShell profile
         `-- oh-my-posh.json  # Prompt theme
 ```
+
+## macOS quick start
+
+Requires **macOS**. Homebrew is installed automatically if missing.
+
+```bash
+git clone <repo-url> ~/firstboot && cd ~/firstboot/macos
+chmod +x bootstrap.sh
+./bootstrap.sh
+```
+
+By default, the bootstrap runs:
+`base,shell,ssh,neovim,nodejs,python,rust,cpp,cli_tools,codex,claude`.
+Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`.
+
+### Running specific modules
+
+```bash
+# Core shell + language setup only
+./bootstrap.sh --modules shell,nodejs,python,rust
+
+# Enable optional ML and TimesFM integrations
+./bootstrap.sh --modules python,ml,codex --ml-timesfm-enabled --codex-timesfm-skill-enabled
+```
+
+### What gets installed (macOS)
+
+| Module | Description |
+|--------|-------------|
+| **base** | Core CLI and QA tooling via Homebrew (`rg`, `fd`, `jq`, `yq`, `git-delta`, `just`, `hyperfine`, `shellcheck`, `shfmt`, `ansible-lint`) |
+| **shell** | zsh dotfiles deployment (`.zshrc`, `.zsh_plugins.txt`, `.p10k.zsh`), antidote plugin manager, zoxide |
+| **ssh** | ed25519 key generation + opinionated global git defaults (delta + difftastic workflow) |
+| **neovim** | Neovim install and AstroNvim clone/update with optional cleanup |
+| **nodejs** | nvm + Node.js (`lts/*`) |
+| **python** | uv + ruff + Python 3.12 + dev tools (`pyright`, `mypy`, `black`, `pytest`, `tox`, `nox`) |
+| **rust** | rustup stable + components + cargo app-dev tools (`sccache`, `cargo-edit`, `cargo-watch`, `nextest`, `bacon`, `taplo`) |
+| **cpp** | CMake, Ninja, LLVM, Meson, Cppcheck, Doxygen, Graphviz, ccache, bear, coverage tooling |
+| **lua** | Optional Lua/LuaJIT/Lua LSP + StyLua |
+| **ml** | Optional reusable `uv` ML environment (`~/.virtualenvs/firstboot-ml`) + Jupyter kernel + optional TimesFM runtime |
+| **embedded** | Optional OpenOCD/probe-rs host tooling |
+| **uefi** | Optional NASM/QEMU/firmware tooling |
+| **security_tools** | Optional gitleaks/trivy/osv-scanner + cargo and uv security/compliance tools |
+| **cli_tools** | delta, hyperfine, just, tokei, lazygit, dust, difftastic, watchexec |
+| **codex** | Codex CLI + allowlist-managed MCP servers + allowlist-managed skill namespaces |
+| **claude** | Claude CLI + settings + MCP + plugin marketplaces/plugins |
+
+### macOS configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--user-email` | detected from `git config --global user.email` | SSH key comment and git identity |
+| `--git-user-name` | detected from `git config --global user.name` | Global `git user.name` |
+| `--astronvim-repo` | detected from `~/.config/nvim` origin | Neovim config repo |
+| `--force-neovim-cleanup` | off | Remove Neovim config/data/state/cache before clone/update |
+| `--modules` | core module set | Comma-separated module selection |
+| `--codex-mcp-allowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
+| `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
+| `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
+| `--ml-python-version` | `3.12` | Python version for reusable ML environment |
+| `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
+| `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
+| `--ml-timesfm-backend` | `torch-default` | TimesFM backend: `torch-default`, `torch-cpu`, `flax` |
 
 ## Windows 11 quick start
 
@@ -276,6 +347,8 @@ The playbook is designed to be safe to re-run at any time, with role-specific
 exceptions documented below.
 
 **Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role removes configured XDG paths only when cleanup is forced or a stale non-git config blocks the AstroNvim clone.
+
+**macOS:** Homebrew installs are guarded with `brew list`, ssh/git configuration only updates when values differ, and dotfile/settings deployments create timestamped backups before overwriting. Neovim cleanup is conditional and only runs when forced or stale state is detected.
 
 **Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups.
 
