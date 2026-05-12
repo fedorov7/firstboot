@@ -43,3 +43,6 @@
       tags: [codex]
     - role: claude
       tags: [claude]
+      when: >
+        workstation_profile_claude_enabled | default(false) | bool
+        or 'claude' in ansible_run_tags

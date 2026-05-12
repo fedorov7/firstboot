@@ -20,7 +20,7 @@ Automated provisioning for **Arch Linux** (Ansible), **macOS** (Bash + Homebrew)
 | **security_tools** | Optional role for local security/compliance scanners (`gitleaks`, `trivy`, `osv-scanner`, `cargo-audit`, `cargo-deny`, `flawfinder`, `codespell`, `reuse`) |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
 | **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, memory, fetch, sequential-thinking, optional official GitHub/Serena), and installs an optimized allowlist of skills for app development, systems work, Python data/ML, review, and workflow discipline |
-| **claude** | Installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
+| **claude** | Optional role that installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ git clone <repo-url> ~/firstboot && cd ~/firstboot
 ansible-playbook site.yml --ask-become-pass
 ```
 
-This executes the default workstation roles. Heavy embedded, UEFI, and security scanner roles are opt-in; run them with their tags or enable their profile variables. When the SSH key is freshly generated, its public key is printed to the console - add it to GitHub before roles that require git+ssh (neovim config clone).
+This executes the default workstation roles. Heavy embedded, UEFI, security scanner, and Claude roles are opt-in; run them with their tags or enable their profile variables. When the SSH key is freshly generated, its public key is printed to the console - add it to GitHub before roles that require git+ssh (neovim config clone).
 
 ## Running specific roles
 
@@ -56,6 +56,9 @@ ansible-playbook site.yml --ask-become-pass --tags cpp
 
 # Opt in to embedded tooling
 ansible-playbook site.yml --ask-become-pass --tags embedded
+
+# Opt in to Claude CLI and plugins
+ansible-playbook site.yml --ask-become-pass --tags claude
 ```
 
 To skip roles:
@@ -99,7 +102,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `user_email` | `your-email@example.com` | Used for SSH key comment and git config |
 | `git_user_name` | `Your Name` | Global `git user.name` |
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
-| `neovim_force_cleanup` | `false` | Remove Neovim config/data/state/cache before cloning, even when config is already a git repo |
+| `neovim_force_cleanup` | `true` | Remove Neovim config/data/state/cache before cloning, even when config is already a git repo |
 | `neovim_cleanup_stale` | `true` | Remove stale non-git Neovim config/data/state/cache before cloning AstroNvim |
 | `neovim_cleanup_paths` | Neovim XDG config/data/state/cache paths | Directories removed only when cleanup is explicitly forced or stale state is detected |
 | `nvm_version` | `v0.39.7` | nvm installer version |
@@ -107,6 +110,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `workstation_profile_embedded_enabled` | `false` | Include embedded tooling in an untagged full run |
 | `workstation_profile_uefi_enabled` | `false` | Include UEFI tooling in an untagged full run |
 | `workstation_profile_security_tools_enabled` | `false` | Include security scanners in an untagged full run |
+| `workstation_profile_claude_enabled` | `false` | Include Claude CLI setup in an untagged full run |
 | `embedded_probe_udev_rules_enabled` | `true` | Install common udev rules for ST-Link, J-Link, CMSIS-DAP, Black Magic, and ESP debug probes |
 | `embedded_access_groups` | `uucp`, `lock` | Groups added to the user for serial device access |
 | `embedded_probe_access_group` | `plugdev` | Group granted debug-probe USB access by udev rules |
@@ -223,8 +227,8 @@ chmod +x bootstrap.sh
 ```
 
 By default, the bootstrap runs:
-`base,shell,ssh,neovim,nodejs,python,rust,cpp,cli_tools,codex,claude`.
-Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`.
+`base,shell,ssh,neovim,nodejs,python,rust,cpp,cli_tools,codex`.
+Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`, `claude`.
 
 ### Running specific modules
 
@@ -234,6 +238,9 @@ Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`.
 
 # Enable optional ML and TimesFM integrations
 ./bootstrap.sh --modules python,ml,codex --ml-timesfm-enabled --codex-timesfm-skill-enabled
+
+# Opt in to Claude CLI and plugins
+./bootstrap.sh --modules claude
 ```
 
 ### What gets installed (macOS)
@@ -255,7 +262,7 @@ Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`.
 | **security_tools** | Optional gitleaks/trivy/osv-scanner + cargo and uv security/compliance tools |
 | **cli_tools** | delta, hyperfine, just, tokei, lazygit, dust, difftastic, watchexec |
 | **codex** | Codex CLI + allowlist-managed MCP servers + allowlist-managed skill namespaces |
-| **claude** | Claude CLI + settings + MCP + plugin marketplaces/plugins |
+| **claude** | Optional Claude CLI + settings + MCP + plugin marketplaces/plugins |
 
 ### macOS configuration
 
@@ -264,7 +271,8 @@ Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`.
 | `--user-email` | detected from `git config --global user.email` | SSH key comment and git identity |
 | `--git-user-name` | detected from `git config --global user.name` | Global `git user.name` |
 | `--astronvim-repo` | detected from `~/.config/nvim` origin | Neovim config repo |
-| `--force-neovim-cleanup` | off | Remove Neovim config/data/state/cache before clone/update |
+| `--force-neovim-cleanup` | on | Remove Neovim config/data/state/cache before clone/update |
+| `--preserve-neovim-state` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `--modules` | core module set | Comma-separated module selection |
 | `--codex-mcp-allowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
@@ -288,6 +296,9 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 ```powershell
 # Only set up shell and Rust
 .\bootstrap.ps1 -Modules shell,rust
+
+# Opt in to Claude CLI and plugins
+.\bootstrap.ps1 -Modules claude
 
 # Override config
 .\bootstrap.ps1 -UserEmail "user@example.com" -GitUserName "Name"
@@ -315,7 +326,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | **security_tools** | Optional module for gitleaks, trivy, osv-scanner, cargo-audit, cargo-deny, flawfinder, codespell, and reuse |
 | **cli_tools** | delta, hyperfine, just, watchexec, tokei, lazygit, dust, difftastic |
 | **codex** | Codex CLI installed in the configured fnm Node.js, allowlist-managed MCP servers, and allowlist-managed skills |
-| **claude** | Claude CLI + settings + MCP servers + marketplaces + plugins |
+| **claude** | Optional Claude CLI + settings + MCP servers + marketplaces + plugins |
 
 ### Windows configuration
 
@@ -325,7 +336,8 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-GitUserName` | `Your Name` | Global `git user.name` |
 | `-NodeVersion` | `lts-latest` | fnm install target |
 | `-AstroNvimRepo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repo |
-| `-ForceNeovimCleanup` | off | Remove Neovim config/data/state/cache before cloning AstroNvim |
+| `-ForceNeovimCleanup` | `$true` | Remove Neovim config/data/state/cache before cloning AstroNvim |
+| `-PreserveNeovimState` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `-GithubToken` | (empty) | Optional GitHub PAT copied into `-CodexGithubTokenEnvVar` for official GitHub MCP |
 | `-CodexMcpAllowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
@@ -346,11 +358,11 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 The playbook is designed to be safe to re-run at any time, with role-specific
 exceptions documented below.
 
-**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role removes configured XDG paths only when cleanup is forced or a stale non-git config blocks the AstroNvim clone.
+**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role removes configured XDG paths by default before cloning AstroNvim.
 
-**macOS:** Homebrew installs are guarded with `brew list`, ssh/git configuration only updates when values differ, and dotfile/settings deployments create timestamped backups before overwriting. Neovim cleanup is conditional and only runs when forced or stale state is detected.
+**macOS:** Homebrew installs are guarded with `brew list`, ssh/git configuration only updates when values differ, and dotfile/settings deployments create timestamped backups before overwriting. Neovim config/data/state/cache cleanup runs by default unless `--preserve-neovim-state` is passed.
 
-**Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups.
+**Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups. Neovim config/data/state/cache cleanup runs by default unless `-PreserveNeovimState` is passed.
 
 ## License
 

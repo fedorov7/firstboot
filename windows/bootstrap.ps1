@@ -4,9 +4,11 @@
     Firstboot provisioning for Windows 11.
 .DESCRIPTION
     Installs development tools and configures the environment for systems
-    programming (C++, Rust, Lua, Python) and ML work with AI agent support (Claude, Codex).
+    programming (C++, Rust, Lua, Python) and ML work with Codex support.
+    Claude is available as an explicit opt-in module.
 .PARAMETER Modules
-    Comma-separated list of modules to run. If omitted, all modules run in order.
+    Comma-separated list of modules to run. If omitted, the default workstation
+    modules run in order; optional modules such as claude must be selected explicitly.
 .PARAMETER UserEmail
     Email for git config and SSH key comment.
 .PARAMETER GitUserName
@@ -18,7 +20,9 @@
 .PARAMETER GithubToken
     Optional GitHub PAT for MCP github server.
 .PARAMETER ForceNeovimCleanup
-    Remove Neovim config/data/state/cache before cloning AstroNvim.
+    Remove Neovim config/data/state/cache before cloning AstroNvim. Enabled by default.
+.PARAMETER PreserveNeovimState
+    Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
 .PARAMETER CodexTimesFmSkillEnabled
@@ -33,7 +37,8 @@
     Install TimesFM runtime packages into the ML environment.
 .EXAMPLE
     .\bootstrap.ps1
-    .\bootstrap.ps1 -Modules shell,rust,claude
+    .\bootstrap.ps1 -Modules shell,rust
+    .\bootstrap.ps1 -Modules claude
     .\bootstrap.ps1 -UserEmail "user@example.com" -GitUserName "Name"
 #>
 [CmdletBinding()]
@@ -44,7 +49,8 @@ param(
     [string]$NodeVersion = "lts-latest",
     [string]$AstroNvimRepo = "https://github.com/fedorov7/astronvim-config-v4.git",
     [string]$GithubToken = "",
-    [switch]$ForceNeovimCleanup,
+    [bool]$ForceNeovimCleanup = $true,
+    [switch]$PreserveNeovimState,
     [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,memory,fetch,sequential-thinking",
     [switch]$CodexMcpPruneUnmanaged,
     [switch]$CodexGithubMcpEnabled,
@@ -66,6 +72,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ScriptRoot = $PSScriptRoot
+
+if ($PreserveNeovimState) {
+    $ForceNeovimCleanup = $false
+}
 
 # ── Helper Functions ──
 
@@ -212,7 +222,20 @@ $AllModules = @(
 )
 
 if ([string]::IsNullOrWhiteSpace($Modules)) {
-    $SelectedModules = $AllModules
+    $SelectedModules = @(
+        'base'
+        'shell'
+        'ssh'
+        'neovim'
+        'nodejs'
+        'python'
+        'rust'
+        'cpp'
+        'lua'
+        'ml'
+        'cli_tools'
+        'codex'
+    )
 } else {
     $SelectedModules = $Modules -split ',' | ForEach-Object { $_.Trim() }
 }

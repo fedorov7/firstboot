@@ -30,7 +30,7 @@ NODE_VERSION="${NODE_VERSION:-lts/*}"
 NVM_VERSION="${NVM_VERSION:-v0.39.7}"
 ASTRONVIM_REPO="${ASTRONVIM_REPO:-$(detect_astronvim_repo)}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-0}"
+FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"
 MODULES_CSV="${MODULES_CSV:-}"
 
 CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,memory,fetch,sequential-thinking}"
@@ -264,7 +264,8 @@ Options:
   --nvm-version <tag>                   nvm installer version (default: v0.39.7).
   --astronvim-repo <url>                Neovim config repository URL.
   --github-token <token>                Optional GitHub token for MCP setup.
-  --force-neovim-cleanup                Remove Neovim config/data before clone/update.
+  --force-neovim-cleanup                Remove Neovim config/data before clone/update (default).
+  --preserve-neovim-state               Preserve Neovim state unless stale non-git config blocks cloning.
   --codex-mcp-allowlist <csv>           Codex MCP allowlist.
   --codex-mcp-prune-unmanaged           Remove Codex MCP entries not in allowlist.
   --codex-github-mcp-enabled            Enable official GitHub MCP server for Codex.
@@ -297,6 +298,7 @@ while [[ $# -gt 0 ]]; do
     --astronvim-repo) ASTRONVIM_REPO="$2"; shift 2 ;;
     --github-token) GITHUB_TOKEN="$2"; shift 2 ;;
     --force-neovim-cleanup) FORCE_NEOVIM_CLEANUP=1; shift ;;
+    --preserve-neovim-state) FORCE_NEOVIM_CLEANUP=0; shift ;;
     --codex-mcp-allowlist) CODEX_MCP_ALLOWLIST="$2"; shift 2 ;;
     --codex-mcp-prune-unmanaged) CODEX_MCP_PRUNE_UNMANAGED=1; shift ;;
     --codex-github-mcp-enabled) CODEX_GITHUB_MCP_ENABLED=1; shift ;;
@@ -357,7 +359,6 @@ DEFAULT_MODULES=(
   cpp
   cli_tools
   codex
-  claude
 )
 
 SELECTED_MODULES=()
