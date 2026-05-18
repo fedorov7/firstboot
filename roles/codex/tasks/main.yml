@@ -260,7 +260,17 @@
   args:
     executable: /bin/bash
     creates: "{{ user_home }}/.codex/skills/{{ item }}"
+  register: codex_curated_skill_install
+  failed_when: false
   loop: "{{ codex_curated_skills | default([]) }}"
+
+- name: Warn about unavailable curated Codex skills
+  debug:
+    msg: "WARNING: Curated Codex skill not installed: {{ item.item }}"
+  loop: "{{ codex_curated_skill_install.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc | default(0) != 0
 
 - name: Ensure Codex skill source directory exists
   file:

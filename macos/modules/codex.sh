@@ -280,8 +280,11 @@ if [[ -f "$skill_installer" ]]; then
       continue
     fi
     write_step "Installing curated skill: $skill_name..."
-    python3 "$skill_installer" --repo openai/skills --path "skills/.curated/$skill_name"
-    write_ok "Skill $skill_name installed"
+    if python3 "$skill_installer" --repo openai/skills --path "skills/.curated/$skill_name"; then
+      write_ok "Skill $skill_name installed"
+    else
+      write_warn "Curated skill not installed: $skill_name"
+    fi
   done
 else
   write_warn "Codex skill installer not found. Run 'codex' once to bootstrap, then re-run this module."

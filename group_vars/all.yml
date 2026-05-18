@@ -54,7 +54,6 @@ codex_remove_legacy_external_skill_sources: false
 
 codex_curated_skills:
   - pdf
-  - doc                         # Enable when editing .docx documents.
 
 codex_superpowers_skills:
   - systematic-debugging

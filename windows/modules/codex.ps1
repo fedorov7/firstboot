@@ -326,7 +326,11 @@ if (Test-Path $skillInstaller) {
         if (-not (Test-Path $skillDir)) {
             Write-Step "Installing curated skill: $skill..."
             python $skillInstaller --repo openai/skills --path "skills/.curated/$skill"
-            Write-Ok "Skill $skill installed"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "Skill $skill installed"
+            } else {
+                Write-Warn "Curated skill not installed: $skill"
+            }
         } else {
             Write-Skip "Skill $skill already installed"
         }

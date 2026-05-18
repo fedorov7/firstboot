@@ -56,7 +56,7 @@ param(
     [switch]$CodexGithubMcpEnabled,
     [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
     [switch]$CodexSerenaEnabled,
-    [string]$CodexCuratedSkills = "pdf,doc",
+    [string]$CodexCuratedSkills = "pdf",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
     [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",

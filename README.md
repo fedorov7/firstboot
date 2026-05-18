@@ -121,7 +121,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
 | `codex_remove_legacy_external_skill_sources` | `false` | Remove old role-managed `~/.codex/superpowers` and `~/.codex/claude-skills` source directories |
-| `codex_curated_skills` | `pdf`, `doc` | Curated OpenAI skills installed directly into `~/.codex/skills` |
+| `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
 | `codex_superpowers_skills` | workflow discipline allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
 | `codex_karpathy_skills` | `karpathy-guidelines` | Karpathy-inspired behavioral guidelines symlinked into `~/.agents/skills/karpathy-skills` |
 | `codex_claude_skills` | systems + workflow allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
