@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This bootstrap is only supported on macOS." >&2

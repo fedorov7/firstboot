@@ -16,6 +16,9 @@ if ! command_exists rustup; then
   return
 fi
 
+write_step "Updating Rust stable toolchain..."
+rustup update stable
+
 default_toolchain="$(rustup default 2>/dev/null || true)"
 if [[ "$default_toolchain" != *stable* ]]; then
   rustup default stable
@@ -34,7 +37,7 @@ for component in rust-analyzer clippy rustfmt; do
   fi
 done
 
-install_cargo_binary sccache sccache
+install_cargo_binary sccache sccache --locked
 install_cargo_binary cargo-add cargo-edit
 install_cargo_binary cargo-watch cargo-watch
 install_cargo_binary cargo-nextest cargo-nextest --locked
