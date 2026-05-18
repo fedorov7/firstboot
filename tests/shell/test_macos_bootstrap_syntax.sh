@@ -21,6 +21,16 @@ if [[ "$default_modules_block" == *"claude"* ]]; then
   exit 1
 fi
 
+if [[ ! -f "$repo_root/macos/modules/cleanup.sh" ]]; then
+  echo "cleanup module is missing" >&2
+  exit 1
+fi
+
+if [[ "$default_modules_block" == *"cleanup"* ]]; then
+  echo "cleanup must remain an explicit opt-in macOS module" >&2
+  exit 1
+fi
+
 if [[ "$bootstrap_source" != *'FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"'* ]]; then
   echo "macOS Neovim cleanup must be enabled by default" >&2
   exit 1

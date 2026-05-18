@@ -47,6 +47,10 @@ CODEX_TIMESFM_SKILL_REPO="${CODEX_TIMESFM_SKILL_REPO:-https://github.com/google-
 CODEX_TIMESFM_SKILL_PATH="${CODEX_TIMESFM_SKILL_PATH:-timesfm-forecasting}"
 CODEX_REMOVE_LEGACY_EXTERNAL_SKILL_SOURCES="${CODEX_REMOVE_LEGACY_EXTERNAL_SKILL_SOURCES:-0}"
 
+CLEANUP_DRY_RUN="${CLEANUP_DRY_RUN:-0}"
+CLEANUP_PRUNE_DAYS="${CLEANUP_PRUNE_DAYS:-30}"
+CLEANUP_INCLUDE_USER_CACHES="${CLEANUP_INCLUDE_USER_CACHES:-0}"
+
 ML_PYTHON_VERSION="${ML_PYTHON_VERSION:-3.12}"
 ML_ENVIRONMENT_PATH="${ML_ENVIRONMENT_PATH:-$HOME/.virtualenvs/firstboot-ml}"
 ML_PYTHON_PACKAGES="${ML_PYTHON_PACKAGES:-numpy,pandas,polars,duckdb,scikit-learn,matplotlib,seaborn,jupyterlab,ipykernel,ipywidgets,mlflow,optuna,xgboost,pyarrow,tqdm}"
@@ -108,16 +112,30 @@ array_contains() {
 refresh_path() {
   local path_entries=(
     "/opt/homebrew/bin"
+    "/opt/homebrew/sbin"
     "/usr/local/bin"
+    "/usr/local/sbin"
     "$HOME/.cargo/bin"
     "$HOME/.local/bin"
   )
+  local existing_entries=()
+  local new_path_entries=()
   local entry
+  local existing_entry
+
+  IFS=':' read -r -a existing_entries <<<"$PATH"
   for entry in "${path_entries[@]}"; do
-    if [[ -d "$entry" ]] && [[ ":$PATH:" != *":$entry:"* ]]; then
-      PATH="$entry:$PATH"
+    if [[ -d "$entry" ]]; then
+      new_path_entries+=("$entry")
     fi
   done
+
+  for existing_entry in "${existing_entries[@]}"; do
+    if [[ -n "$existing_entry" ]] && ! array_contains "$existing_entry" "${new_path_entries[@]}"; then
+      new_path_entries+=("$existing_entry")
+    fi
+  done
+  PATH="$(IFS=:; printf "%s" "${new_path_entries[*]}")"
   export PATH
 }
 
@@ -279,6 +297,11 @@ Options:
   --codex-timesfm-skill-repo <url>      TimesFM skill source repository.
   --codex-timesfm-skill-path <path>     Relative path to SKILL.md in TimesFM repo.
   --codex-remove-legacy-skill-sources   Remove legacy ~/.codex skill source directories.
+  --cleanup-dry-run                     Show cleanup actions without deleting files.
+  --cleanup-apply                       Delete cleanup targets (default).
+  --cleanup-prune-days <days>           Age threshold for user cache cleanup (default: 30).
+  --cleanup-include-user-caches         Prune aged ~/.cache and ~/Library/Caches entries.
+  --cleanup-skip-user-caches            Skip user cache cleanup (default).
   --ml-python-version <version>         Python version for ML environment.
   --ml-environment-path <path>          ML virtual environment path.
   --ml-python-packages <csv>            ML package allowlist for uv pip install.
@@ -312,6 +335,11 @@ while [[ $# -gt 0 ]]; do
     --codex-timesfm-skill-repo) CODEX_TIMESFM_SKILL_REPO="$2"; shift 2 ;;
     --codex-timesfm-skill-path) CODEX_TIMESFM_SKILL_PATH="$2"; shift 2 ;;
     --codex-remove-legacy-skill-sources) CODEX_REMOVE_LEGACY_EXTERNAL_SKILL_SOURCES=1; shift ;;
+    --cleanup-dry-run) CLEANUP_DRY_RUN=1; shift ;;
+    --cleanup-apply) CLEANUP_DRY_RUN=0; shift ;;
+    --cleanup-prune-days) CLEANUP_PRUNE_DAYS="$2"; shift 2 ;;
+    --cleanup-include-user-caches) CLEANUP_INCLUDE_USER_CACHES=1; shift ;;
+    --cleanup-skip-user-caches) CLEANUP_INCLUDE_USER_CACHES=0; shift ;;
     --ml-python-version) ML_PYTHON_VERSION="$2"; shift 2 ;;
     --ml-environment-path) ML_ENVIRONMENT_PATH="$2"; shift 2 ;;
     --ml-python-packages) ML_PYTHON_PACKAGES="$2"; shift 2 ;;
@@ -343,6 +371,7 @@ ALL_MODULES=(
   cli_tools
   codex
   claude
+  cleanup
   embedded
   uefi
   security_tools
