@@ -28,6 +28,10 @@ fi
 codex_dir="$HOME/.codex"
 config_toml="$codex_dir/config.toml"
 mkdir -p "$codex_dir"
+codex_rules_dir="$codex_dir/rules"
+codex_default_rules="$codex_rules_dir/default.rules"
+codex_permissions_example="$codex_dir/config.permissions.example.toml"
+mkdir -p "$codex_rules_dir"
 
 test_codex_mcp_configured() {
   local name="$1"
@@ -97,6 +101,55 @@ upsert_codex_mcp_setting() {
   rm -f "$temp_config"
   write_ok "MCP $name $key = $value"
 }
+
+ensure_codex_prefix_rule() {
+  local pattern="$1"
+  local rule="$2"
+  if [[ -f "$codex_default_rules" ]] && grep -qF "pattern = $pattern" "$codex_default_rules"; then
+    write_skip "Codex rule already present: $pattern"
+    return
+  fi
+  if [[ -s "$codex_default_rules" ]]; then
+    printf '\n' >>"$codex_default_rules"
+  fi
+  printf '%s\n' "$rule" >>"$codex_default_rules"
+  write_ok "Codex rule added: $pattern"
+}
+
+ensure_codex_permissions_example() {
+  if [[ -f "$codex_permissions_example" ]]; then
+    write_skip "Codex permissions example already present"
+    return
+  fi
+  cat >"$codex_permissions_example" <<'EOF'
+# Example only. Copy selected settings to ~/.codex/config.toml when needed.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+writable_roots = [
+  "/home/alexander/example"
+]
+EOF
+  write_ok "Codex permissions example created"
+}
+
+ensure_codex_prefix_rule '["probe-rs", "list"]' 'prefix_rule(
+    pattern = ["probe-rs", "list"],
+    decision = "allow",
+    justification = "Read-only debug probe discovery is safe outside sandbox",
+)'
+ensure_codex_prefix_rule '["openocd", "--version"]' 'prefix_rule(
+    pattern = ["openocd", "--version"],
+    decision = "allow",
+    justification = "Version checks are safe outside sandbox",
+)'
+ensure_codex_prefix_rule '["dfu-util", "-l"]' 'prefix_rule(
+    pattern = ["dfu-util", "-l"],
+    decision = "allow",
+    justification = "Read-only DFU device listing is safe outside sandbox",
+)'
+ensure_codex_permissions_example
 
 desired_mcp_servers=()
 while IFS= read -r server_name; do

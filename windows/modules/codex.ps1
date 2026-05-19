@@ -104,6 +104,48 @@ function Set-CodexMcpSetting {
     Write-Ok "MCP $Name $Key = $Value"
 }
 
+function Add-CodexPrefixRuleIfMissing {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [Parameter(Mandatory)][string]$Rule
+    )
+
+    if (-not (Test-Path $script:CodexDefaultRules)) {
+        New-Item -ItemType File -Path $script:CodexDefaultRules -Force | Out-Null
+    }
+
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ($source -like "*pattern = $Pattern*") {
+        Write-Skip "Codex rule already present: $Pattern"
+        return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($source)) {
+        Add-Content -LiteralPath $script:CodexDefaultRules -Value ''
+    }
+    Add-Content -LiteralPath $script:CodexDefaultRules -Value $Rule
+    Write-Ok "Codex rule added: $Pattern"
+}
+
+function New-CodexPermissionsExampleIfMissing {
+    if (Test-Path $script:CodexPermissionsExample) {
+        Write-Skip "Codex permissions example already present"
+        return
+    }
+
+    @'
+# Example only. Copy selected settings to ~/.codex/config.toml when needed.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+writable_roots = [
+  "/home/alexander/example"
+]
+'@ | Set-Content -LiteralPath $script:CodexPermissionsExample -Encoding utf8
+    Write-Ok "Codex permissions example created"
+}
+
 function Sync-CodexSkillNamespace {
     param(
         [Parameter(Mandatory)][string]$Namespace,
@@ -278,6 +320,35 @@ $script:ConfigToml = Join-Path $codexDir 'config.toml'
 if (-not (Test-Path $codexDir)) {
     New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
 }
+$codexRulesDir = Join-Path $codexDir 'rules'
+$script:CodexDefaultRules = Join-Path $codexRulesDir 'default.rules'
+$script:CodexPermissionsExample = Join-Path $codexDir 'config.permissions.example.toml'
+if (-not (Test-Path $codexRulesDir)) {
+    New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
+}
+
+Add-CodexPrefixRuleIfMissing '["probe-rs", "list"]' @'
+prefix_rule(
+    pattern = ["probe-rs", "list"],
+    decision = "allow",
+    justification = "Read-only debug probe discovery is safe outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["openocd", "--version"]' @'
+prefix_rule(
+    pattern = ["openocd", "--version"],
+    decision = "allow",
+    justification = "Version checks are safe outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["dfu-util", "-l"]' @'
+prefix_rule(
+    pattern = ["dfu-util", "-l"],
+    decision = "allow",
+    justification = "Read-only DFU device listing is safe outside sandbox",
+)
+'@
+New-CodexPermissionsExampleIfMissing
 
 $desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
 if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) {

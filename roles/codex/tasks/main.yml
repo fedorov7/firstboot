@@ -54,6 +54,58 @@
   set_fact:
     codex_config: "{{ (codex_config_raw.content | default('') | b64decode) if codex_config_raw.content is defined else '' }}"
 
+- name: Ensure Codex rules directory exists
+  file:
+    path: "{{ user_home }}/.codex/rules"
+    state: directory
+
+- name: Ensure Codex hardware read-only prefix rules
+  blockinfile:
+    path: "{{ user_home }}/.codex/rules/default.rules"
+    create: true
+    marker: "# {mark} ANSIBLE MANAGED CODEX RULE {{ item.name }}"
+    block: "{{ item.rule }}"
+    mode: "0644"
+  loop:
+    - name: probe-rs-list
+      rule: |
+        prefix_rule(
+            pattern = ["probe-rs", "list"],
+            decision = "allow",
+            justification = "Read-only debug probe discovery is safe outside sandbox",
+        )
+    - name: openocd-version
+      rule: |
+        prefix_rule(
+            pattern = ["openocd", "--version"],
+            decision = "allow",
+            justification = "Version checks are safe outside sandbox",
+        )
+    - name: dfu-util-list
+      rule: |
+        prefix_rule(
+            pattern = ["dfu-util", "-l"],
+            decision = "allow",
+            justification = "Read-only DFU device listing is safe outside sandbox",
+        )
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create Codex permissions example if missing
+  copy:
+    dest: "{{ user_home }}/.codex/config.permissions.example.toml"
+    force: false
+    mode: "0644"
+    content: |
+      # Example only. Copy selected settings to ~/.codex/config.toml when needed.
+      sandbox_mode = "workspace-write"
+      approval_policy = "on-request"
+
+      [sandbox_workspace_write]
+      writable_roots = [
+        "/home/alexander/example"
+      ]
+
 - name: Set desired Codex MCP server allowlist
   set_fact:
     codex_mcp_desired_servers: >-
