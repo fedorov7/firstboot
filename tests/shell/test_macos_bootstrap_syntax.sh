@@ -36,4 +36,15 @@ if [[ "$bootstrap_source" != *'FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"
   exit 1
 fi
 
+codex_module_source="$(cat "$repo_root/macos/modules/codex.sh")"
+if [[ "$codex_module_source" != *"upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30"* ]]; then
+  echo "macOS Codex module must harden OpenAI Developer Docs MCP startup timeout" >&2
+  exit 1
+fi
+
+if [[ "$codex_module_source" != *"upsert_codex_mcp_setting fetch default_tools_approval_mode"* ]]; then
+  echo "macOS Codex module must require approval prompts for broad fetch MCP tools" >&2
+  exit 1
+fi
+
 echo "macos bootstrap syntax tests passed"

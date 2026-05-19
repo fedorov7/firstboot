@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 write_step "Setting up Codex CLI..."
 
 load_nvm
@@ -50,6 +52,50 @@ remove_codex_mcp_if_present() {
     codex mcp remove "$name"
     write_ok "Removed MCP: $name"
   fi
+}
+
+upsert_codex_mcp_setting() {
+  local name="$1"
+  local key="$2"
+  local value="$3"
+  if ! test_codex_mcp_configured "$name"; then
+    return
+  fi
+  local current_block
+  current_block="$(sed -n "/^\[mcp_servers\.${name}\]/,/^\[mcp_servers\./p" "$config_toml" | sed '$ { /^\[mcp_servers\./d; }')"
+  if [[ "$current_block" == *"$key = $value"* ]]; then
+    write_skip "MCP $name $key already set"
+    return
+  fi
+  local temp_config
+  temp_config="$(mktemp)"
+  awk -v section="[mcp_servers.${name}]" -v key="$key" -v value="$value" '
+    BEGIN { in_section = 0; seen = 0 }
+    $0 == section { in_section = 1; print; next }
+    in_section && /^\[mcp_servers\./ {
+      if (!seen) {
+        print key " = " value
+        seen = 1
+      }
+      in_section = 0
+    }
+    in_section && $0 ~ "^" key " = " {
+      if (!seen) {
+        print key " = " value
+        seen = 1
+      }
+      next
+    }
+    { print }
+    END {
+      if (in_section && !seen) {
+        print key " = " value
+      }
+    }
+  ' "$config_toml" >"$temp_config"
+  cp "$temp_config" "$config_toml"
+  rm -f "$temp_config"
+  write_ok "MCP $name $key = $value"
 }
 
 desired_mcp_servers=()
@@ -135,6 +181,12 @@ if array_contains serena "${desired_mcp_servers[@]}"; then
     write_warn "uvx not available. Run python module first to enable Serena MCP."
   fi
 fi
+
+upsert_codex_mcp_setting context7 startup_timeout_sec 30
+upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30
+upsert_codex_mcp_setting fetch default_tools_approval_mode '"prompt"'
+upsert_codex_mcp_setting github default_tools_approval_mode '"prompt"'
+upsert_codex_mcp_setting serena default_tools_approval_mode '"prompt"'
 
 skill_source_root="$HOME/.local/share/codex/skill-sources"
 agents_skills_dir="$HOME/.agents/skills"

@@ -218,6 +218,73 @@
     - "'[mcp_servers.serena]' not in codex_config_clean"
     - uv_available.rc == 0
 
+- name: Harden Codex MCP server settings
+  shell: |
+    config_toml="{{ user_home }}/.codex/config.toml"
+    section="[mcp_servers.{{ item.name }}]"
+    key="{{ item.key }}"
+    value='{{ item.value }}'
+    if [[ ! -f "$config_toml" ]]; then
+      exit 0
+    fi
+    if ! grep -qF "$section" "$config_toml"; then
+      exit 0
+    fi
+    current_block="$(sed -n "/^\[mcp_servers\.{{ item.name }}\]/,/^\[mcp_servers\./p" "$config_toml" | sed '$ { /^\[mcp_servers\./d; }')"
+    if [[ "$current_block" == *"$key = $value"* ]]; then
+      exit 0
+    fi
+    temp_config="$(mktemp)"
+    awk -v section="$section" -v key="$key" -v value="$value" '
+      BEGIN { in_section = 0; seen = 0 }
+      $0 == section { in_section = 1; print; next }
+      in_section && /^\[mcp_servers\./ {
+        if (!seen) {
+          print key " = " value
+          seen = 1
+        }
+        in_section = 0
+      }
+      in_section && $0 ~ "^" key " = " {
+        if (!seen) {
+          print key " = " value
+          seen = 1
+        }
+        next
+      }
+      { print }
+      END {
+        if (in_section && !seen) {
+          print key " = " value
+        }
+      }
+    ' "$config_toml" >"$temp_config"
+    cp "$temp_config" "$config_toml"
+    rm -f "$temp_config"
+    echo "OK: $section $key"
+  args:
+    executable: /bin/bash
+  register: codex_mcp_hardening
+  changed_when: "'OK:' in codex_mcp_hardening.stdout"
+  loop:
+    - name: context7
+      key: startup_timeout_sec
+      value: "30"
+    - name: openaiDeveloperDocs
+      key: startup_timeout_sec
+      value: "30"
+    - name: fetch
+      key: default_tools_approval_mode
+      value: '"prompt"'
+    - name: github
+      key: default_tools_approval_mode
+      value: '"prompt"'
+    - name: serena
+      key: default_tools_approval_mode
+      value: '"prompt"'
+  loop_control:
+    label: "{{ item.name }} {{ item.key }}"
+
 # ── Skills: optimized allowlist ──
 
 - name: Set legacy Codex curated skills managed by this role

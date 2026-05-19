@@ -37,6 +37,73 @@ function Remove-CodexMcp {
     }
 }
 
+function Set-CodexMcpSetting {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+    if (-not (Test-CodexMcpConfigured $Name)) { return }
+
+    $lines = @()
+    if (Test-Path $script:ConfigToml) {
+        $lines = @(Get-Content -LiteralPath $script:ConfigToml)
+    }
+
+    $section = "[mcp_servers.$Name]"
+    $startIndex = [array]::IndexOf($lines, $section)
+    if ($startIndex -ge 0) {
+        $endIndex = $lines.Count
+        for ($i = $startIndex + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^\[mcp_servers\.') {
+                $endIndex = $i
+                break
+            }
+        }
+        if ($lines[$startIndex..($endIndex - 1)] -contains "$Key = $Value") {
+            Write-Skip "MCP $Name $Key already set"
+            return
+        }
+    }
+
+    $result = New-Object System.Collections.Generic.List[string]
+    $inSection = $false
+    $seen = $false
+
+    foreach ($line in $lines) {
+        if ($line -eq $section) {
+            $inSection = $true
+            $result.Add($line)
+            continue
+        }
+
+        if ($inSection -and $line -match '^\[mcp_servers\.') {
+            if (-not $seen) {
+                $result.Add("$Key = $Value")
+                $seen = $true
+            }
+            $inSection = $false
+        }
+
+        if ($inSection -and $line -match "^$([regex]::Escape($Key)) = ") {
+            if (-not $seen) {
+                $result.Add("$Key = $Value")
+                $seen = $true
+            }
+            continue
+        }
+
+        $result.Add($line)
+    }
+
+    if ($inSection -and -not $seen) {
+        $result.Add("$Key = $Value")
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    Write-Ok "MCP $Name $Key = $Value"
+}
+
 function Sync-CodexSkillNamespace {
     param(
         [Parameter(Mandatory)][string]$Namespace,
@@ -296,6 +363,12 @@ if ('serena' -in $desiredMcpServers) {
         Write-Warn "uvx not available. Run python module first to enable Serena MCP."
     }
 }
+
+Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
+Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
+Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' '"prompt"'
+Set-CodexMcpSetting 'github' 'default_tools_approval_mode' '"prompt"'
+Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' '"prompt"'
 
 # Skills
 $script:SkillSourceRoot = Join-Path $env:USERPROFILE '.local\share\codex\skill-sources'
