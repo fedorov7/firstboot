@@ -59,7 +59,7 @@
     path: "{{ user_home }}/.codex/rules"
     state: directory
 
-- name: Ensure Codex hardware read-only prefix rules
+- name: Ensure Codex hardware utility prefix rules
   blockinfile:
     path: "{{ user_home }}/.codex/rules/default.rules"
     create: true
@@ -67,26 +67,61 @@
     block: "{{ item.rule }}"
     mode: "0644"
   loop:
-    - name: probe-rs-list
+    - name: probe-rs
       rule: |
         prefix_rule(
-            pattern = ["probe-rs", "list"],
+            pattern = ["probe-rs"],
             decision = "allow",
-            justification = "Read-only debug probe discovery is safe outside sandbox",
+            justification = "Allow probe-rs hardware workflows outside sandbox",
         )
-    - name: openocd-version
+    - name: openocd
       rule: |
         prefix_rule(
-            pattern = ["openocd", "--version"],
+            pattern = ["openocd"],
             decision = "allow",
-            justification = "Version checks are safe outside sandbox",
+            justification = "Allow OpenOCD hardware workflows outside sandbox",
         )
-    - name: dfu-util-list
+    - name: dfu-util
       rule: |
         prefix_rule(
-            pattern = ["dfu-util", "-l"],
+            pattern = ["dfu-util"],
             decision = "allow",
-            justification = "Read-only DFU device listing is safe outside sandbox",
+            justification = "Allow DFU hardware workflows outside sandbox",
+        )
+    - name: picocom
+      rule: |
+        prefix_rule(
+            pattern = ["picocom"],
+            decision = "allow",
+            justification = "Allow serial console hardware workflows outside sandbox",
+        )
+    - name: stty
+      rule: |
+        prefix_rule(
+            pattern = ["stty"],
+            decision = "allow",
+            justification = "Allow serial TTY configuration outside sandbox",
+        )
+    - name: st-flash
+      rule: |
+        prefix_rule(
+            pattern = ["st-flash"],
+            decision = "allow",
+            justification = "Allow ST-Link flashing workflows outside sandbox",
+        )
+    - name: st-info
+      rule: |
+        prefix_rule(
+            pattern = ["st-info"],
+            decision = "allow",
+            justification = "Allow ST-Link probe inspection outside sandbox",
+        )
+    - name: st-util
+      rule: |
+        prefix_rule(
+            pattern = ["st-util"],
+            decision = "allow",
+            justification = "Allow ST-Link debug server workflows outside sandbox",
         )
   loop_control:
     label: "{{ item.name }}"

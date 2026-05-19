@@ -134,20 +134,45 @@ EOF
   write_ok "Codex permissions example created"
 }
 
-ensure_codex_prefix_rule '["probe-rs", "list"]' 'prefix_rule(
-    pattern = ["probe-rs", "list"],
+ensure_codex_prefix_rule '["probe-rs"]' 'prefix_rule(
+    pattern = ["probe-rs"],
     decision = "allow",
-    justification = "Read-only debug probe discovery is safe outside sandbox",
+    justification = "Allow probe-rs hardware workflows outside sandbox",
 )'
-ensure_codex_prefix_rule '["openocd", "--version"]' 'prefix_rule(
-    pattern = ["openocd", "--version"],
+ensure_codex_prefix_rule '["openocd"]' 'prefix_rule(
+    pattern = ["openocd"],
     decision = "allow",
-    justification = "Version checks are safe outside sandbox",
+    justification = "Allow OpenOCD hardware workflows outside sandbox",
 )'
-ensure_codex_prefix_rule '["dfu-util", "-l"]' 'prefix_rule(
-    pattern = ["dfu-util", "-l"],
+ensure_codex_prefix_rule '["dfu-util"]' 'prefix_rule(
+    pattern = ["dfu-util"],
     decision = "allow",
-    justification = "Read-only DFU device listing is safe outside sandbox",
+    justification = "Allow DFU hardware workflows outside sandbox",
+)'
+ensure_codex_prefix_rule '["picocom"]' 'prefix_rule(
+    pattern = ["picocom"],
+    decision = "allow",
+    justification = "Allow serial console hardware workflows outside sandbox",
+)'
+ensure_codex_prefix_rule '["stty"]' 'prefix_rule(
+    pattern = ["stty"],
+    decision = "allow",
+    justification = "Allow serial TTY configuration outside sandbox",
+)'
+ensure_codex_prefix_rule '["st-flash"]' 'prefix_rule(
+    pattern = ["st-flash"],
+    decision = "allow",
+    justification = "Allow ST-Link flashing workflows outside sandbox",
+)'
+ensure_codex_prefix_rule '["st-info"]' 'prefix_rule(
+    pattern = ["st-info"],
+    decision = "allow",
+    justification = "Allow ST-Link probe inspection outside sandbox",
+)'
+ensure_codex_prefix_rule '["st-util"]' 'prefix_rule(
+    pattern = ["st-util"],
+    decision = "allow",
+    justification = "Allow ST-Link debug server workflows outside sandbox",
 )'
 ensure_codex_permissions_example
 

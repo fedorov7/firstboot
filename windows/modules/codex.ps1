@@ -327,25 +327,60 @@ if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
 }
 
-Add-CodexPrefixRuleIfMissing '["probe-rs", "list"]' @'
+Add-CodexPrefixRuleIfMissing '["probe-rs"]' @'
 prefix_rule(
-    pattern = ["probe-rs", "list"],
+    pattern = ["probe-rs"],
     decision = "allow",
-    justification = "Read-only debug probe discovery is safe outside sandbox",
+    justification = "Allow probe-rs hardware workflows outside sandbox",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["openocd", "--version"]' @'
+Add-CodexPrefixRuleIfMissing '["openocd"]' @'
 prefix_rule(
-    pattern = ["openocd", "--version"],
+    pattern = ["openocd"],
     decision = "allow",
-    justification = "Version checks are safe outside sandbox",
+    justification = "Allow OpenOCD hardware workflows outside sandbox",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["dfu-util", "-l"]' @'
+Add-CodexPrefixRuleIfMissing '["dfu-util"]' @'
 prefix_rule(
-    pattern = ["dfu-util", "-l"],
+    pattern = ["dfu-util"],
     decision = "allow",
-    justification = "Read-only DFU device listing is safe outside sandbox",
+    justification = "Allow DFU hardware workflows outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["picocom"]' @'
+prefix_rule(
+    pattern = ["picocom"],
+    decision = "allow",
+    justification = "Allow serial console hardware workflows outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["stty"]' @'
+prefix_rule(
+    pattern = ["stty"],
+    decision = "allow",
+    justification = "Allow serial TTY configuration outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["st-flash"]' @'
+prefix_rule(
+    pattern = ["st-flash"],
+    decision = "allow",
+    justification = "Allow ST-Link flashing workflows outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["st-info"]' @'
+prefix_rule(
+    pattern = ["st-info"],
+    decision = "allow",
+    justification = "Allow ST-Link probe inspection outside sandbox",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["st-util"]' @'
+prefix_rule(
+    pattern = ["st-util"],
+    decision = "allow",
+    justification = "Allow ST-Link debug server workflows outside sandbox",
 )
 '@
 New-CodexPermissionsExampleIfMissing

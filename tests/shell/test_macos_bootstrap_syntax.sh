@@ -47,8 +47,13 @@ if [[ "$codex_module_source" != *"upsert_codex_mcp_setting fetch default_tools_a
   exit 1
 fi
 
-if ! grep -qF "ensure_codex_prefix_rule '[\"probe-rs\", \"list\"]'" "$repo_root/macos/modules/codex.sh"; then
-  echo "macOS Codex module must allow read-only probe-rs device discovery rule" >&2
+if ! grep -qF "ensure_codex_prefix_rule '[\"probe-rs\"]'" "$repo_root/macos/modules/codex.sh"; then
+  echo "macOS Codex module must allow probe-rs hardware workflows" >&2
+  exit 1
+fi
+
+if ! grep -qF "ensure_codex_prefix_rule '[\"stty\"]'" "$repo_root/macos/modules/codex.sh"; then
+  echo "macOS Codex module must allow serial TTY configuration rule" >&2
   exit 1
 fi
 
