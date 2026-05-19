@@ -141,6 +141,38 @@
         "/home/alexander/example"
       ]
 
+- name: Disable Codex built-in ChatGPT Apps MCP by default
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex features disable apps
+  args:
+    executable: /bin/bash
+  register: codex_apps_disable
+  changed_when: >-
+    'disabled' in (codex_apps_disable.stdout | lower)
+    or 'updated' in (codex_apps_disable.stdout | lower)
+  when:
+    - not (codex_apps_enabled | default(false) | bool)
+    - "'apps = false' not in codex_config"
+
+- name: Enable Codex built-in ChatGPT Apps MCP when requested
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex features enable apps
+  args:
+    executable: /bin/bash
+  register: codex_apps_enable
+  changed_when: >-
+    'enabled' in (codex_apps_enable.stdout | lower)
+    or 'updated' in (codex_apps_enable.stdout | lower)
+  when:
+    - codex_apps_enabled | default(false) | bool
+    - "'apps = false' in codex_config"
+
 - name: Set desired Codex MCP server allowlist
   set_fact:
     codex_mcp_desired_servers: >-

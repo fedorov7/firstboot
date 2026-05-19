@@ -117,6 +117,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_mcp_allowlist` | context/docs/memory defaults | MCP servers managed by the Codex role |
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
+| `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
@@ -148,8 +149,9 @@ removes MCP entries outside `codex_mcp_allowlist` when
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
 documentation and reasoning tools enabled while leaving broader access tools
-disabled. To enable GitHub MCP, export a token in the configured environment
-variable and run:
+disabled. The built-in ChatGPT Apps MCP is disabled by default because it starts
+a remote `chatgpt.com` handshake on Codex startup. To enable GitHub MCP, export
+a token in the configured environment variable and run:
 
 ```bash
 export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxx
