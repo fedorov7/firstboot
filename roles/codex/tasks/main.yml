@@ -44,6 +44,27 @@
 # ── MCP servers ──
 # Codex stores MCP in ~/.codex/config.toml under [mcp_servers.<name>]
 
+- name: Ensure Codex config directory exists
+  file:
+    path: "{{ user_home }}/.codex"
+    state: directory
+
+- name: Set Codex workspace access defaults
+  lineinfile:
+    path: "{{ user_home }}/.codex/config.toml"
+    regexp: "^{{ item.key }}\\s*="
+    line: '{{ item.key }} = "{{ item.value }}"'
+    insertbefore: '^\['
+    create: true
+    mode: "0644"
+  loop:
+    - key: sandbox_mode
+      value: "{{ codex_sandbox_mode | default('workspace-write') }}"
+    - key: approval_policy
+      value: "{{ codex_approval_policy | default('never') }}"
+  loop_control:
+    label: "{{ item.key }}"
+
 - name: Read codex config.toml
   slurp:
     src: "{{ user_home }}/.codex/config.toml"
@@ -134,7 +155,7 @@
     content: |
       # Example only. Copy selected settings to ~/.codex/config.toml when needed.
       sandbox_mode = "workspace-write"
-      approval_policy = "on-request"
+      approval_policy = "never"
 
       [sandbox_workspace_write]
       writable_roots = [

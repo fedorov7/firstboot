@@ -117,6 +117,8 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_mcp_allowlist` | context/docs/memory defaults | MCP servers managed by the Codex role |
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
+| `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
+| `codex_approval_policy` | `never` | Do not prompt for ordinary sandboxed workspace commands; out-of-sandbox operations fail instead of escalating |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
@@ -279,6 +281,8 @@ Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`, `claude
 | `--codex-mcp-allowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
 | `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
+| `--codex-sandbox-mode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
+| `--codex-approval-policy` | `never` | Do not prompt for ordinary sandboxed workspace commands |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
 | `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
 | `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
@@ -346,6 +350,8 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
+| `-CodexSandboxMode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
+| `-CodexApprovalPolicy` | `never` | Do not prompt for ordinary sandboxed workspace commands |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |
 | `-CodexTimesFmSkillPath` | `timesfm-forecasting` | Skill directory inside the TimesFM repo |

@@ -104,6 +104,56 @@ function Set-CodexMcpSetting {
     Write-Ok "MCP $Name $Key = $Value"
 }
 
+function Set-CodexTopLevelSetting {
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+
+    if (-not (Test-Path $script:ConfigToml)) {
+        New-Item -ItemType File -Path $script:ConfigToml -Force | Out-Null
+    }
+
+    $lines = @(Get-Content -LiteralPath $script:ConfigToml)
+    $result = New-Object System.Collections.Generic.List[string]
+    $seen = $false
+    $inTopLevel = $true
+
+    foreach ($line in $lines) {
+        if ($inTopLevel -and $line -match '^\s*\[') {
+            if (-not $seen) {
+                $result.Add("$Key = $Value")
+                $seen = $true
+            }
+            $inTopLevel = $false
+        }
+
+        if ($inTopLevel -and $line -match "^\s*$([regex]::Escape($Key))\s*=") {
+            if (-not $seen) {
+                $result.Add("$Key = $Value")
+                $seen = $true
+            }
+            continue
+        }
+
+        $result.Add($line)
+    }
+
+    if (-not $seen) {
+        $result.Add("$Key = $Value")
+    }
+
+    $current = if (Test-Path $script:ConfigToml) { Get-Content -LiteralPath $script:ConfigToml -Raw } else { '' }
+    $next = ($result -join [Environment]::NewLine) + [Environment]::NewLine
+    if ($current -eq $next) {
+        Write-Skip "Codex $Key already set"
+        return
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    Write-Ok "Codex $Key = $Value"
+}
+
 function Add-CodexPrefixRuleIfMissing {
     param(
         [Parameter(Mandatory)][string]$Pattern,
@@ -136,11 +186,11 @@ function New-CodexPermissionsExampleIfMissing {
     @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
-approval_policy = "on-request"
+approval_policy = "never"
 
 [sandbox_workspace_write]
 writable_roots = [
-  "/home/alexander/example"
+  "C:\\Users\\Administrator\\projects\\example"
 ]
 '@ | Set-Content -LiteralPath $script:CodexPermissionsExample -Encoding utf8
     Write-Ok "Codex permissions example created"
@@ -326,6 +376,9 @@ $script:CodexPermissionsExample = Join-Path $codexDir 'config.permissions.exampl
 if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
 }
+
+Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
+Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
 
 Add-CodexPrefixRuleIfMissing '["probe-rs"]' @'
 prefix_rule(

@@ -62,4 +62,19 @@ if [[ "$codex_module_source" != *'sandbox_mode = "workspace-write"'* ]]; then
   exit 1
 fi
 
+if [[ "$codex_module_source" != *'approval_policy = "never"'* ]]; then
+  echo "macOS Codex module must use approval_policy = never in permissions example" >&2
+  exit 1
+fi
+
+if [[ "$codex_module_source" != *'upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""'* ]]; then
+  echo "macOS Codex module must apply sandbox mode to config.toml" >&2
+  exit 1
+fi
+
+if [[ "$codex_module_source" != *'upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""'* ]]; then
+  echo "macOS Codex module must apply approval policy to config.toml" >&2
+  exit 1
+fi
+
 echo "macos bootstrap syntax tests passed"

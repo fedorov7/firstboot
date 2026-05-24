@@ -38,6 +38,8 @@ CODEX_MCP_PRUNE_UNMANAGED="${CODEX_MCP_PRUNE_UNMANAGED:-0}"
 CODEX_GITHUB_MCP_ENABLED="${CODEX_GITHUB_MCP_ENABLED:-0}"
 CODEX_GITHUB_TOKEN_ENV_VAR="${CODEX_GITHUB_TOKEN_ENV_VAR:-GITHUB_PERSONAL_ACCESS_TOKEN}"
 CODEX_SERENA_ENABLED="${CODEX_SERENA_ENABLED:-0}"
+CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
+CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-never}"
 CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-pdf}"
 CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills}"
 CODEX_KARPATHY_SKILLS="${CODEX_KARPATHY_SKILLS:-karpathy-guidelines}"
@@ -289,6 +291,8 @@ Options:
   --codex-github-mcp-enabled            Enable official GitHub MCP server for Codex.
   --codex-github-token-env-var <name>   Env var name used by Codex GitHub MCP.
   --codex-serena-enabled                Enable Serena MCP via uvx.
+  --codex-sandbox-mode <mode>           Codex sandbox mode (default: workspace-write).
+  --codex-approval-policy <policy>      Codex approval policy (default: never).
   --codex-curated-skills <csv>          Curated Codex skills allowlist.
   --codex-superpowers-skills <csv>      superpowers skill allowlist.
   --codex-karpathy-skills <csv>         karpathy skill allowlist.
@@ -327,6 +331,8 @@ while [[ $# -gt 0 ]]; do
     --codex-github-mcp-enabled) CODEX_GITHUB_MCP_ENABLED=1; shift ;;
     --codex-github-token-env-var) CODEX_GITHUB_TOKEN_ENV_VAR="$2"; shift 2 ;;
     --codex-serena-enabled) CODEX_SERENA_ENABLED=1; shift ;;
+    --codex-sandbox-mode) CODEX_SANDBOX_MODE="$2"; shift 2 ;;
+    --codex-approval-policy) CODEX_APPROVAL_POLICY="$2"; shift 2 ;;
     --codex-curated-skills) CODEX_CURATED_SKILLS="$2"; shift 2 ;;
     --codex-superpowers-skills) CODEX_SUPERPOWERS_SKILLS="$2"; shift 2 ;;
     --codex-karpathy-skills) CODEX_KARPATHY_SKILLS="$2"; shift 2 ;;

@@ -102,6 +102,48 @@ upsert_codex_mcp_setting() {
   write_ok "MCP $name $key = $value"
 }
 
+upsert_codex_top_level_setting() {
+  local key="$1"
+  local value="$2"
+  touch "$config_toml"
+
+  local temp_config
+  temp_config="$(mktemp)"
+  awk -v key="$key" -v value="$value" '
+    BEGIN { top_level = 1; seen = 0 }
+    top_level && /^\[/ {
+      if (!seen) {
+        print key " = " value
+        seen = 1
+      }
+      top_level = 0
+    }
+    top_level && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      if (!seen) {
+        print key " = " value
+        seen = 1
+      }
+      next
+    }
+    { print }
+    END {
+      if (!seen) {
+        print key " = " value
+      }
+    }
+  ' "$config_toml" >"$temp_config"
+
+  if cmp -s "$temp_config" "$config_toml"; then
+    rm -f "$temp_config"
+    write_skip "Codex $key already set"
+    return
+  fi
+
+  cp "$temp_config" "$config_toml"
+  rm -f "$temp_config"
+  write_ok "Codex $key = $value"
+}
+
 ensure_codex_prefix_rule() {
   local pattern="$1"
   local rule="$2"
@@ -124,7 +166,7 @@ ensure_codex_permissions_example() {
   cat >"$codex_permissions_example" <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
-approval_policy = "on-request"
+approval_policy = "never"
 
 [sandbox_workspace_write]
 writable_roots = [
@@ -133,6 +175,9 @@ writable_roots = [
 EOF
   write_ok "Codex permissions example created"
 }
+
+upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
+upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
 
 ensure_codex_prefix_rule '["probe-rs"]' 'prefix_rule(
     pattern = ["probe-rs"],

@@ -25,6 +25,10 @@
     Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
+.PARAMETER CodexSandboxMode
+    Codex sandbox mode for shell/file operations (default: workspace-write).
+.PARAMETER CodexApprovalPolicy
+    Codex approval policy for shell/file operations (default: never).
 .PARAMETER CodexTimesFmSkillEnabled
     Install the TimesFM forecasting skill from google-research/timesfm.
 .PARAMETER MlEnvironmentPath
@@ -56,6 +60,8 @@ param(
     [switch]$CodexGithubMcpEnabled,
     [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
     [switch]$CodexSerenaEnabled,
+    [string]$CodexSandboxMode = "workspace-write",
+    [string]$CodexApprovalPolicy = "never",
     [string]$CodexCuratedSkills = "pdf",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
