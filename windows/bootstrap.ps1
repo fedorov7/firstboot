@@ -23,12 +23,40 @@
     Remove Neovim config/data/state/cache before cloning AstroNvim. Enabled by default.
 .PARAMETER PreserveNeovimState
     Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning.
+.PARAMETER WindowsDeveloperModeEnabled
+    Enable Windows Developer Mode registry settings. Disabled by default.
+.PARAMETER DevDrivePath
+    Optional Dev Drive volume path to query or trust, for example D:.
+.PARAMETER DevDriveTrustEnabled
+    Trust the selected Dev Drive. Disabled by default and requires DevDrivePath.
+.PARAMETER WslInstallEnabled
+    Install WSL with the selected distribution. Disabled by default.
+.PARAMETER WslDistribution
+    WSL distribution to install when WslInstallEnabled is passed.
+.PARAMETER WslConfigEnabled
+    Manage the user .wslconfig file. Disabled by default.
+.PARAMETER WslMemory
+    Optional WSL2 memory limit, for example 16GB.
+.PARAMETER WslProcessors
+    Optional WSL2 virtual processor count. Zero keeps the WSL default.
+.PARAMETER WslSwap
+    Optional WSL2 swap size, for example 8GB or 0.
+.PARAMETER WslNetworkingMode
+    Optional WSL2 networking mode: none, nat, mirrored, or virtioproxy.
+.PARAMETER WslAutoMemoryReclaim
+    WSL experimental autoMemoryReclaim value used when WslConfigEnabled is passed.
+.PARAMETER WslSparseVhdEnabled
+    Enable sparse VHD for newly created WSL distributions when WslConfigEnabled is passed.
+.PARAMETER WindowsSudoEnabled
+    Enable Sudo for Windows. Disabled by default.
+.PARAMETER WindowsSudoMode
+    Sudo for Windows mode: forceNewWindow, disableInput, or normal.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
 .PARAMETER CodexSandboxMode
     Codex sandbox mode for shell/file operations (default: workspace-write).
 .PARAMETER CodexApprovalPolicy
-    Codex approval policy for shell/file operations (default: never).
+    Codex approval policy for shell/file operations (default: on-request).
 .PARAMETER CodexTimesFmSkillEnabled
     Install the TimesFM forecasting skill from google-research/timesfm.
 .PARAMETER MlEnvironmentPath
@@ -55,13 +83,27 @@ param(
     [string]$GithubToken = "",
     [bool]$ForceNeovimCleanup = $true,
     [switch]$PreserveNeovimState,
+    [switch]$WindowsDeveloperModeEnabled,
+    [string]$DevDrivePath = "",
+    [switch]$DevDriveTrustEnabled,
+    [switch]$WslInstallEnabled,
+    [string]$WslDistribution = "Ubuntu",
+    [switch]$WslConfigEnabled,
+    [string]$WslMemory = "",
+    [int]$WslProcessors = 0,
+    [string]$WslSwap = "",
+    [string]$WslNetworkingMode = "",
+    [string]$WslAutoMemoryReclaim = "gradual",
+    [switch]$WslSparseVhdEnabled,
+    [switch]$WindowsSudoEnabled,
+    [string]$WindowsSudoMode = "forceNewWindow",
     [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,memory,fetch,sequential-thinking",
     [switch]$CodexMcpPruneUnmanaged,
     [switch]$CodexGithubMcpEnabled,
     [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
     [switch]$CodexSerenaEnabled,
     [string]$CodexSandboxMode = "workspace-write",
-    [string]$CodexApprovalPolicy = "never",
+    [string]$CodexApprovalPolicy = "on-request",
     [string]$CodexCuratedSkills = "pdf",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
@@ -213,6 +255,10 @@ function Refresh-Path {
 
 $AllModules = @(
     'base'
+    'dev_settings'
+    'dev_drive'
+    'wsl'
+    'sudo'
     'shell'
     'ssh'
     'neovim'
@@ -230,6 +276,7 @@ $AllModules = @(
 if ([string]::IsNullOrWhiteSpace($Modules)) {
     $SelectedModules = @(
         'base'
+        'dev_settings'
         'shell'
         'ssh'
         'neovim'

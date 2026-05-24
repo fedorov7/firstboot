@@ -11,6 +11,8 @@ function Get-FirstbootGitConfigEntries {
         [pscustomobject]@{ Key = 'user.email';              Value = $UserEmail }
         [pscustomobject]@{ Key = 'core.editor';             Value = 'nvim' }
         [pscustomobject]@{ Key = 'core.pager';              Value = 'delta' }
+        [pscustomobject]@{ Key = 'core.fsmonitor';          Value = 'true' }
+        [pscustomobject]@{ Key = 'core.untrackedCache';     Value = 'true' }
         [pscustomobject]@{ Key = 'interactive.diffFilter';  Value = 'delta --color-only --features=interactive' }
         [pscustomobject]@{ Key = 'delta.navigate';          Value = 'true' }
         [pscustomobject]@{ Key = 'diff.external';           Value = 'difft' }
