@@ -118,7 +118,8 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
-| `codex_approval_policy` | `never` | Do not prompt for ordinary sandboxed workspace commands; out-of-sandbox operations fail instead of escalating |
+| `codex_approval_policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; ask before approved out-of-workspace operations |
+| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run/pwsh | Allow common local workspace inspection and project-script commands without repeated prompts |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
@@ -231,8 +232,8 @@ chmod +x bootstrap.sh
 ```
 
 By default, the bootstrap runs:
-`base,shell,ssh,neovim,nodejs,python,rust,cpp,cli_tools,codex`.
-Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`, `claude`.
+`base,dev_settings,shell,ssh,neovim,nodejs,python,rust,cpp,lua,ml,cli_tools,codex`.
+Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 
 ### Running specific modules
 
@@ -282,7 +283,7 @@ Optional modules are: `lua`, `ml`, `embedded`, `uefi`, `security_tools`, `claude
 | `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
 | `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
 | `--codex-sandbox-mode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
-| `--codex-approval-policy` | `never` | Do not prompt for ordinary sandboxed workspace commands |
+| `--codex-approval-policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
 | `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
 | `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
@@ -311,6 +312,9 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 
 # Enable TimesFM forecasting skill and runtime in the ML environment
 .\bootstrap.ps1 -Modules python,ml,codex -MlTimesFmEnabled -CodexTimesFmSkillEnabled
+
+# Tune WSL2 global resource settings without installing a distribution
+.\bootstrap.ps1 -Modules wsl -WslConfigEnabled -WslMemory 16GB -WslProcessors 8 -WslSwap 8GB -WslSparseVhdEnabled
 ```
 
 ### What gets installed (Windows)
@@ -318,6 +322,10 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | Module | Description |
 |--------|-------------|
 | **base** | Core CLI utilities via winget (ripgrep, fd, bat, fzf, jq, yq, eza, duf, 7-Zip, Everything, PowerToys, Git, GitHub CLI) |
+| **dev_settings** | Windows developer defaults: long paths, Explorer file extension/hidden-file visibility, optional Developer Mode |
+| **dev_drive** | Optional Dev Drive inspection and trust workflow via `fsutil devdrv`; never creates or formats drives |
+| **wsl** | Optional WSL inspection, install workflow, and guarded `.wslconfig` tuning |
+| **sudo** | Optional Sudo for Windows configuration; defaults to safer `forceNewWindow` mode |
 | **shell** | oh-my-posh + PSReadLine + posh-git + Terminal-Icons + zoxide + PSFzf, PowerShell profile, and a non-destructive Windows Terminal font patch (`CaskaydiaCove Nerd Font Mono`) |
 | **ssh** | OpenSSH agent, ed25519 key, git config with delta and difftastic |
 | **neovim** | Neovim + AstroNvim config |
@@ -344,6 +352,20 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-AstroNvimRepo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repo |
 | `-ForceNeovimCleanup` | `$true` | Remove Neovim config/data/state/cache before cloning AstroNvim |
 | `-PreserveNeovimState` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
+| `-WindowsDeveloperModeEnabled` | off | Enable Windows Developer Mode registry settings; long paths and Explorer developer defaults are always configured by `dev_settings` |
+| `-DevDrivePath` | (empty) | Optional Dev Drive volume path to query or trust, for example `D:` |
+| `-DevDriveTrustEnabled` | off | Trust the selected Dev Drive without force-dismounting it; requires `-DevDrivePath` |
+| `-WslInstallEnabled` | off | Install WSL with the selected distribution; otherwise the `wsl` module only inspects status |
+| `-WslDistribution` | `Ubuntu` | Distribution passed to `wsl --install --distribution` |
+| `-WslConfigEnabled` | off | Manage `%UserProfile%\.wslconfig`; existing files are backed up before edits |
+| `-WslMemory` | (empty) | Optional WSL2 memory limit, for example `16GB` |
+| `-WslProcessors` | `0` | Optional WSL2 processor count; `0` keeps the WSL default |
+| `-WslSwap` | (empty) | Optional WSL2 swap size, for example `8GB` or `0` |
+| `-WslNetworkingMode` | (empty) | Optional WSL2 networking mode: `none`, `nat`, `mirrored`, or `virtioproxy` |
+| `-WslAutoMemoryReclaim` | `gradual` | Experimental WSL memory reclaim value used when `-WslConfigEnabled` is passed |
+| `-WslSparseVhdEnabled` | off | Enable sparse VHD for newly created WSL distributions when `-WslConfigEnabled` is passed |
+| `-WindowsSudoEnabled` | off | Enable Sudo for Windows when the `sudo` module is selected |
+| `-WindowsSudoMode` | `forceNewWindow` | Sudo mode: `forceNewWindow`, `disableInput`, or `normal` |
 | `-GithubToken` | (empty) | Optional GitHub PAT copied into `-CodexGithubTokenEnvVar` for official GitHub MCP |
 | `-CodexMcpAllowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
@@ -351,7 +373,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
 | `-CodexSandboxMode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
-| `-CodexApprovalPolicy` | `never` | Do not prompt for ordinary sandboxed workspace commands |
+| `-CodexApprovalPolicy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |
 | `-CodexTimesFmSkillPath` | `timesfm-forecasting` | Skill directory inside the TimesFM repo |

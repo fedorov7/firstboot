@@ -165,7 +165,7 @@ function Add-CodexPrefixRuleIfMissing {
     }
 
     $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ($source -like "*pattern = $Pattern*") {
+    if ($source -and $source.Contains("pattern = $Pattern")) {
         Write-Skip "Codex rule already present: $Pattern"
         return
     }
@@ -186,7 +186,7 @@ function New-CodexPermissionsExampleIfMissing {
     @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
-approval_policy = "never"
+approval_policy = "on-request"
 
 [sandbox_workspace_write]
 writable_roots = [
@@ -379,6 +379,84 @@ if (-not (Test-Path $codexRulesDir)) {
 
 Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
 Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
+
+Add-CodexPrefixRuleIfMissing '["git"]' @'
+prefix_rule(
+    pattern = ["git"],
+    decision = "allow",
+    justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["rg"]' @'
+prefix_rule(
+    pattern = ["rg"],
+    decision = "allow",
+    justification = "Allow ripgrep workspace searches without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["fd"]' @'
+prefix_rule(
+    pattern = ["fd"],
+    decision = "allow",
+    justification = "Allow fd workspace file discovery without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["bat"]' @'
+prefix_rule(
+    pattern = ["bat"],
+    decision = "allow",
+    justification = "Allow bat workspace file viewing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["eza"]' @'
+prefix_rule(
+    pattern = ["eza"],
+    decision = "allow",
+    justification = "Allow eza workspace directory listing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["delta"]' @'
+prefix_rule(
+    pattern = ["delta"],
+    decision = "allow",
+    justification = "Allow delta diff viewing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["difft"]' @'
+prefix_rule(
+    pattern = ["difft"],
+    decision = "allow",
+    justification = "Allow difftastic diff viewing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["difftastic"]' @'
+prefix_rule(
+    pattern = ["difftastic"],
+    decision = "allow",
+    justification = "Allow difftastic diff viewing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["just"]' @'
+prefix_rule(
+    pattern = ["just"],
+    decision = "allow",
+    justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["uv", "run"]' @'
+prefix_rule(
+    pattern = ["uv", "run"],
+    decision = "allow",
+    justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["pwsh"]' @'
+prefix_rule(
+    pattern = ["pwsh"],
+    decision = "allow",
+    justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
+)
+'@
 
 Add-CodexPrefixRuleIfMissing '["probe-rs"]' @'
 prefix_rule(

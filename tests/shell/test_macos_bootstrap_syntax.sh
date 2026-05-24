@@ -62,8 +62,8 @@ if [[ "$codex_module_source" != *'sandbox_mode = "workspace-write"'* ]]; then
   exit 1
 fi
 
-if [[ "$codex_module_source" != *'approval_policy = "never"'* ]]; then
-  echo "macOS Codex module must use approval_policy = never in permissions example" >&2
+if [[ "$codex_module_source" != *'approval_policy = "on-request"'* ]]; then
+  echo "macOS Codex module must use approval_policy = on-request in permissions example" >&2
   exit 1
 fi
 

@@ -166,7 +166,7 @@ ensure_codex_permissions_example() {
   cat >"$codex_permissions_example" <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
-approval_policy = "never"
+approval_policy = "on-request"
 
 [sandbox_workspace_write]
 writable_roots = [
@@ -178,6 +178,62 @@ EOF
 
 upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
 upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
+
+ensure_codex_prefix_rule '["git"]' 'prefix_rule(
+    pattern = ["git"],
+    decision = "allow",
+    justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+)'
+ensure_codex_prefix_rule '["rg"]' 'prefix_rule(
+    pattern = ["rg"],
+    decision = "allow",
+    justification = "Allow ripgrep workspace searches without repeated prompts",
+)'
+ensure_codex_prefix_rule '["fd"]' 'prefix_rule(
+    pattern = ["fd"],
+    decision = "allow",
+    justification = "Allow fd workspace file discovery without repeated prompts",
+)'
+ensure_codex_prefix_rule '["bat"]' 'prefix_rule(
+    pattern = ["bat"],
+    decision = "allow",
+    justification = "Allow bat workspace file viewing without repeated prompts",
+)'
+ensure_codex_prefix_rule '["eza"]' 'prefix_rule(
+    pattern = ["eza"],
+    decision = "allow",
+    justification = "Allow eza workspace directory listing without repeated prompts",
+)'
+ensure_codex_prefix_rule '["delta"]' 'prefix_rule(
+    pattern = ["delta"],
+    decision = "allow",
+    justification = "Allow delta diff viewing without repeated prompts",
+)'
+ensure_codex_prefix_rule '["difft"]' 'prefix_rule(
+    pattern = ["difft"],
+    decision = "allow",
+    justification = "Allow difftastic diff viewing without repeated prompts",
+)'
+ensure_codex_prefix_rule '["difftastic"]' 'prefix_rule(
+    pattern = ["difftastic"],
+    decision = "allow",
+    justification = "Allow difftastic diff viewing without repeated prompts",
+)'
+ensure_codex_prefix_rule '["just"]' 'prefix_rule(
+    pattern = ["just"],
+    decision = "allow",
+    justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
+)'
+ensure_codex_prefix_rule '["uv", "run"]' 'prefix_rule(
+    pattern = ["uv", "run"],
+    decision = "allow",
+    justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
+)'
+ensure_codex_prefix_rule '["pwsh"]' 'prefix_rule(
+    pattern = ["pwsh"],
+    decision = "allow",
+    justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
+)'
 
 ensure_codex_prefix_rule '["probe-rs"]' 'prefix_rule(
     pattern = ["probe-rs"],
