@@ -306,7 +306,7 @@ if [[ -f "$config_toml" ]]; then
     if ! array_contains "$server_name" "${existing_mcp_servers[@]}"; then
       existing_mcp_servers+=("$server_name")
     fi
-  done < <(sed -nE 's/^\[mcp_servers\.([^]]+)\]$/\1/p' "$config_toml")
+  done < <(sed -nE 's/^\[mcp_servers\.([^].]+)\]$/\1/p' "$config_toml")
 fi
 
 if [[ "$CODEX_MCP_PRUNE_UNMANAGED" -eq 1 ]]; then

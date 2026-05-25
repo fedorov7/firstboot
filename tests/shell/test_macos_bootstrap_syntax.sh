@@ -47,6 +47,11 @@ if [[ "$codex_module_source" != *"upsert_codex_mcp_setting fetch default_tools_a
   exit 1
 fi
 
+if ! grep -qF "s/^\\[mcp_servers\\.([^].]+)\\]$/\\1/p" "$repo_root/macos/modules/codex.sh"; then
+  echo "macOS Codex module must ignore nested MCP tables when listing servers" >&2
+  exit 1
+fi
+
 if ! grep -qF "ensure_codex_prefix_rule '[\"probe-rs\"]'" "$repo_root/macos/modules/codex.sh"; then
   echo "macOS Codex module must allow probe-rs hardware workflows" >&2
   exit 1
