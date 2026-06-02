@@ -47,6 +47,9 @@ codex_mcp_prune_unmanaged: false
 codex_context7_remove_inline_api_key: true
 codex_sandbox_mode: workspace-write
 codex_approval_policy: on-request
+codex_approvals_reviewer: user
+codex_check_for_update_on_startup: true
+codex_update_enabled: false
 
 # Optional MCP servers with broader access or heavier runtime behavior.
 codex_github_mcp_enabled: false

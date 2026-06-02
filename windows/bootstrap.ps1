@@ -57,6 +57,16 @@
     Codex sandbox mode for shell/file operations (default: workspace-write).
 .PARAMETER CodexApprovalPolicy
     Codex approval policy for shell/file operations (default: on-request).
+.PARAMETER CodexApprovalsReviewer
+    Reviewer for eligible Codex approval prompts (default: user).
+.PARAMETER CodexWindowsSandbox
+    Native Windows Codex sandbox mode (default: elevated).
+.PARAMETER CodexWindowsSandboxPrivateDesktop
+    Use a private desktop for native Windows sandboxed processes.
+.PARAMETER CodexCheckForUpdateOnStartup
+    Let Codex check for CLI updates at startup.
+.PARAMETER CodexUpdateEnabled
+    Update the Codex CLI package during provisioning. Disabled by default.
 .PARAMETER CodexTimesFmSkillEnabled
     Install the TimesFM forecasting skill from google-research/timesfm.
 .PARAMETER MlEnvironmentPath
@@ -104,6 +114,11 @@ param(
     [switch]$CodexSerenaEnabled,
     [string]$CodexSandboxMode = "workspace-write",
     [string]$CodexApprovalPolicy = "on-request",
+    [string]$CodexApprovalsReviewer = "user",
+    [string]$CodexWindowsSandbox = "elevated",
+    [bool]$CodexWindowsSandboxPrivateDesktop = $true,
+    [bool]$CodexCheckForUpdateOnStartup = $true,
+    [switch]$CodexUpdateEnabled,
     [string]$CodexCuratedSkills = "pdf",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",

@@ -119,7 +119,10 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
 | `codex_approval_policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; ask before approved out-of-workspace operations |
-| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run/pwsh | Allow common local workspace inspection and project-script commands without repeated prompts |
+| `codex_approvals_reviewer` | `user` | Send eligible approval prompts to the user instead of automatic review |
+| `codex_check_for_update_on_startup` | `true` | Let Codex check for CLI updates on startup |
+| `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
+| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run | Allow common local workspace inspection and project commands without repeated prompts |
 | Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
@@ -147,9 +150,12 @@ TimesFM forecasting skill is also opt-in because it is narrow and resource-aware
 for time-series forecasting workflows. Re-running the role removes stale managed
 entries from `~/.agents/skills/superpowers`,
 `~/.agents/skills/claude-skills`, `~/.agents/skills/karpathy-skills`, and
-legacy curated skill directories previously installed by this playbook. It only
+legacy curated skill directories previously installed by this playbook. It
 removes MCP entries outside `codex_mcp_allowlist` when
 `codex_mcp_prune_unmanaged=true`.
+
+On Windows, Codex rules allow direct PowerShell read/output cmdlets. Broad shell
+wrappers such as `pwsh` and `wsl bash -lc` are intentionally not trusted rules.
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
 documentation and reasoning tools enabled while leaving broader access tools
@@ -375,6 +381,11 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
 | `-CodexSandboxMode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
 | `-CodexApprovalPolicy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
+| `-CodexApprovalsReviewer` | `user` | Send eligible approval prompts to the user |
+| `-CodexWindowsSandbox` | `elevated` | Use the stronger native Windows Codex sandbox mode |
+| `-CodexWindowsSandboxPrivateDesktop` | `$true` | Keep native Windows sandboxed processes on a private desktop |
+| `-CodexCheckForUpdateOnStartup` | `$true` | Let Codex check for CLI updates on startup |
+| `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |
 | `-CodexTimesFmSkillPath` | `timesfm-forecasting` | Skill directory inside the TimesFM repo |

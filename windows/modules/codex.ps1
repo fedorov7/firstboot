@@ -154,6 +154,75 @@ function Set-CodexTopLevelSetting {
     Write-Ok "Codex $Key = $Value"
 }
 
+function Set-CodexTableSetting {
+    param(
+        [Parameter(Mandatory)][string]$Table,
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+
+    if (-not (Test-Path $script:ConfigToml)) {
+        New-Item -ItemType File -Path $script:ConfigToml -Force | Out-Null
+    }
+
+    $lines = @(Get-Content -LiteralPath $script:ConfigToml)
+    $section = "[$Table]"
+    $result = New-Object System.Collections.Generic.List[string]
+    $inSection = $false
+    $sectionSeen = $false
+    $settingSeen = $false
+
+    foreach ($line in $lines) {
+        if ($line -eq $section) {
+            $sectionSeen = $true
+            $inSection = $true
+            $result.Add($line)
+            continue
+        }
+
+        if ($inSection -and $line -match '^\s*\[') {
+            if (-not $settingSeen) {
+                $result.Add("$Key = $Value")
+                $settingSeen = $true
+            }
+            $inSection = $false
+        }
+
+        if ($inSection -and $line -match "^\s*$([regex]::Escape($Key))\s*=") {
+            if (-not $settingSeen) {
+                $result.Add("$Key = $Value")
+                $settingSeen = $true
+            }
+            continue
+        }
+
+        $result.Add($line)
+    }
+
+    if ($inSection -and -not $settingSeen) {
+        $result.Add("$Key = $Value")
+        $settingSeen = $true
+    }
+
+    if (-not $sectionSeen) {
+        if ($result.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($result[$result.Count - 1])) {
+            $result.Add('')
+        }
+        $result.Add($section)
+        $result.Add("$Key = $Value")
+    }
+
+    $current = if (Test-Path $script:ConfigToml) { Get-Content -LiteralPath $script:ConfigToml -Raw } else { '' }
+    $next = ($result -join [Environment]::NewLine) + [Environment]::NewLine
+    if ($current -eq $next) {
+        Write-Skip "Codex $Table.$Key already set"
+        return
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    Write-Ok "Codex $Table.$Key = $Value"
+}
+
 function Add-CodexPrefixRuleIfMissing {
     param(
         [Parameter(Mandatory)][string]$Pattern,
@@ -177,23 +246,65 @@ function Add-CodexPrefixRuleIfMissing {
     Write-Ok "Codex rule added: $Pattern"
 }
 
-function New-CodexPermissionsExampleIfMissing {
-    if (Test-Path $script:CodexPermissionsExample) {
-        Write-Skip "Codex permissions example already present"
+function Remove-CodexPrefixAllowRulesByPattern {
+    param([Parameter(Mandatory)][string]$Pattern)
+
+    if (-not (Test-Path $script:CodexDefaultRules)) {
         return
     }
 
-    @'
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ([string]::IsNullOrWhiteSpace($source)) {
+        return
+    }
+
+    $escapedPattern = [regex]::Escape($Pattern)
+    $ruleRegex = [regex]::new(
+        "(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$escapedPattern(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*""allow""(?:(?!^\s*prefix_rule\().)*?\)\s*"
+    )
+    $updated = $ruleRegex.Replace($source, [Environment]::NewLine)
+    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
+
+    if ($updated -eq $source) {
+        Write-Skip "Unsafe Codex allow rule absent: $Pattern"
+        return
+    }
+
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
+    Write-Ok "Removed unsafe Codex allow rule: $Pattern"
+}
+
+function Remove-CodexUnsafeShellWrapperRules {
+    foreach ($pattern in @('["pwsh"]', '["wsl", "bash", "-lc"]', '["wsl", "-e", "bash"]')) {
+        Remove-CodexPrefixAllowRulesByPattern $pattern
+    }
+}
+
+function Set-CodexPermissionsExample {
+    $content = @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
+approvals_reviewer = "user"
+check_for_update_on_startup = true
+
+[windows]
+sandbox = "elevated"
+sandbox_private_desktop = true
 
 [sandbox_workspace_write]
 writable_roots = [
   "C:\\Users\\Administrator\\projects\\example"
 ]
-'@ | Set-Content -LiteralPath $script:CodexPermissionsExample -Encoding utf8
-    Write-Ok "Codex permissions example created"
+'@
+
+    if ((Test-Path $script:CodexPermissionsExample) -and (Get-Content -LiteralPath $script:CodexPermissionsExample -Raw) -eq $content) {
+        Write-Skip "Codex permissions example already current"
+        return
+    }
+
+    Set-Content -LiteralPath $script:CodexPermissionsExample -Value $content -NoNewline -Encoding utf8
+    Write-Ok "Codex permissions example updated"
 }
 
 function Sync-CodexSkillNamespace {
@@ -354,7 +465,17 @@ $codexInstalled = npm ls -g @openai/codex 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Step "Installing Codex CLI..."
     npm install -g @openai/codex
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install Codex CLI"
+    }
     Write-Ok "Codex CLI installed"
+} elseif ($CodexUpdateEnabled) {
+    Write-Step "Updating Codex CLI..."
+    npm install -g @openai/codex
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to update Codex CLI"
+    }
+    Write-Ok "Codex CLI updated"
 } else {
     Write-Skip "Codex CLI already installed"
 }
@@ -379,12 +500,22 @@ if (-not (Test-Path $codexRulesDir)) {
 
 Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
 Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
+$codexCheckForUpdateOnStartup = $CodexCheckForUpdateOnStartup.ToString().ToLowerInvariant()
+$codexWindowsSandboxPrivateDesktop = $CodexWindowsSandboxPrivateDesktop.ToString().ToLowerInvariant()
+Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
+Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartup
+Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
+Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktop
+
+Remove-CodexUnsafeShellWrapperRules
 
 Add-CodexPrefixRuleIfMissing '["git"]' @'
 prefix_rule(
     pattern = ["git"],
     decision = "allow",
     justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+    match = ["git status --short"],
+    not_match = ["git-lfs status"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["rg"]' @'
@@ -448,13 +579,8 @@ prefix_rule(
     pattern = ["uv", "run"],
     decision = "allow",
     justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
-)
-'@
-Add-CodexPrefixRuleIfMissing '["pwsh"]' @'
-prefix_rule(
-    pattern = ["pwsh"],
-    decision = "allow",
-    justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
+    match = ["uv run python -m pytest"],
+    not_match = ["uvx ruff"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["Get-Content"]' @'
@@ -462,6 +588,8 @@ prefix_rule(
     pattern = ["Get-Content"],
     decision = "allow",
     justification = "Allow PowerShell workspace file reads without repeated prompts",
+    match = ["Get-Content README.md"],
+    not_match = ["pwsh -Command Get-Content README.md"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["Select-String"]' @'
@@ -619,7 +747,7 @@ prefix_rule(
     justification = "Allow ST-Link debug server workflows outside sandbox",
 )
 '@
-New-CodexPermissionsExampleIfMissing
+Set-CodexPermissionsExample
 
 $desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
 if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) {

@@ -16,6 +16,10 @@ if ! npm ls -g @openai/codex >/dev/null 2>&1; then
   write_step "Installing Codex CLI..."
   npm install -g @openai/codex
   write_ok "Codex CLI installed"
+elif [[ "$CODEX_UPDATE_ENABLED" == "1" || "$CODEX_UPDATE_ENABLED" == "true" ]]; then
+  write_step "Updating Codex CLI..."
+  npm install -g @openai/codex
+  write_ok "Codex CLI updated"
 else
   write_skip "Codex CLI already installed"
 fi
@@ -158,31 +162,82 @@ ensure_codex_prefix_rule() {
   write_ok "Codex rule added: $pattern"
 }
 
-ensure_codex_permissions_example() {
-  if [[ -f "$codex_permissions_example" ]]; then
-    write_skip "Codex permissions example already present"
+remove_codex_prefix_allow_rule() {
+  local pattern="$1"
+  if [[ ! -f "$codex_default_rules" ]]; then
     return
   fi
-  cat >"$codex_permissions_example" <<'EOF'
+
+  local before
+  before="$(cat "$codex_default_rules")"
+  PATTERN="$pattern" perl -0pi -e '
+    my $p = quotemeta($ENV{"PATTERN"});
+    s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$p(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*"allow"(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
+    s/\R{3,}/\n\n/g;
+    s/\A\s+//;
+    s/\s+\z/\n/;
+  ' "$codex_default_rules"
+
+  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
+    write_skip "Unsafe Codex allow rule absent: $pattern"
+  else
+    write_ok "Removed unsafe Codex allow rule: $pattern"
+  fi
+}
+
+remove_codex_unsafe_shell_wrapper_rules() {
+  remove_codex_prefix_allow_rule '["pwsh"]'
+  remove_codex_prefix_allow_rule '["wsl", "bash", "-lc"]'
+  remove_codex_prefix_allow_rule '["wsl", "-e", "bash"]'
+}
+
+ensure_codex_permissions_example() {
+  local desired
+  desired="$(cat <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
+approvals_reviewer = "user"
+check_for_update_on_startup = true
 
 [sandbox_workspace_write]
 writable_roots = [
   "/home/alexander/example"
 ]
 EOF
-  write_ok "Codex permissions example created"
+)"
+
+  if [[ -f "$codex_permissions_example" ]] && [[ "$(cat "$codex_permissions_example")" == "$desired" ]]; then
+    write_skip "Codex permissions example already current"
+    return
+  fi
+
+  printf '%s\n' "$desired" >"$codex_permissions_example"
+  write_ok "Codex permissions example updated"
+}
+
+toml_bool() {
+  local value
+  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+    1 | true | yes | on) printf "true" ;;
+    *) printf "false" ;;
+  esac
 }
 
 upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
 upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
+upsert_codex_top_level_setting approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
+upsert_codex_top_level_setting check_for_update_on_startup "$(toml_bool "$CODEX_CHECK_FOR_UPDATE_ON_STARTUP")"
+
+remove_codex_unsafe_shell_wrapper_rules
 
 ensure_codex_prefix_rule '["git"]' 'prefix_rule(
     pattern = ["git"],
     decision = "allow",
     justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+    match = ["git status --short"],
+    not_match = ["git-lfs status"],
 )'
 ensure_codex_prefix_rule '["rg"]' 'prefix_rule(
     pattern = ["rg"],
@@ -228,11 +283,8 @@ ensure_codex_prefix_rule '["uv", "run"]' 'prefix_rule(
     pattern = ["uv", "run"],
     decision = "allow",
     justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
-)'
-ensure_codex_prefix_rule '["pwsh"]' 'prefix_rule(
-    pattern = ["pwsh"],
-    decision = "allow",
-    justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
+    match = ["uv run python -m pytest"],
+    not_match = ["uvx ruff"],
 )'
 
 ensure_codex_prefix_rule '["probe-rs"]' 'prefix_rule(

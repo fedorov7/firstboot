@@ -41,6 +41,18 @@
     executable: /bin/bash
   when: codex_check.rc != 0
 
+- name: Update OpenAI Codex CLI via npm when requested
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    npm i -g @openai/codex
+  args:
+    executable: /bin/bash
+  when:
+    - codex_check.rc == 0
+    - codex_update_enabled | default(false) | bool
+
 # ── MCP servers ──
 # Codex stores MCP in ~/.codex/config.toml under [mcp_servers.<name>]
 
@@ -65,6 +77,24 @@
   loop_control:
     label: "{{ item.key }}"
 
+- name: Set Codex approval reviewer default
+  lineinfile:
+    path: "{{ user_home }}/.codex/config.toml"
+    regexp: "^approvals_reviewer\\s*="
+    line: 'approvals_reviewer = "{{ codex_approvals_reviewer | default(''user'') }}"'
+    insertbefore: '^\['
+    create: true
+    mode: "0644"
+
+- name: Set Codex update check default
+  lineinfile:
+    path: "{{ user_home }}/.codex/config.toml"
+    regexp: "^check_for_update_on_startup\\s*="
+    line: "check_for_update_on_startup = {{ (codex_check_for_update_on_startup | default(true) | bool) | ternary('true', 'false') }}"
+    insertbefore: '^\['
+    create: true
+    mode: "0644"
+
 - name: Read codex config.toml
   slurp:
     src: "{{ user_home }}/.codex/config.toml"
@@ -80,6 +110,16 @@
     path: "{{ user_home }}/.codex/rules"
     state: directory
 
+- name: Remove legacy managed Codex broad shell wrapper rules
+  blockinfile:
+    path: "{{ user_home }}/.codex/rules/default.rules"
+    create: true
+    marker: "# {mark} ANSIBLE MANAGED CODEX RULE {{ item }}"
+    state: absent
+    mode: "0644"
+  loop:
+    - pwsh
+
 - name: Ensure Codex trusted utility prefix rules
   blockinfile:
     path: "{{ user_home }}/.codex/rules/default.rules"
@@ -94,6 +134,8 @@
             pattern = ["git"],
             decision = "allow",
             justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+            match = ["git status --short"],
+            not_match = ["git-lfs status"],
         )
     - name: rg
       rule: |
@@ -157,13 +199,8 @@
             pattern = ["uv", "run"],
             decision = "allow",
             justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
-        )
-    - name: pwsh
-      rule: |
-        prefix_rule(
-            pattern = ["pwsh"],
-            decision = "allow",
-            justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
+            match = ["uv run python -m pytest"],
+            not_match = ["uvx ruff"],
         )
     - name: probe-rs
       rule: |
@@ -227,12 +264,14 @@
 - name: Create Codex permissions example if missing
   copy:
     dest: "{{ user_home }}/.codex/config.permissions.example.toml"
-    force: false
+    force: true
     mode: "0644"
     content: |
       # Example only. Copy selected settings to ~/.codex/config.toml when needed.
       sandbox_mode = "workspace-write"
       approval_policy = "on-request"
+      approvals_reviewer = "user"
+      check_for_update_on_startup = true
 
       [sandbox_workspace_write]
       writable_roots = [
