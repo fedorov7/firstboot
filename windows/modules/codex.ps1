@@ -457,6 +457,111 @@ prefix_rule(
     justification = "Allow PowerShell project scripts in trusted workspaces without repeated prompts",
 )
 '@
+Add-CodexPrefixRuleIfMissing '["Get-Content"]' @'
+prefix_rule(
+    pattern = ["Get-Content"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace file reads without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Select-String"]' @'
+prefix_rule(
+    pattern = ["Select-String"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace text searches without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Get-ChildItem"]' @'
+prefix_rule(
+    pattern = ["Get-ChildItem"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace directory listing without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Get-Item"]' @'
+prefix_rule(
+    pattern = ["Get-Item"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace file metadata inspection without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Test-Path"]' @'
+prefix_rule(
+    pattern = ["Test-Path"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace path checks without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Resolve-Path"]' @'
+prefix_rule(
+    pattern = ["Resolve-Path"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace path resolution without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Get-Location"]' @'
+prefix_rule(
+    pattern = ["Get-Location"],
+    decision = "allow",
+    justification = "Allow PowerShell current directory checks without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Get-FileHash"]' @'
+prefix_rule(
+    pattern = ["Get-FileHash"],
+    decision = "allow",
+    justification = "Allow PowerShell workspace file hash inspection without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Select-Object"]' @'
+prefix_rule(
+    pattern = ["Select-Object"],
+    decision = "allow",
+    justification = "Allow PowerShell pipeline projection without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Sort-Object"]' @'
+prefix_rule(
+    pattern = ["Sort-Object"],
+    decision = "allow",
+    justification = "Allow PowerShell pipeline sorting without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Measure-Object"]' @'
+prefix_rule(
+    pattern = ["Measure-Object"],
+    decision = "allow",
+    justification = "Allow PowerShell pipeline measurement without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Compare-Object"]' @'
+prefix_rule(
+    pattern = ["Compare-Object"],
+    decision = "allow",
+    justification = "Allow PowerShell object comparison without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Format-Table"]' @'
+prefix_rule(
+    pattern = ["Format-Table"],
+    decision = "allow",
+    justification = "Allow PowerShell table formatting without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Format-List"]' @'
+prefix_rule(
+    pattern = ["Format-List"],
+    decision = "allow",
+    justification = "Allow PowerShell list formatting without repeated prompts",
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Out-String"]' @'
+prefix_rule(
+    pattern = ["Out-String"],
+    decision = "allow",
+    justification = "Allow PowerShell output string conversion without repeated prompts",
+)
+'@
 
 Add-CodexPrefixRuleIfMissing '["probe-rs"]' @'
 prefix_rule(

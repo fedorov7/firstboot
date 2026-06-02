@@ -120,6 +120,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
 | `codex_approval_policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; ask before approved out-of-workspace operations |
 | Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run/pwsh | Allow common local workspace inspection and project-script commands without repeated prompts |
+| Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |

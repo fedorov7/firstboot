@@ -41,6 +41,28 @@ if (-not $source.Contains('Add-CodexPrefixRuleIfMissing ''["uv", "run"]''')) {
     throw 'Windows Codex module must allow trusted workspace tool: uv run'
 }
 
+foreach ($pattern in @(
+    'Get-Content',
+    'Select-String',
+    'Get-ChildItem',
+    'Get-Item',
+    'Test-Path',
+    'Resolve-Path',
+    'Get-Location',
+    'Get-FileHash',
+    'Select-Object',
+    'Sort-Object',
+    'Measure-Object',
+    'Compare-Object',
+    'Format-Table',
+    'Format-List',
+    'Out-String'
+)) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
+        throw "Windows Codex module must allow trusted PowerShell read/output command: $pattern"
+    }
+}
+
 if ($source -notmatch 'sandbox_mode = "workspace-write"') {
     throw 'Codex module must create a sandbox permissions example'
 }
