@@ -80,6 +80,21 @@ if (-not $source.Contains('Remove-CodexUnsafeShellWrapperRules')) {
     throw 'Windows Codex module must remove legacy unsafe shell wrapper rules'
 }
 
+foreach ($badBooleanTomlAssignment in @(
+    '$codexCheckForUpdateOnStartup =',
+    '$codexWindowsSandboxPrivateDesktop =',
+    '$codexAppsDestructiveEnabled =',
+    '$codexAppsOpenWorldEnabled ='
+)) {
+    if ($source.Contains($badBooleanTomlAssignment)) {
+        throw "Windows Codex module must not assign TOML strings back into typed Boolean parameters: $badBooleanTomlAssignment"
+    }
+}
+
+if (-not $source.Contains('function ConvertTo-CodexTomlBoolean')) {
+    throw 'Windows Codex module must convert Boolean-like values to TOML booleans without mutating typed parameters'
+}
+
 foreach ($unsafePattern in @('["pwsh"]', '["wsl", "bash", "-lc"]', '["wsl", "-e", "bash"]')) {
     if (-not $source.Contains($unsafePattern)) {
         throw "Windows Codex module must know how to remove unsafe shell wrapper rule: $unsafePattern"
@@ -204,7 +219,7 @@ if ($source -notmatch 'Set-CodexTopLevelSetting ''approvals_reviewer'' "`"\$Code
     throw 'Codex module must apply approvals_reviewer from CodexApprovalsReviewer to config.toml'
 }
 
-if ($source -notmatch 'Set-CodexTopLevelSetting ''check_for_update_on_startup'' \$codexCheckForUpdateOnStartup') {
+if ($source -notmatch 'Set-CodexTopLevelSetting ''check_for_update_on_startup'' \$codexCheckForUpdateOnStartupToml') {
     throw 'Codex module must apply check_for_update_on_startup to config.toml'
 }
 
@@ -212,7 +227,7 @@ if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox'' "`"\$CodexW
     throw 'Codex module must apply the native Windows sandbox mode'
 }
 
-if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox_private_desktop'' \$codexWindowsSandboxPrivateDesktop') {
+if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox_private_desktop'' \$codexWindowsSandboxPrivateDesktopToml') {
     throw 'Codex module must apply the native Windows private desktop setting'
 }
 
@@ -230,11 +245,11 @@ if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'default_tools_
     throw 'Codex module must configure default app approval mode'
 }
 
-if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'destructive_enabled' `$codexAppsDestructiveEnabled")) {
+if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'destructive_enabled' `$codexAppsDestructiveEnabledToml")) {
     throw 'Codex module must keep destructive app tools disabled by default'
 }
 
-if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'open_world_enabled' `$codexAppsOpenWorldEnabled")) {
+if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'open_world_enabled' `$codexAppsOpenWorldEnabledToml")) {
     throw 'Codex module must keep open-world app tools disabled by default'
 }
 

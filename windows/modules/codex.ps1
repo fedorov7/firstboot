@@ -7,6 +7,27 @@ function Get-CodexConfigContent {
     return ''
 }
 
+function ConvertTo-CodexTomlBoolean {
+    param([Parameter(Mandatory)][object]$Value)
+
+    if ($Value -is [System.Management.Automation.SwitchParameter]) {
+        return $Value.IsPresent.ToString().ToLowerInvariant()
+    }
+    if ($Value -is [bool]) {
+        return $Value.ToString().ToLowerInvariant()
+    }
+    if ($Value -is [int]) {
+        if ($Value -eq 1) { return 'true' }
+        if ($Value -eq 0) { return 'false' }
+    }
+
+    $text = $Value.ToString().Trim().ToLowerInvariant()
+    if ($text -in @('true', '1')) { return 'true' }
+    if ($text -in @('false', '0')) { return 'false' }
+
+    throw "Cannot convert '$Value' to a TOML Boolean. Use true/false or 1/0."
+}
+
 function Test-CodexMcpConfigured {
     param([Parameter(Mandatory)][string]$Name)
     (Get-CodexConfigContent) -match "\[mcp_servers\.$([regex]::Escape($Name))\]"
@@ -561,24 +582,24 @@ if (-not (Test-Path $codexRulesDir)) {
 
 Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
 Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
-$codexCheckForUpdateOnStartup = $CodexCheckForUpdateOnStartup.ToString().ToLowerInvariant()
-$codexWindowsSandboxPrivateDesktop = $CodexWindowsSandboxPrivateDesktop.ToString().ToLowerInvariant()
-$codexAppsDestructiveEnabled = $CodexAppsDestructiveEnabled.ToString().ToLowerInvariant()
-$codexAppsOpenWorldEnabled = $CodexAppsOpenWorldEnabled.ToString().ToLowerInvariant()
+$codexCheckForUpdateOnStartupToml = ConvertTo-CodexTomlBoolean $CodexCheckForUpdateOnStartup
+$codexWindowsSandboxPrivateDesktopToml = ConvertTo-CodexTomlBoolean $CodexWindowsSandboxPrivateDesktop
+$codexAppsDestructiveEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsDestructiveEnabled
+$codexAppsOpenWorldEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsOpenWorldEnabled
 Set-CodexTopLevelSetting 'model' "`"$CodexModel`""
 Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`""
 Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
 Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
-Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartup
+Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartupToml
 Set-CodexTableSetting 'agents' 'max_threads' $CodexAgentsMaxThreads
 Set-CodexTableSetting 'agents' 'max_depth' $CodexAgentsMaxDepth
 Set-CodexTableSetting 'agents' 'job_max_runtime_seconds' $CodexAgentsJobMaxRuntimeSeconds
 Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode' "`"$CodexAppsDefaultToolsApprovalMode`""
-Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabled
-Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabled
+Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabledToml
+Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabledToml
 Set-CodexTableSetting 'apps._default' 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
-Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktop
+Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktopToml
 
 Remove-CodexUnsafeShellWrapperRules
 Remove-CodexUnsafeSystemMutatorRules
