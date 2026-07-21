@@ -41,6 +41,37 @@ if (-not $source.Contains('Add-CodexPrefixRuleIfMissing ''["uv", "run"]''')) {
     throw 'Windows Codex module must allow trusted workspace tool: uv run'
 }
 
+foreach ($pattern in @(
+    '["winget"]',
+    '["git", "push"]',
+    '["git", "reset", "--hard"]',
+    '["git", "clean"]',
+    '["git", "restore"]',
+    '["git", "checkout", "--"]',
+    '["git", "rebase"]',
+    '["scoop"]',
+    '["choco"]',
+    '["rustup"]',
+    '["cargo", "install"]',
+    '["uv", "tool", "install"]',
+    '["uv", "tool", "upgrade"]',
+    '["npm", "install", "-g"]',
+    '["npm", "install", "--global"]',
+    '["python", "-m", "pip", "install"]',
+    '["py", "-m", "pip", "install"]',
+    '["wsl", "--update"]',
+    '["Set-ExecutionPolicy"]',
+    '["Set-ItemProperty"]',
+    '["New-ItemProperty"]',
+    '["reg"]',
+    '["netsh"]',
+    '["sc"]'
+)) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
+        throw "Windows Codex module must prompt for privileged/system tool: $pattern"
+    }
+}
+
 if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""pwsh""]'")) {
     throw 'Windows Codex module must not broadly allow pwsh shell wrappers'
 }
@@ -105,6 +136,20 @@ if ($bootstrapSource -notmatch '\[bool\]\$CodexCheckForUpdateOnStartup = \$true'
     throw 'Windows bootstrap must default CodexCheckForUpdateOnStartup to true'
 }
 
+foreach ($expected in @(
+    '[string]$CodexModel = "gpt-5.6-sol"',
+    '[string]$CodexModelReasoningEffort = "high"',
+    '[string]$CodexServiceTier = "default"',
+    '[int]$CodexAgentsMaxThreads = 4',
+    '[int]$CodexAgentsMaxDepth = 1',
+    '[int]$CodexAgentsJobMaxRuntimeSeconds = 1800',
+    '[string]$CodexAppsDefaultToolsApprovalMode = "writes"'
+)) {
+    if (-not $bootstrapSource.Contains($expected)) {
+        throw "Windows bootstrap must expose Codex default: $expected"
+    }
+}
+
 if ($bootstrapSource -notmatch '\[switch\]\$CodexUpdateEnabled') {
     throw 'Windows bootstrap must expose an opt-in CodexUpdateEnabled switch'
 }
@@ -115,6 +160,18 @@ if ($source -notmatch 'Set-CodexTopLevelSetting ''sandbox_mode'' "`"\$CodexSandb
 
 if ($source -notmatch 'Set-CodexTopLevelSetting ''approval_policy'' "`"\$CodexApprovalPolicy`""') {
     throw 'Codex module must apply approval_policy from CodexApprovalPolicy to config.toml'
+}
+
+if ($source -notmatch 'Set-CodexTopLevelSetting ''model'' "`"\$CodexModel`""') {
+    throw 'Codex module must apply model from CodexModel to config.toml'
+}
+
+if ($source -notmatch 'Set-CodexTopLevelSetting ''model_reasoning_effort'' "`"\$CodexModelReasoningEffort`""') {
+    throw 'Codex module must apply model_reasoning_effort from CodexModelReasoningEffort to config.toml'
+}
+
+if ($source -notmatch 'Set-CodexTopLevelSetting ''service_tier'' "`"\$CodexServiceTier`""') {
+    throw 'Codex module must apply service_tier from CodexServiceTier to config.toml'
 }
 
 if ($source -notmatch 'Set-CodexTopLevelSetting ''approvals_reviewer'' "`"\$CodexApprovalsReviewer`""') {
@@ -131,6 +188,32 @@ if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox'' "`"\$CodexW
 
 if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox_private_desktop'' \$codexWindowsSandboxPrivateDesktop') {
     throw 'Codex module must apply the native Windows private desktop setting'
+}
+
+foreach ($expected in @(
+    "Set-CodexTableSetting 'agents' 'max_threads' `$CodexAgentsMaxThreads",
+    "Set-CodexTableSetting 'agents' 'max_depth' `$CodexAgentsMaxDepth",
+    "Set-CodexTableSetting 'agents' 'job_max_runtime_seconds' `$CodexAgentsJobMaxRuntimeSeconds"
+)) {
+    if (-not $source.Contains($expected)) {
+        throw "Codex module must apply agent limit setting: $expected"
+    }
+}
+
+if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode'")) {
+    throw 'Codex module must configure default app approval mode'
+}
+
+if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'destructive_enabled' `$codexAppsDestructiveEnabled")) {
+    throw 'Codex module must keep destructive app tools disabled by default'
+}
+
+if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'open_world_enabled' `$codexAppsOpenWorldEnabled")) {
+    throw 'Codex module must keep open-world app tools disabled by default'
+}
+
+if (-not $source.Contains('$lines[$i] -match ''^\s*\[''')) {
+    throw 'Codex MCP setting updater must stop at any TOML table, including nested MCP tables'
 }
 
 if (-not $source.Contains('match = [')) {
@@ -174,6 +257,27 @@ if (-not $linuxRoleSource.Contains('pattern = ["uv", "run"]')) {
     throw 'Linux Codex role must allow trusted workspace tool: uv run'
 }
 
+foreach ($pattern in @(
+    'pattern = ["sudo"]',
+    'pattern = ["git", "push"]',
+    'pattern = ["git", "reset", "--hard"]',
+    'pattern = ["git", "clean"]',
+    'pattern = ["apt"]',
+    'pattern = ["apt-get"]',
+    'pattern = ["pacman"]',
+    'pattern = ["dnf"]',
+    'pattern = ["yay"]',
+    'pattern = ["brew", "install"]',
+    'pattern = ["brew", "upgrade"]',
+    'pattern = ["cargo", "install"]',
+    'pattern = ["uv", "tool", "install"]',
+    'pattern = ["npm", "install", "-g"]'
+)) {
+    if (-not $linuxRoleSource.Contains($pattern)) {
+        throw "Linux Codex role must prompt for privileged/system tool: $pattern"
+    }
+}
+
 if ($macosBootstrapSource -notmatch 'CODEX_SANDBOX_MODE="\$\{CODEX_SANDBOX_MODE:-workspace-write\}"') {
     throw 'macOS bootstrap must default CODEX_SANDBOX_MODE to workspace-write'
 }
@@ -194,8 +298,34 @@ if ($macosBootstrapSource -notmatch 'CODEX_UPDATE_ENABLED="\$\{CODEX_UPDATE_ENAB
     throw 'macOS bootstrap must expose opt-in Codex CLI updates'
 }
 
+foreach ($expected in @(
+    'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"',
+    'CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"',
+    'CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"',
+    'CODEX_AGENTS_MAX_THREADS="${CODEX_AGENTS_MAX_THREADS:-4}"',
+    'CODEX_AGENTS_MAX_DEPTH="${CODEX_AGENTS_MAX_DEPTH:-1}"',
+    'CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS="${CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS:-1800}"',
+    'CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"'
+)) {
+    if (-not $macosBootstrapSource.Contains($expected)) {
+        throw "macOS bootstrap must expose Codex default: $expected"
+    }
+}
+
 if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""')) {
     throw 'macOS Codex module must apply sandbox mode to config.toml'
+}
+
+if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting model "\"$CODEX_MODEL\""')) {
+    throw 'macOS Codex module must apply Codex model to config.toml'
+}
+
+if (-not $macosCodexSource.Contains('upsert_codex_table_setting agents max_threads "$CODEX_AGENTS_MAX_THREADS"')) {
+    throw 'macOS Codex module must apply Codex agent thread limits'
+}
+
+if (-not $macosCodexSource.Contains('upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""')) {
+    throw 'macOS Codex module must apply default app approval mode'
 }
 
 if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""')) {
@@ -225,6 +355,22 @@ foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difft
 }
 if (-not $macosCodexSource.Contains('ensure_codex_prefix_rule ''["uv", "run"]''')) {
     throw 'macOS Codex module must allow trusted workspace tool: uv run'
+}
+
+foreach ($pattern in @(
+    '["sudo"]',
+    '["git", "push"]',
+    '["git", "reset", "--hard"]',
+    '["git", "clean"]',
+    '["brew", "install"]',
+    '["brew", "upgrade"]',
+    '["cargo", "install"]',
+    '["uv", "tool", "install"]',
+    '["npm", "install", "-g"]'
+)) {
+    if (-not $macosCodexSource.Contains("ensure_codex_prefix_rule '$pattern'")) {
+        throw "macOS Codex module must prompt for privileged/system tool: $pattern"
+    }
 }
 
 Write-Host 'codex rules tests passed'

@@ -70,12 +70,97 @@
     create: true
     mode: "0644"
   loop:
+    - key: model
+      value: "{{ codex_model | default('gpt-5.6-sol') }}"
+    - key: model_reasoning_effort
+      value: "{{ codex_model_reasoning_effort | default('high') }}"
+    - key: service_tier
+      value: "{{ codex_service_tier | default('default') }}"
     - key: sandbox_mode
       value: "{{ codex_sandbox_mode | default('workspace-write') }}"
     - key: approval_policy
       value: "{{ codex_approval_policy | default('on-request') }}"
   loop_control:
     label: "{{ item.key }}"
+
+- name: Set Codex runtime table defaults
+  shell: |
+    config_toml="{{ user_home }}/.codex/config.toml"
+    section="[{{ item.table }}]"
+    key="{{ item.key }}"
+    value='{{ item.value }}'
+    touch "$config_toml"
+    temp_config="$(mktemp)"
+    awk -v section="$section" -v key="$key" -v value="$value" '
+      BEGIN { in_section = 0; section_seen = 0; setting_seen = 0 }
+      $0 == section {
+        in_section = 1
+        section_seen = 1
+        print
+        next
+      }
+      in_section && /^\[/ {
+        if (!setting_seen) {
+          print key " = " value
+          setting_seen = 1
+        }
+        in_section = 0
+      }
+      in_section && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        if (!setting_seen) {
+          print key " = " value
+          setting_seen = 1
+        }
+        next
+      }
+      { print }
+      END {
+        if (in_section && !setting_seen) {
+          print key " = " value
+          setting_seen = 1
+        }
+        if (!section_seen) {
+          print ""
+          print section
+          print key " = " value
+        }
+      }
+    ' "$config_toml" >"$temp_config"
+    if cmp -s "$temp_config" "$config_toml"; then
+      rm -f "$temp_config"
+      exit 0
+    fi
+    cp "$temp_config" "$config_toml"
+    rm -f "$temp_config"
+    echo "OK: $section $key"
+  args:
+    executable: /bin/bash
+  register: codex_runtime_table_defaults
+  changed_when: "'OK:' in codex_runtime_table_defaults.stdout"
+  loop:
+    - table: agents
+      key: max_threads
+      value: "{{ codex_agents_max_threads | default(4) }}"
+    - table: agents
+      key: max_depth
+      value: "{{ codex_agents_max_depth | default(1) }}"
+    - table: agents
+      key: job_max_runtime_seconds
+      value: "{{ codex_agents_job_max_runtime_seconds | default(1800) }}"
+    - table: apps._default
+      key: default_tools_approval_mode
+      value: '"{{ codex_apps_default_tools_approval_mode | default(''writes'') }}"'
+    - table: apps._default
+      key: destructive_enabled
+      value: "{{ (codex_apps_destructive_enabled | default(false) | bool) | ternary('true', 'false') }}"
+    - table: apps._default
+      key: open_world_enabled
+      value: "{{ (codex_apps_open_world_enabled | default(false) | bool) | ternary('true', 'false') }}"
+    - table: apps._default
+      key: approvals_reviewer
+      value: '"{{ codex_approvals_reviewer | default(''user'') }}"'
+  loop_control:
+    label: "{{ item.table }} {{ item.key }}"
 
 - name: Set Codex approval reviewer default
   lineinfile:
@@ -261,6 +346,241 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Ensure Codex privileged command prompt rules
+  blockinfile:
+    path: "{{ user_home }}/.codex/rules/default.rules"
+    create: true
+    marker: "# {mark} ANSIBLE MANAGED CODEX PROMPT RULE {{ item.name }}"
+    block: "{{ item.rule }}"
+    mode: "0644"
+  loop:
+    - name: sudo
+      rule: |
+        prefix_rule(
+            pattern = ["sudo"],
+            decision = "prompt",
+            justification = "Prompt before running commands with elevated privileges",
+            match = ["sudo pacman -Syu"],
+        )
+    - name: git-push
+      rule: |
+        prefix_rule(
+            pattern = ["git", "push"],
+            decision = "prompt",
+            justification = "Prompt before publishing commits to a remote repository",
+            match = ["git push"],
+        )
+    - name: git-reset-hard
+      rule: |
+        prefix_rule(
+            pattern = ["git", "reset", "--hard"],
+            decision = "prompt",
+            justification = "Prompt before discarding tracked workspace changes",
+            match = ["git reset --hard HEAD"],
+        )
+    - name: git-clean
+      rule: |
+        prefix_rule(
+            pattern = ["git", "clean"],
+            decision = "prompt",
+            justification = "Prompt before deleting untracked workspace files",
+            match = ["git clean -fd"],
+        )
+    - name: git-restore
+      rule: |
+        prefix_rule(
+            pattern = ["git", "restore"],
+            decision = "prompt",
+            justification = "Prompt before restoring files and discarding local edits",
+            match = ["git restore README.md"],
+        )
+    - name: git-checkout-restore
+      rule: |
+        prefix_rule(
+            pattern = ["git", "checkout", "--"],
+            decision = "prompt",
+            justification = "Prompt before checkout restores files and discards local edits",
+            match = ["git checkout -- README.md"],
+        )
+    - name: git-rebase
+      rule: |
+        prefix_rule(
+            pattern = ["git", "rebase"],
+            decision = "prompt",
+            justification = "Prompt before rewriting local history",
+            match = ["git rebase main"],
+        )
+    - name: doas
+      rule: |
+        prefix_rule(
+            pattern = ["doas"],
+            decision = "prompt",
+            justification = "Prompt before running commands with elevated privileges",
+            match = ["doas apk update"],
+        )
+    - name: su
+      rule: |
+        prefix_rule(
+            pattern = ["su"],
+            decision = "prompt",
+            justification = "Prompt before switching users or running a root shell",
+            match = ["su -"],
+        )
+    - name: apt
+      rule: |
+        prefix_rule(
+            pattern = ["apt"],
+            decision = "prompt",
+            justification = "Prompt before system package changes with apt",
+            match = ["apt install ripgrep"],
+        )
+    - name: apt-get
+      rule: |
+        prefix_rule(
+            pattern = ["apt-get"],
+            decision = "prompt",
+            justification = "Prompt before system package changes with apt-get",
+            match = ["apt-get install ripgrep"],
+        )
+    - name: dnf
+      rule: |
+        prefix_rule(
+            pattern = ["dnf"],
+            decision = "prompt",
+            justification = "Prompt before system package changes with dnf",
+            match = ["dnf install ripgrep"],
+        )
+    - name: pacman
+      rule: |
+        prefix_rule(
+            pattern = ["pacman"],
+            decision = "prompt",
+            justification = "Prompt before system package changes with pacman",
+            match = ["pacman -Syu"],
+        )
+    - name: yay
+      rule: |
+        prefix_rule(
+            pattern = ["yay"],
+            decision = "prompt",
+            justification = "Prompt before AUR package changes with yay",
+            match = ["yay -S visual-studio-code-bin"],
+        )
+    - name: brew-install
+      rule: |
+        prefix_rule(
+            pattern = ["brew", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing Homebrew packages",
+            match = ["brew install ripgrep"],
+        )
+    - name: brew-upgrade
+      rule: |
+        prefix_rule(
+            pattern = ["brew", "upgrade"],
+            decision = "prompt",
+            justification = "Prompt before upgrading Homebrew packages",
+            match = ["brew upgrade"],
+        )
+    - name: rustup
+      rule: |
+        prefix_rule(
+            pattern = ["rustup"],
+            decision = "prompt",
+            justification = "Prompt before modifying Rust toolchains or global components",
+            match = ["rustup update stable"],
+        )
+    - name: cargo-install
+      rule: |
+        prefix_rule(
+            pattern = ["cargo", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing or replacing global Cargo binaries",
+            match = ["cargo install cargo-nextest"],
+        )
+    - name: uv-tool-install
+      rule: |
+        prefix_rule(
+            pattern = ["uv", "tool", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing global uv tools",
+            match = ["uv tool install ruff"],
+        )
+    - name: uv-tool-upgrade
+      rule: |
+        prefix_rule(
+            pattern = ["uv", "tool", "upgrade"],
+            decision = "prompt",
+            justification = "Prompt before upgrading global uv tools",
+            match = ["uv tool upgrade ruff"],
+        )
+    - name: npm-install-global-short
+      rule: |
+        prefix_rule(
+            pattern = ["npm", "install", "-g"],
+            decision = "prompt",
+            justification = "Prompt before installing or replacing global npm packages",
+            match = ["npm install -g @openai/codex"],
+        )
+    - name: npm-install-global-long
+      rule: |
+        prefix_rule(
+            pattern = ["npm", "install", "--global"],
+            decision = "prompt",
+            justification = "Prompt before installing or replacing global npm packages",
+            match = ["npm install --global @openai/codex"],
+        )
+    - name: python-pip-install
+      rule: |
+        prefix_rule(
+            pattern = ["python", "-m", "pip", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing packages into the active Python environment",
+            match = ["python -m pip install pytest"],
+        )
+    - name: python3-pip-install
+      rule: |
+        prefix_rule(
+            pattern = ["python3", "-m", "pip", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing packages into the active Python environment",
+            match = ["python3 -m pip install pytest"],
+        )
+    - name: pipx-install
+      rule: |
+        prefix_rule(
+            pattern = ["pipx", "install"],
+            decision = "prompt",
+            justification = "Prompt before installing global pipx applications",
+            match = ["pipx install poetry"],
+        )
+    - name: systemctl
+      rule: |
+        prefix_rule(
+            pattern = ["systemctl"],
+            decision = "prompt",
+            justification = "Prompt before changing or inspecting systemd services outside the sandbox",
+            match = ["systemctl restart sshd"],
+        )
+    - name: mount
+      rule: |
+        prefix_rule(
+            pattern = ["mount"],
+            decision = "prompt",
+            justification = "Prompt before mounting filesystems",
+            match = ["mount /dev/sdb1 /mnt"],
+        )
+    - name: umount
+      rule: |
+        prefix_rule(
+            pattern = ["umount"],
+            decision = "prompt",
+            justification = "Prompt before unmounting filesystems",
+            match = ["umount /mnt"],
+        )
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: Create Codex permissions example if missing
   copy:
     dest: "{{ user_home }}/.codex/config.permissions.example.toml"
@@ -268,10 +588,24 @@
     mode: "0644"
     content: |
       # Example only. Copy selected settings to ~/.codex/config.toml when needed.
+      model = "gpt-5.6-sol"
+      model_reasoning_effort = "high"
+      service_tier = "default"
       sandbox_mode = "workspace-write"
       approval_policy = "on-request"
       approvals_reviewer = "user"
       check_for_update_on_startup = true
+
+      [agents]
+      max_threads = 4
+      max_depth = 1
+      job_max_runtime_seconds = 1800
+
+      [apps._default]
+      default_tools_approval_mode = "writes"
+      destructive_enabled = false
+      open_world_enabled = false
+      approvals_reviewer = "user"
 
       [sandbox_workspace_write]
       writable_roots = [
@@ -324,7 +658,7 @@
 
 - name: Set Codex context7 MCP config block
   set_fact:
-    codex_context7_mcp_block: "{{ codex_config | regex_search('(?ms)^\\[mcp_servers\\.context7\\].*?(?=^\\[mcp_servers\\.|\\Z)') | default('', true) }}"
+    codex_context7_mcp_block: "{{ codex_config | regex_search('(?ms)^\\[mcp_servers\\.context7\\].*?(?=^\\[|\\Z)') | default('', true) }}"
 
 - name: Remove stale Codex MCP servers outside allowlist
   shell: |
@@ -486,7 +820,11 @@
     if ! grep -qF "$section" "$config_toml"; then
       exit 0
     fi
-    current_block="$(sed -n "/^\[mcp_servers\.{{ item.name }}\]/,/^\[mcp_servers\./p" "$config_toml" | sed '$ { /^\[mcp_servers\./d; }')"
+    current_block="$(awk -v section="$section" '
+      $0 == section { in_section = 1; next }
+      in_section && /^\[/ { exit }
+      in_section { print }
+    ' "$config_toml")"
     if [[ "$current_block" == *"$key = $value"* ]]; then
       exit 0
     fi
@@ -494,7 +832,7 @@
     awk -v section="$section" -v key="$key" -v value="$value" '
       BEGIN { in_section = 0; seen = 0 }
       $0 == section { in_section = 1; print; next }
-      in_section && /^\[mcp_servers\./ {
+      in_section && /^\[/ {
         if (!seen) {
           print key " = " value
           seen = 1
@@ -531,13 +869,13 @@
       value: "30"
     - name: fetch
       key: default_tools_approval_mode
-      value: '"prompt"'
+      value: '"{{ codex_fetch_mcp_approval_mode | default(''prompt'') }}"'
     - name: github
       key: default_tools_approval_mode
-      value: '"prompt"'
+      value: '"{{ codex_github_mcp_approval_mode | default(''writes'') }}"'
     - name: serena
       key: default_tools_approval_mode
-      value: '"prompt"'
+      value: '"{{ codex_serena_mcp_approval_mode | default(''writes'') }}"'
   loop_control:
     label: "{{ item.name }} {{ item.key }}"
 

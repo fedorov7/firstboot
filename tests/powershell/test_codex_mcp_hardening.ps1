@@ -12,8 +12,20 @@ if ($source -notmatch "Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
     throw 'context7 MCP startup timeout must be hardened'
 }
 
-if ($source -notmatch "Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' '""prompt""'") {
-    throw 'fetch MCP must require approval prompts by default'
+if ($source -notmatch "Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode'.*CodexFetchMcpApprovalMode") {
+    throw 'fetch MCP approval mode must be configurable and default to prompt'
+}
+
+if ($source -notmatch "Set-CodexMcpSetting 'github' 'default_tools_approval_mode'.*CodexGithubMcpApprovalMode") {
+    throw 'GitHub MCP approval mode must be configurable and default to writes'
+}
+
+if ($source -notmatch "Set-CodexMcpSetting 'serena' 'default_tools_approval_mode'.*CodexSerenaMcpApprovalMode") {
+    throw 'Serena MCP approval mode must be configurable and default to writes'
+}
+
+if (-not $source.Contains('$line -match ''^\s*\[''')) {
+    throw 'MCP setting updater must stop at nested TOML tables'
 }
 
 Write-Host 'codex MCP hardening tests passed'

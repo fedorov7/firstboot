@@ -55,7 +55,7 @@ function Set-CodexMcpSetting {
     if ($startIndex -ge 0) {
         $endIndex = $lines.Count
         for ($i = $startIndex + 1; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^\[mcp_servers\.') {
+            if ($lines[$i] -match '^\s*\[') {
                 $endIndex = $i
                 break
             }
@@ -77,7 +77,7 @@ function Set-CodexMcpSetting {
             continue
         }
 
-        if ($inSection -and $line -match '^\[mcp_servers\.') {
+        if ($inSection -and $line -match '^\s*\[') {
             if (-not $seen) {
                 $result.Add("$Key = $Value")
                 $seen = $true
@@ -247,7 +247,10 @@ function Add-CodexPrefixRuleIfMissing {
 }
 
 function Remove-CodexPrefixAllowRulesByPattern {
-    param([Parameter(Mandatory)][string]$Pattern)
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [switch]$Quiet
+    )
 
     if (-not (Test-Path $script:CodexDefaultRules)) {
         return
@@ -266,7 +269,9 @@ function Remove-CodexPrefixAllowRulesByPattern {
     $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
 
     if ($updated -eq $source) {
-        Write-Skip "Unsafe Codex allow rule absent: $Pattern"
+        if (-not $Quiet) {
+            Write-Skip "Unsafe Codex allow rule absent: $Pattern"
+        }
         return
     }
 
@@ -280,13 +285,69 @@ function Remove-CodexUnsafeShellWrapperRules {
     }
 }
 
+function Remove-CodexUnsafeSystemMutatorRules {
+    foreach ($pattern in @(
+        '["winget"]',
+        '["git", "push"]',
+        '["git", "reset", "--hard"]',
+        '["git", "clean"]',
+        '["git", "restore"]',
+        '["git", "checkout", "--"]',
+        '["git", "rebase"]',
+        '["scoop"]',
+        '["choco"]',
+        '["rustup"]',
+        '["cargo", "install"]',
+        '["uv", "tool", "install"]',
+        '["uv", "tool", "upgrade"]',
+        '["npm", "install", "-g"]',
+        '["npm", "install", "--global"]',
+        '["python", "-m", "pip", "install"]',
+        '["py", "-m", "pip", "install"]',
+        '["wsl", "--update"]',
+        '["wsl", "--install"]',
+        '["wsl", "--shutdown"]',
+        '["Set-ExecutionPolicy"]',
+        '["Set-ItemProperty"]',
+        '["New-ItemProperty"]',
+        '["Remove-ItemProperty"]',
+        '["reg"]',
+        '["netsh"]',
+        '["sc"]',
+        '["Start-Process"]',
+        '["Set-Service"]',
+        '["New-Service"]',
+        '["Remove-Service"]',
+        '["Enable-WindowsOptionalFeature"]',
+        '["Disable-WindowsOptionalFeature"]',
+        '["dism"]',
+        '["bcdedit"]'
+    )) {
+        Remove-CodexPrefixAllowRulesByPattern -Pattern $pattern -Quiet
+    }
+}
+
 function Set-CodexPermissionsExample {
     $content = @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+service_tier = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 approvals_reviewer = "user"
 check_for_update_on_startup = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+job_max_runtime_seconds = 1800
+
+[apps._default]
+default_tools_approval_mode = "writes"
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
 
 [windows]
 sandbox = "elevated"
@@ -502,12 +563,25 @@ Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
 Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
 $codexCheckForUpdateOnStartup = $CodexCheckForUpdateOnStartup.ToString().ToLowerInvariant()
 $codexWindowsSandboxPrivateDesktop = $CodexWindowsSandboxPrivateDesktop.ToString().ToLowerInvariant()
+$codexAppsDestructiveEnabled = $CodexAppsDestructiveEnabled.ToString().ToLowerInvariant()
+$codexAppsOpenWorldEnabled = $CodexAppsOpenWorldEnabled.ToString().ToLowerInvariant()
+Set-CodexTopLevelSetting 'model' "`"$CodexModel`""
+Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`""
+Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
 Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartup
+Set-CodexTableSetting 'agents' 'max_threads' $CodexAgentsMaxThreads
+Set-CodexTableSetting 'agents' 'max_depth' $CodexAgentsMaxDepth
+Set-CodexTableSetting 'agents' 'job_max_runtime_seconds' $CodexAgentsJobMaxRuntimeSeconds
+Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode' "`"$CodexAppsDefaultToolsApprovalMode`""
+Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabled
+Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabled
+Set-CodexTableSetting 'apps._default' 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
 Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktop
 
 Remove-CodexUnsafeShellWrapperRules
+Remove-CodexUnsafeSystemMutatorRules
 
 Add-CodexPrefixRuleIfMissing '["git"]' @'
 prefix_rule(
@@ -516,6 +590,54 @@ prefix_rule(
     justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
     match = ["git status --short"],
     not_match = ["git-lfs status"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "push"]' @'
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Prompt before publishing commits to a remote repository",
+    match = ["git push"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "reset", "--hard"]' @'
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "prompt",
+    justification = "Prompt before discarding tracked workspace changes",
+    match = ["git reset --hard HEAD"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "clean"]' @'
+prefix_rule(
+    pattern = ["git", "clean"],
+    decision = "prompt",
+    justification = "Prompt before deleting untracked workspace files",
+    match = ["git clean -fd"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "restore"]' @'
+prefix_rule(
+    pattern = ["git", "restore"],
+    decision = "prompt",
+    justification = "Prompt before restoring files and discarding local edits",
+    match = ["git restore README.md"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "checkout", "--"]' @'
+prefix_rule(
+    pattern = ["git", "checkout", "--"],
+    decision = "prompt",
+    justification = "Prompt before checkout restores files and discards local edits",
+    match = ["git checkout -- README.md"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "rebase"]' @'
+prefix_rule(
+    pattern = ["git", "rebase"],
+    decision = "prompt",
+    justification = "Prompt before rewriting local history",
+    match = ["git rebase main"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["rg"]' @'
@@ -691,6 +813,239 @@ prefix_rule(
 )
 '@
 
+Add-CodexPrefixRuleIfMissing '["winget"]' @'
+prefix_rule(
+    pattern = ["winget"],
+    decision = "prompt",
+    justification = "Prompt before package installs, upgrades, or source changes with winget",
+    match = ["winget install Microsoft.PowerShell"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["scoop"]' @'
+prefix_rule(
+    pattern = ["scoop"],
+    decision = "prompt",
+    justification = "Prompt before package installs, upgrades, or bucket changes with Scoop",
+    match = ["scoop install ripgrep"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["choco"]' @'
+prefix_rule(
+    pattern = ["choco"],
+    decision = "prompt",
+    justification = "Prompt before package installs or upgrades with Chocolatey",
+    match = ["choco install git"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["rustup"]' @'
+prefix_rule(
+    pattern = ["rustup"],
+    decision = "prompt",
+    justification = "Prompt before modifying Rust toolchains or global components",
+    match = ["rustup update stable"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "install"]' @'
+prefix_rule(
+    pattern = ["cargo", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global Cargo binaries",
+    match = ["cargo install cargo-nextest"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["uv", "tool", "install"]' @'
+prefix_rule(
+    pattern = ["uv", "tool", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing global uv tools",
+    match = ["uv tool install ruff"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["uv", "tool", "upgrade"]' @'
+prefix_rule(
+    pattern = ["uv", "tool", "upgrade"],
+    decision = "prompt",
+    justification = "Prompt before upgrading global uv tools",
+    match = ["uv tool upgrade ruff"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "install", "-g"]' @'
+prefix_rule(
+    pattern = ["npm", "install", "-g"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global npm packages",
+    match = ["npm install -g @openai/codex"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "install", "--global"]' @'
+prefix_rule(
+    pattern = ["npm", "install", "--global"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global npm packages",
+    match = ["npm install --global @openai/codex"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["python", "-m", "pip", "install"]' @'
+prefix_rule(
+    pattern = ["python", "-m", "pip", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing packages into the active Python environment",
+    match = ["python -m pip install pytest"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["py", "-m", "pip", "install"]' @'
+prefix_rule(
+    pattern = ["py", "-m", "pip", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing packages into the active Python environment",
+    match = ["py -m pip install pytest"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["wsl", "--update"]' @'
+prefix_rule(
+    pattern = ["wsl", "--update"],
+    decision = "prompt",
+    justification = "Prompt before updating WSL system components",
+    match = ["wsl --update"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["wsl", "--install"]' @'
+prefix_rule(
+    pattern = ["wsl", "--install"],
+    decision = "prompt",
+    justification = "Prompt before installing WSL distributions or platform components",
+    match = ["wsl --install -d Ubuntu"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["wsl", "--shutdown"]' @'
+prefix_rule(
+    pattern = ["wsl", "--shutdown"],
+    decision = "prompt",
+    justification = "Prompt before stopping all WSL distributions",
+    match = ["wsl --shutdown"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Set-ExecutionPolicy"]' @'
+prefix_rule(
+    pattern = ["Set-ExecutionPolicy"],
+    decision = "prompt",
+    justification = "Prompt before changing PowerShell execution policy",
+    match = ["Set-ExecutionPolicy RemoteSigned -Scope CurrentUser"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Set-ItemProperty"]' @'
+prefix_rule(
+    pattern = ["Set-ItemProperty"],
+    decision = "prompt",
+    justification = "Prompt before changing registry or provider-backed settings",
+    match = ["Set-ItemProperty HKCU:\\Software\\Example Name Value"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["New-ItemProperty"]' @'
+prefix_rule(
+    pattern = ["New-ItemProperty"],
+    decision = "prompt",
+    justification = "Prompt before creating registry or provider-backed settings",
+    match = ["New-ItemProperty HKCU:\\Software\\Example Name Value"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Remove-ItemProperty"]' @'
+prefix_rule(
+    pattern = ["Remove-ItemProperty"],
+    decision = "prompt",
+    justification = "Prompt before deleting registry or provider-backed settings",
+    match = ["Remove-ItemProperty HKCU:\\Software\\Example Name"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["reg"]' @'
+prefix_rule(
+    pattern = ["reg"],
+    decision = "prompt",
+    justification = "Prompt before direct registry changes with reg.exe",
+    match = ["reg add HKCU\\Software\\Example /v Name /t REG_SZ /d Value"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["netsh"]' @'
+prefix_rule(
+    pattern = ["netsh"],
+    decision = "prompt",
+    justification = "Prompt before changing Windows network configuration",
+    match = ["netsh interface show interface"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["sc"]' @'
+prefix_rule(
+    pattern = ["sc"],
+    decision = "prompt",
+    justification = "Prompt before changing Windows services with sc.exe",
+    match = ["sc query ssh-agent"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Start-Process"]' @'
+prefix_rule(
+    pattern = ["Start-Process"],
+    decision = "prompt",
+    justification = "Prompt before launching external programs outside the current tool sandbox",
+    match = ["Start-Process notepad"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Set-Service"]' @'
+prefix_rule(
+    pattern = ["Set-Service"],
+    decision = "prompt",
+    justification = "Prompt before changing Windows service configuration",
+    match = ["Set-Service ssh-agent -StartupType Automatic"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["New-Service"]' @'
+prefix_rule(
+    pattern = ["New-Service"],
+    decision = "prompt",
+    justification = "Prompt before creating Windows services",
+    match = ["New-Service example C:\\example.exe"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Remove-Service"]' @'
+prefix_rule(
+    pattern = ["Remove-Service"],
+    decision = "prompt",
+    justification = "Prompt before removing Windows services",
+    match = ["Remove-Service example"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Enable-WindowsOptionalFeature"]' @'
+prefix_rule(
+    pattern = ["Enable-WindowsOptionalFeature"],
+    decision = "prompt",
+    justification = "Prompt before enabling Windows optional features",
+    match = ["Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["Disable-WindowsOptionalFeature"]' @'
+prefix_rule(
+    pattern = ["Disable-WindowsOptionalFeature"],
+    decision = "prompt",
+    justification = "Prompt before disabling Windows optional features",
+    match = ["Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["dism"]' @'
+prefix_rule(
+    pattern = ["dism"],
+    decision = "prompt",
+    justification = "Prompt before changing Windows features or images with DISM",
+    match = ["dism /online /get-features"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["bcdedit"]' @'
+prefix_rule(
+    pattern = ["bcdedit"],
+    decision = "prompt",
+    justification = "Prompt before changing Windows boot configuration",
+    match = ["bcdedit /enum"],
+)
+'@
+
 Add-CodexPrefixRuleIfMissing '["probe-rs"]' @'
 prefix_rule(
     pattern = ["probe-rs"],
@@ -836,9 +1191,9 @@ if ('serena' -in $desiredMcpServers) {
 
 Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' '"prompt"'
-Set-CodexMcpSetting 'github' 'default_tools_approval_mode' '"prompt"'
-Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' '"prompt"'
+Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`""
+Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`""
+Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' "`"$CodexSerenaMcpApprovalMode`""
 
 # Skills
 $script:SkillSourceRoot = Join-Path $env:USERPROFILE '.local\share\codex\skill-sources'

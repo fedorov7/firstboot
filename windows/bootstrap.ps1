@@ -65,6 +65,30 @@
     Use a private desktop for native Windows sandboxed processes.
 .PARAMETER CodexCheckForUpdateOnStartup
     Let Codex check for CLI updates at startup.
+.PARAMETER CodexModel
+    Codex model used by default for new work (default: gpt-5.6-sol).
+.PARAMETER CodexModelReasoningEffort
+    Codex reasoning effort (default: high; reserve max for explicit hard tasks).
+.PARAMETER CodexServiceTier
+    Codex service tier (default: default).
+.PARAMETER CodexAgentsMaxThreads
+    Concurrent Codex agent thread cap (default: 4).
+.PARAMETER CodexAgentsMaxDepth
+    Maximum sub-agent nesting depth (default: 1).
+.PARAMETER CodexAgentsJobMaxRuntimeSeconds
+    Maximum runtime for spawned agent jobs (default: 1800).
+.PARAMETER CodexAppsDefaultToolsApprovalMode
+    Default approval mode for ChatGPT app tools (default: writes).
+.PARAMETER CodexAppsDestructiveEnabled
+    Allow destructive ChatGPT app tools by default. Disabled by default.
+.PARAMETER CodexAppsOpenWorldEnabled
+    Allow open-world ChatGPT app tools by default. Disabled by default.
+.PARAMETER CodexFetchMcpApprovalMode
+    Approval mode for fetch MCP tools (default: prompt).
+.PARAMETER CodexGithubMcpApprovalMode
+    Approval mode for GitHub MCP tools (default: writes).
+.PARAMETER CodexSerenaMcpApprovalMode
+    Approval mode for Serena MCP tools (default: writes).
 .PARAMETER CodexUpdateEnabled
     Update the Codex CLI package during provisioning. Disabled by default.
 .PARAMETER CodexTimesFmSkillEnabled
@@ -118,6 +142,18 @@ param(
     [string]$CodexWindowsSandbox = "elevated",
     [bool]$CodexWindowsSandboxPrivateDesktop = $true,
     [bool]$CodexCheckForUpdateOnStartup = $true,
+    [string]$CodexModel = "gpt-5.6-sol",
+    [string]$CodexModelReasoningEffort = "high",
+    [string]$CodexServiceTier = "default",
+    [int]$CodexAgentsMaxThreads = 4,
+    [int]$CodexAgentsMaxDepth = 1,
+    [int]$CodexAgentsJobMaxRuntimeSeconds = 1800,
+    [string]$CodexAppsDefaultToolsApprovalMode = "writes",
+    [bool]$CodexAppsDestructiveEnabled = $false,
+    [bool]$CodexAppsOpenWorldEnabled = $false,
+    [string]$CodexFetchMcpApprovalMode = "prompt",
+    [string]$CodexGithubMcpApprovalMode = "writes",
+    [string]$CodexSerenaMcpApprovalMode = "writes",
     [switch]$CodexUpdateEnabled,
     [string]$CodexCuratedSkills = "pdf",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",

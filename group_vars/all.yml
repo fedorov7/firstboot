@@ -49,6 +49,18 @@ codex_sandbox_mode: workspace-write
 codex_approval_policy: on-request
 codex_approvals_reviewer: user
 codex_check_for_update_on_startup: true
+codex_model: gpt-5.6-sol
+codex_model_reasoning_effort: high
+codex_service_tier: default
+codex_agents_max_threads: 4
+codex_agents_max_depth: 1
+codex_agents_job_max_runtime_seconds: 1800
+codex_apps_default_tools_approval_mode: writes
+codex_apps_destructive_enabled: false
+codex_apps_open_world_enabled: false
+codex_fetch_mcp_approval_mode: prompt
+codex_github_mcp_approval_mode: writes
+codex_serena_mcp_approval_mode: writes
 codex_update_enabled: false
 
 # Optional MCP servers with broader access or heavier runtime behavior.

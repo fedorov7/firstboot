@@ -121,12 +121,21 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_approval_policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; ask before approved out-of-workspace operations |
 | `codex_approvals_reviewer` | `user` | Send eligible approval prompts to the user instead of automatic review |
 | `codex_check_for_update_on_startup` | `true` | Let Codex check for CLI updates on startup |
+| `codex_model` | `gpt-5.6-sol` | Default Codex model for demanding local development work |
+| `codex_model_reasoning_effort` | `high` | Strong default reasoning without using the highest-cost/limit-heavy effort by default |
+| `codex_service_tier` | `default` | Preserve the account default service tier unless overridden |
+| `codex_agents_max_threads` | `4` | Caps concurrent agent threads below Codex's higher default to reduce rate-limit and local-resource spikes |
+| `codex_apps_default_tools_approval_mode` | `writes` | Allow read-only app tools while prompting for write-capable tools |
 | `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
 | Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run | Allow common local workspace inspection and project commands without repeated prompts |
+| Codex privileged prompt rules | git push/reset/clean, sudo/winget/brew/cargo install/uv tool/npm global/pip install/system settings | Keep destructive, remote, and system-changing commands available through explicit approval instead of broad shell trust |
 | Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
+| `codex_fetch_mcp_approval_mode` | `prompt` | Keep broad web fetch MCP interactive by default |
+| `codex_github_mcp_approval_mode` | `writes` | Let GitHub MCP reads run while prompting for write-capable tools |
+| `codex_serena_mcp_approval_mode` | `writes` | Let Serena read/navigation tools run while prompting for write-capable tools |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
 | `codex_remove_legacy_external_skill_sources` | `false` | Remove old role-managed `~/.codex/superpowers` and `~/.codex/claude-skills` source directories |
 | `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
@@ -156,6 +165,9 @@ removes MCP entries outside `codex_mcp_allowlist` when
 
 On Windows, Codex rules allow direct PowerShell read/output cmdlets. Broad shell
 wrappers such as `pwsh` and `wsl bash -lc` are intentionally not trusted rules.
+System-changing commands use explicit `prompt` rules, so package installs,
+registry/service changes, WSL updates, and destructive or remote Git operations
+remain possible but require confirmation.
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
 documentation and reasoning tools enabled while leaving broader access tools
@@ -291,6 +303,11 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
 | `--codex-sandbox-mode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
 | `--codex-approval-policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
+| `--codex-model` | `gpt-5.6-sol` | Default Codex model for demanding local development |
+| `--codex-model-reasoning-effort` | `high` | Strong reasoning default without using max/ultra by default |
+| `--codex-service-tier` | `default` | Preserve account default service tier unless overridden |
+| `--codex-agents-max-threads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
+| `--codex-apps-default-tools-approval-mode` | `writes` | Allow read-only app tools while prompting for writes |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
 | `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
 | `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
@@ -385,6 +402,14 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexWindowsSandbox` | `elevated` | Use the stronger native Windows Codex sandbox mode |
 | `-CodexWindowsSandboxPrivateDesktop` | `$true` | Keep native Windows sandboxed processes on a private desktop |
 | `-CodexCheckForUpdateOnStartup` | `$true` | Let Codex check for CLI updates on startup |
+| `-CodexModel` | `gpt-5.6-sol` | Default Codex model for demanding local development |
+| `-CodexModelReasoningEffort` | `high` | Strong reasoning default without using max/ultra by default |
+| `-CodexServiceTier` | `default` | Preserve account default service tier unless overridden |
+| `-CodexAgentsMaxThreads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
+| `-CodexAppsDefaultToolsApprovalMode` | `writes` | Allow read-only app tools while prompting for writes |
+| `-CodexFetchMcpApprovalMode` | `prompt` | Keep broad fetch MCP tools interactive |
+| `-CodexGithubMcpApprovalMode` | `writes` | Let GitHub MCP reads run while prompting for writes |
+| `-CodexSerenaMcpApprovalMode` | `writes` | Let Serena read/navigation tools run while prompting for writes |
 | `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |

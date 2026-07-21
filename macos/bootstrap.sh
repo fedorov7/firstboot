@@ -42,6 +42,18 @@ CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-user}"
 CODEX_CHECK_FOR_UPDATE_ON_STARTUP="${CODEX_CHECK_FOR_UPDATE_ON_STARTUP:-1}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"
+CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
+CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"
+CODEX_AGENTS_MAX_THREADS="${CODEX_AGENTS_MAX_THREADS:-4}"
+CODEX_AGENTS_MAX_DEPTH="${CODEX_AGENTS_MAX_DEPTH:-1}"
+CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS="${CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS:-1800}"
+CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"
+CODEX_APPS_DESTRUCTIVE_ENABLED="${CODEX_APPS_DESTRUCTIVE_ENABLED:-0}"
+CODEX_APPS_OPEN_WORLD_ENABLED="${CODEX_APPS_OPEN_WORLD_ENABLED:-0}"
+CODEX_FETCH_MCP_APPROVAL_MODE="${CODEX_FETCH_MCP_APPROVAL_MODE:-prompt}"
+CODEX_GITHUB_MCP_APPROVAL_MODE="${CODEX_GITHUB_MCP_APPROVAL_MODE:-writes}"
+CODEX_SERENA_MCP_APPROVAL_MODE="${CODEX_SERENA_MCP_APPROVAL_MODE:-writes}"
 CODEX_UPDATE_ENABLED="${CODEX_UPDATE_ENABLED:-0}"
 CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-pdf}"
 CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills}"
@@ -296,6 +308,11 @@ Options:
   --codex-serena-enabled                Enable Serena MCP via uvx.
   --codex-sandbox-mode <mode>           Codex sandbox mode (default: workspace-write).
   --codex-approval-policy <policy>      Codex approval policy (default: on-request).
+  --codex-model <model>                 Codex model (default: gpt-5.6-sol).
+  --codex-model-reasoning-effort <effort> Codex reasoning effort (default: high).
+  --codex-service-tier <tier>           Codex service tier (default: default).
+  --codex-agents-max-threads <n>        Concurrent Codex agent thread cap (default: 4).
+  --codex-apps-default-tools-approval-mode <mode> App tool approval mode (default: writes).
   --codex-curated-skills <csv>          Curated Codex skills allowlist.
   --codex-superpowers-skills <csv>      superpowers skill allowlist.
   --codex-karpathy-skills <csv>         karpathy skill allowlist.
@@ -336,6 +353,11 @@ while [[ $# -gt 0 ]]; do
     --codex-serena-enabled) CODEX_SERENA_ENABLED=1; shift ;;
     --codex-sandbox-mode) CODEX_SANDBOX_MODE="$2"; shift 2 ;;
     --codex-approval-policy) CODEX_APPROVAL_POLICY="$2"; shift 2 ;;
+    --codex-model) CODEX_MODEL="$2"; shift 2 ;;
+    --codex-model-reasoning-effort) CODEX_MODEL_REASONING_EFFORT="$2"; shift 2 ;;
+    --codex-service-tier) CODEX_SERVICE_TIER="$2"; shift 2 ;;
+    --codex-agents-max-threads) CODEX_AGENTS_MAX_THREADS="$2"; shift 2 ;;
+    --codex-apps-default-tools-approval-mode) CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-curated-skills) CODEX_CURATED_SKILLS="$2"; shift 2 ;;
     --codex-superpowers-skills) CODEX_SUPERPOWERS_SKILLS="$2"; shift 2 ;;
     --codex-karpathy-skills) CODEX_KARPATHY_SKILLS="$2"; shift 2 ;;

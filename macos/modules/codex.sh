@@ -69,41 +69,63 @@ upsert_codex_mcp_setting() {
   if ! test_codex_mcp_configured "$name"; then
     return
   fi
-  local current_block
-  current_block="$(sed -n "/^\[mcp_servers\.${name}\]/,/^\[mcp_servers\./p" "$config_toml" | sed '$ { /^\[mcp_servers\./d; }')"
-  if [[ "$current_block" == *"$key = $value"* ]]; then
-    write_skip "MCP $name $key already set"
-    return
-  fi
+  upsert_codex_table_setting "mcp_servers.${name}" "$key" "$value"
+}
+
+upsert_codex_table_setting() {
+  local table="$1"
+  local key="$2"
+  local value="$3"
+  local section="[$table]"
+  touch "$config_toml"
+
   local temp_config
   temp_config="$(mktemp)"
-  awk -v section="[mcp_servers.${name}]" -v key="$key" -v value="$value" '
-    BEGIN { in_section = 0; seen = 0 }
-    $0 == section { in_section = 1; print; next }
-    in_section && /^\[mcp_servers\./ {
-      if (!seen) {
+  awk -v section="$section" -v key="$key" -v value="$value" '
+    BEGIN { in_section = 0; section_seen = 0; setting_seen = 0 }
+    $0 == section {
+      in_section = 1
+      section_seen = 1
+      print
+      next
+    }
+    in_section && /^\[/ {
+      if (!setting_seen) {
         print key " = " value
-        seen = 1
+        setting_seen = 1
       }
       in_section = 0
     }
-    in_section && $0 ~ "^" key " = " {
-      if (!seen) {
+    in_section && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      if (!setting_seen) {
         print key " = " value
-        seen = 1
+        setting_seen = 1
       }
       next
     }
     { print }
     END {
-      if (in_section && !seen) {
+      if (in_section && !setting_seen) {
+        print key " = " value
+        setting_seen = 1
+      }
+      if (!section_seen) {
+        print ""
+        print section
         print key " = " value
       }
     }
   ' "$config_toml" >"$temp_config"
+
+  if cmp -s "$temp_config" "$config_toml"; then
+    rm -f "$temp_config"
+    write_skip "Codex $table.$key already set"
+    return
+  fi
+
   cp "$temp_config" "$config_toml"
   rm -f "$temp_config"
-  write_ok "MCP $name $key = $value"
+  write_ok "Codex $table.$key = $value"
 }
 
 upsert_codex_top_level_setting() {
@@ -164,6 +186,7 @@ ensure_codex_prefix_rule() {
 
 remove_codex_prefix_allow_rule() {
   local pattern="$1"
+  local quiet="${2:-0}"
   if [[ ! -f "$codex_default_rules" ]]; then
     return
   fi
@@ -179,7 +202,9 @@ remove_codex_prefix_allow_rule() {
   ' "$codex_default_rules"
 
   if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
-    write_skip "Unsafe Codex allow rule absent: $pattern"
+    if [[ "$quiet" != "1" ]]; then
+      write_skip "Unsafe Codex allow rule absent: $pattern"
+    fi
   else
     write_ok "Removed unsafe Codex allow rule: $pattern"
   fi
@@ -191,14 +216,59 @@ remove_codex_unsafe_shell_wrapper_rules() {
   remove_codex_prefix_allow_rule '["wsl", "-e", "bash"]'
 }
 
+remove_codex_unsafe_system_mutator_rules() {
+  local pattern
+  for pattern in \
+    '["sudo"]' \
+    '["git", "push"]' \
+    '["git", "reset", "--hard"]' \
+    '["git", "clean"]' \
+    '["git", "restore"]' \
+    '["git", "checkout", "--"]' \
+    '["git", "rebase"]' \
+    '["doas"]' \
+    '["su"]' \
+    '["brew", "install"]' \
+    '["brew", "upgrade"]' \
+    '["rustup"]' \
+    '["cargo", "install"]' \
+    '["uv", "tool", "install"]' \
+    '["uv", "tool", "upgrade"]' \
+    '["npm", "install", "-g"]' \
+    '["npm", "install", "--global"]' \
+    '["python", "-m", "pip", "install"]' \
+    '["python3", "-m", "pip", "install"]' \
+    '["pipx", "install"]' \
+    '["launchctl"]' \
+    '["mount"]' \
+    '["umount"]'
+  do
+    remove_codex_prefix_allow_rule "$pattern" 1
+  done
+}
+
 ensure_codex_permissions_example() {
   local desired
-  desired="$(cat <<'EOF'
+desired="$(cat <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+service_tier = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 approvals_reviewer = "user"
 check_for_update_on_startup = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+job_max_runtime_seconds = 1800
+
+[apps._default]
+default_tools_approval_mode = "writes"
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "user"
 
 [sandbox_workspace_write]
 writable_roots = [
@@ -227,10 +297,21 @@ toml_bool() {
 
 upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
 upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
+upsert_codex_top_level_setting model "\"$CODEX_MODEL\""
+upsert_codex_top_level_setting model_reasoning_effort "\"$CODEX_MODEL_REASONING_EFFORT\""
+upsert_codex_top_level_setting service_tier "\"$CODEX_SERVICE_TIER\""
 upsert_codex_top_level_setting approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
 upsert_codex_top_level_setting check_for_update_on_startup "$(toml_bool "$CODEX_CHECK_FOR_UPDATE_ON_STARTUP")"
+upsert_codex_table_setting agents max_threads "$CODEX_AGENTS_MAX_THREADS"
+upsert_codex_table_setting agents max_depth "$CODEX_AGENTS_MAX_DEPTH"
+upsert_codex_table_setting agents job_max_runtime_seconds "$CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS"
+upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""
+upsert_codex_table_setting apps._default destructive_enabled "$(toml_bool "$CODEX_APPS_DESTRUCTIVE_ENABLED")"
+upsert_codex_table_setting apps._default open_world_enabled "$(toml_bool "$CODEX_APPS_OPEN_WORLD_ENABLED")"
+upsert_codex_table_setting apps._default approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
 
 remove_codex_unsafe_shell_wrapper_rules
+remove_codex_unsafe_system_mutator_rules
 
 ensure_codex_prefix_rule '["git"]' 'prefix_rule(
     pattern = ["git"],
@@ -285,6 +366,145 @@ ensure_codex_prefix_rule '["uv", "run"]' 'prefix_rule(
     justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
     match = ["uv run python -m pytest"],
     not_match = ["uvx ruff"],
+)'
+
+ensure_codex_prefix_rule '["git", "push"]' 'prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Prompt before publishing commits to a remote repository",
+    match = ["git push"],
+)'
+ensure_codex_prefix_rule '["git", "reset", "--hard"]' 'prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "prompt",
+    justification = "Prompt before discarding tracked workspace changes",
+    match = ["git reset --hard HEAD"],
+)'
+ensure_codex_prefix_rule '["git", "clean"]' 'prefix_rule(
+    pattern = ["git", "clean"],
+    decision = "prompt",
+    justification = "Prompt before deleting untracked workspace files",
+    match = ["git clean -fd"],
+)'
+ensure_codex_prefix_rule '["git", "restore"]' 'prefix_rule(
+    pattern = ["git", "restore"],
+    decision = "prompt",
+    justification = "Prompt before restoring files and discarding local edits",
+    match = ["git restore README.md"],
+)'
+ensure_codex_prefix_rule '["git", "checkout", "--"]' 'prefix_rule(
+    pattern = ["git", "checkout", "--"],
+    decision = "prompt",
+    justification = "Prompt before checkout restores files and discards local edits",
+    match = ["git checkout -- README.md"],
+)'
+ensure_codex_prefix_rule '["git", "rebase"]' 'prefix_rule(
+    pattern = ["git", "rebase"],
+    decision = "prompt",
+    justification = "Prompt before rewriting local history",
+    match = ["git rebase main"],
+)'
+ensure_codex_prefix_rule '["sudo"]' 'prefix_rule(
+    pattern = ["sudo"],
+    decision = "prompt",
+    justification = "Prompt before running commands with elevated privileges",
+    match = ["sudo softwareupdate --install --all"],
+)'
+ensure_codex_prefix_rule '["doas"]' 'prefix_rule(
+    pattern = ["doas"],
+    decision = "prompt",
+    justification = "Prompt before running commands with elevated privileges",
+    match = ["doas pkg_add ripgrep"],
+)'
+ensure_codex_prefix_rule '["su"]' 'prefix_rule(
+    pattern = ["su"],
+    decision = "prompt",
+    justification = "Prompt before switching users or running a root shell",
+    match = ["su -"],
+)'
+ensure_codex_prefix_rule '["brew", "install"]' 'prefix_rule(
+    pattern = ["brew", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing Homebrew packages",
+    match = ["brew install ripgrep"],
+)'
+ensure_codex_prefix_rule '["brew", "upgrade"]' 'prefix_rule(
+    pattern = ["brew", "upgrade"],
+    decision = "prompt",
+    justification = "Prompt before upgrading Homebrew packages",
+    match = ["brew upgrade"],
+)'
+ensure_codex_prefix_rule '["rustup"]' 'prefix_rule(
+    pattern = ["rustup"],
+    decision = "prompt",
+    justification = "Prompt before modifying Rust toolchains or global components",
+    match = ["rustup update stable"],
+)'
+ensure_codex_prefix_rule '["cargo", "install"]' 'prefix_rule(
+    pattern = ["cargo", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global Cargo binaries",
+    match = ["cargo install cargo-nextest"],
+)'
+ensure_codex_prefix_rule '["uv", "tool", "install"]' 'prefix_rule(
+    pattern = ["uv", "tool", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing global uv tools",
+    match = ["uv tool install ruff"],
+)'
+ensure_codex_prefix_rule '["uv", "tool", "upgrade"]' 'prefix_rule(
+    pattern = ["uv", "tool", "upgrade"],
+    decision = "prompt",
+    justification = "Prompt before upgrading global uv tools",
+    match = ["uv tool upgrade ruff"],
+)'
+ensure_codex_prefix_rule '["npm", "install", "-g"]' 'prefix_rule(
+    pattern = ["npm", "install", "-g"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global npm packages",
+    match = ["npm install -g @openai/codex"],
+)'
+ensure_codex_prefix_rule '["npm", "install", "--global"]' 'prefix_rule(
+    pattern = ["npm", "install", "--global"],
+    decision = "prompt",
+    justification = "Prompt before installing or replacing global npm packages",
+    match = ["npm install --global @openai/codex"],
+)'
+ensure_codex_prefix_rule '["python", "-m", "pip", "install"]' 'prefix_rule(
+    pattern = ["python", "-m", "pip", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing packages into the active Python environment",
+    match = ["python -m pip install pytest"],
+)'
+ensure_codex_prefix_rule '["python3", "-m", "pip", "install"]' 'prefix_rule(
+    pattern = ["python3", "-m", "pip", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing packages into the active Python environment",
+    match = ["python3 -m pip install pytest"],
+)'
+ensure_codex_prefix_rule '["pipx", "install"]' 'prefix_rule(
+    pattern = ["pipx", "install"],
+    decision = "prompt",
+    justification = "Prompt before installing global pipx applications",
+    match = ["pipx install poetry"],
+)'
+ensure_codex_prefix_rule '["launchctl"]' 'prefix_rule(
+    pattern = ["launchctl"],
+    decision = "prompt",
+    justification = "Prompt before changing macOS launch services",
+    match = ["launchctl list"],
+)'
+ensure_codex_prefix_rule '["mount"]' 'prefix_rule(
+    pattern = ["mount"],
+    decision = "prompt",
+    justification = "Prompt before mounting filesystems",
+    match = ["mount"],
+)'
+ensure_codex_prefix_rule '["umount"]' 'prefix_rule(
+    pattern = ["umount"],
+    decision = "prompt",
+    justification = "Prompt before unmounting filesystems",
+    match = ["umount /Volumes/example"],
 )'
 
 ensure_codex_prefix_rule '["probe-rs"]' 'prefix_rule(
@@ -415,9 +635,9 @@ fi
 
 upsert_codex_mcp_setting context7 startup_timeout_sec 30
 upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30
-upsert_codex_mcp_setting fetch default_tools_approval_mode '"prompt"'
-upsert_codex_mcp_setting github default_tools_approval_mode '"prompt"'
-upsert_codex_mcp_setting serena default_tools_approval_mode '"prompt"'
+upsert_codex_mcp_setting fetch default_tools_approval_mode "\"$CODEX_FETCH_MCP_APPROVAL_MODE\""
+upsert_codex_mcp_setting github default_tools_approval_mode "\"$CODEX_GITHUB_MCP_APPROVAL_MODE\""
+upsert_codex_mcp_setting serena default_tools_approval_mode "\"$CODEX_SERENA_MCP_APPROVAL_MODE\""
 
 skill_source_root="$HOME/.local/share/codex/skill-sources"
 agents_skills_dir="$HOME/.agents/skills"
