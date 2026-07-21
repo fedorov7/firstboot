@@ -58,6 +58,17 @@ function Remove-CodexMcp {
     }
 }
 
+function Remove-CodexMcpIfConfigured {
+    param([Parameter(Mandatory)][string]$Name)
+    if (-not (Test-CodexMcpConfigured $Name)) {
+        Write-Skip "MCP $Name already absent"
+        return
+    }
+
+    Remove-CodexMcp $Name
+    Write-Ok "Removed disabled optional MCP: $Name"
+}
+
 function Set-CodexMcpSetting {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -389,6 +400,181 @@ writable_roots = [
     Write-Ok "Codex permissions example updated"
 }
 
+function Set-CodexManagedFile {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Content,
+        [Parameter(Mandatory)][string]$Description
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not (Test-Path $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    if ((Test-Path $Path) -and (Get-Content -LiteralPath $Path -Raw) -eq $Content) {
+        Write-Skip "$Description already current"
+        return
+    }
+
+    Set-Content -LiteralPath $Path -Value $Content -NoNewline -Encoding utf8
+    Write-Ok "$Description updated"
+}
+
+function Remove-CodexManagedFileIfPresent {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Description
+    )
+
+    if (-not (Test-Path $Path)) {
+        Write-Skip "$Description already absent"
+        return
+    }
+
+    Remove-Item -LiteralPath $Path -Force
+    Write-Ok "$Description removed"
+}
+
+function Set-CodexProfileFiles {
+    if (-not $CodexProfilesEnabled) {
+        Remove-CodexManagedFileIfPresent -Path (Join-Path $codexDir 'lean.config.toml') -Description 'Codex lean profile'
+        Remove-CodexManagedFileIfPresent -Path (Join-Path $codexDir 'deep.config.toml') -Description 'Codex deep profile'
+        return
+    }
+
+    $leanProfile = @"
+# Managed by firstboot. Use with: codex --profile lean
+model = "$CodexLeanProfileModel"
+model_reasoning_effort = "$CodexLeanProfileReasoningEffort"
+service_tier = "$CodexServiceTier"
+sandbox_mode = "$CodexSandboxMode"
+approval_policy = "$CodexApprovalPolicy"
+approvals_reviewer = "$CodexApprovalsReviewer"
+web_search = "cached"
+
+[agents]
+max_threads = 2
+max_depth = 1
+job_max_runtime_seconds = 1200
+interrupt_message = false
+"@
+
+    $deepProfile = @"
+# Managed by firstboot. Use with: codex --profile deep
+model = "$CodexModel"
+model_reasoning_effort = "$CodexModelReasoningEffort"
+service_tier = "$CodexServiceTier"
+sandbox_mode = "$CodexSandboxMode"
+approval_policy = "$CodexApprovalPolicy"
+approvals_reviewer = "$CodexApprovalsReviewer"
+
+[agents]
+max_threads = $CodexAgentsMaxThreads
+max_depth = $CodexAgentsMaxDepth
+job_max_runtime_seconds = $CodexAgentsJobMaxRuntimeSeconds
+interrupt_message = true
+
+[apps._default]
+default_tools_approval_mode = "$CodexAppsDefaultToolsApprovalMode"
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "$CodexApprovalsReviewer"
+"@
+
+    Set-CodexManagedFile -Path (Join-Path $codexDir 'lean.config.toml') -Content $leanProfile -Description 'Codex lean profile'
+    Set-CodexManagedFile -Path (Join-Path $codexDir 'deep.config.toml') -Content $deepProfile -Description 'Codex deep profile'
+}
+
+function New-CodexCustomAgentContent {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Description,
+        [Parameter(Mandatory)][string]$Model,
+        [Parameter(Mandatory)][string]$ReasoningEffort,
+        [Parameter(Mandatory)][string]$Instructions,
+        [Parameter(Mandatory)][string]$Nicknames
+    )
+
+    @"
+# Managed by firstboot.
+name = "$Name"
+description = "$Description"
+model = "$Model"
+model_reasoning_effort = "$ReasoningEffort"
+sandbox_mode = "read-only"
+nickname_candidates = [$Nicknames]
+
+developer_instructions = '''
+$Instructions
+'''
+"@
+}
+
+function Set-CodexCustomAgentFiles {
+    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher')
+    $selectedAgents = if ($CodexCustomAgentsEnabled) { ConvertTo-NameList $CodexCustomAgents } else { @() }
+
+    foreach ($agent in $managedAgents) {
+        if ($agent -notin $selectedAgents) {
+            Remove-CodexManagedFileIfPresent -Path (Join-Path $script:CodexAgentsDir "$agent.toml") -Description "Codex custom agent $agent"
+        }
+    }
+
+    if (-not $CodexCustomAgentsEnabled) {
+        return
+    }
+
+    foreach ($agent in $selectedAgents) {
+        $content = $null
+        switch ($agent) {
+            'explorer-terra' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'explorer-terra' `
+                    -Description 'Fast read-only repository exploration and large-file evidence gathering.' `
+                    -Model $CodexLeanProfileModel `
+                    -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -Nicknames '"Scout", "Mapper", "Triage"' `
+                    -Instructions @'
+You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
+'@
+                break
+            }
+            'reviewer-deep' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'reviewer-deep' `
+                    -Description 'High-reasoning code review focused on bugs, regressions, security risks, and test gaps.' `
+                    -Model $CodexModel `
+                    -ReasoningEffort $CodexModelReasoningEffort `
+                    -Nicknames '"Reviewer", "Auditor", "Skeptic"' `
+                    -Instructions @'
+You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.
+'@
+                break
+            }
+            'docs-researcher' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'docs-researcher' `
+                    -Description 'Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior.' `
+                    -Model $CodexLeanProfileModel `
+                    -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -Nicknames '"Researcher", "Librarian", "Verifier"' `
+                    -Instructions @'
+You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.
+'@
+                break
+            }
+            default {
+                Write-Warn "Unknown Codex custom agent requested: $agent"
+            }
+        }
+
+        if ($content) {
+            Set-CodexManagedFile -Path (Join-Path $script:CodexAgentsDir "$agent.toml") -Content $content -Description "Codex custom agent $agent"
+        }
+    }
+}
+
 function Sync-CodexSkillNamespace {
     param(
         [Parameter(Mandatory)][string]$Namespace,
@@ -576,8 +762,12 @@ if (-not (Test-Path $codexDir)) {
 $codexRulesDir = Join-Path $codexDir 'rules'
 $script:CodexDefaultRules = Join-Path $codexRulesDir 'default.rules'
 $script:CodexPermissionsExample = Join-Path $codexDir 'config.permissions.example.toml'
+$script:CodexAgentsDir = Join-Path $codexDir 'agents'
 if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
+}
+if (-not (Test-Path $script:CodexAgentsDir)) {
+    New-Item -ItemType Directory -Path $script:CodexAgentsDir -Force | Out-Null
 }
 
 Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
@@ -1124,6 +1314,8 @@ prefix_rule(
 )
 '@
 Set-CodexPermissionsExample
+Set-CodexProfileFiles
+Set-CodexCustomAgentFiles
 
 $desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
 if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) {
@@ -1136,6 +1328,18 @@ if ($CodexPlaywrightMcpEnabled) {
     $desiredMcpServers += 'playwright'
 }
 $desiredMcpServers = @($desiredMcpServers | Select-Object -Unique)
+
+if ($CodexPruneDisabledOptionalMcp -and -not $CodexMcpPruneUnmanaged) {
+    if (-not $CodexGithubMcpEnabled -and [string]::IsNullOrWhiteSpace($GithubToken) -and 'github' -notin $desiredMcpServers) {
+        Remove-CodexMcpIfConfigured 'github'
+    }
+    if (-not $CodexSerenaEnabled -and 'serena' -notin $desiredMcpServers) {
+        Remove-CodexMcpIfConfigured 'serena'
+    }
+    if (-not $CodexPlaywrightMcpEnabled -and 'playwright' -notin $desiredMcpServers) {
+        Remove-CodexMcpIfConfigured 'playwright'
+    }
+}
 
 if (-not [string]::IsNullOrWhiteSpace($GithubToken)) {
     [System.Environment]::SetEnvironmentVariable($CodexGithubTokenEnvVar, $GithubToken, 'User')

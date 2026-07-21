@@ -138,6 +138,12 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_github_mcp_approval_mode` | `writes` | Let GitHub MCP reads run while prompting for write-capable tools |
 | `codex_serena_mcp_approval_mode` | `writes` | Let Serena read/navigation tools run while prompting for write-capable tools |
 | `codex_playwright_mcp_approval_mode` | `prompt` | Keep browser automation MCP tools interactive |
+| `codex_prune_disabled_optional_mcp` | `true` | Remove managed optional MCP servers such as Playwright when their enable flag is off |
+| `codex_profiles_enabled` | `true` | Create `lean.config.toml` and `deep.config.toml` for `codex --profile ...` |
+| `codex_lean_profile_model` | `gpt-5.6-terra` | Faster model used by the lean profile and exploration agents |
+| `codex_lean_profile_reasoning_effort` | `medium` | Balanced reasoning for token-conscious scans and docs research |
+| `codex_custom_agents_enabled` | `true` | Create curated custom agents for read-only exploration, review, and docs lookup |
+| `codex_custom_agents` | explorer/reviewer/docs defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
 | `codex_playwright_mcp_enabled` | `false` | Enables Playwright MCP browser automation via `npx @playwright/mcp` |
 | `codex_remove_legacy_external_skill_sources` | `false` | Remove old role-managed `~/.codex/superpowers` and `~/.codex/claude-skills` source directories |
@@ -189,11 +195,23 @@ ansible-playbook site.yml --ask-become-pass --tags codex -e codex_github_mcp_ena
 ```
 
 Playwright MCP is opt-in because browser automation has heavier startup and
-state behavior than the Playwright curated skill:
+state behavior than the Playwright curated skill. Re-running provisioning with
+the default `codex_prune_disabled_optional_mcp=true` removes a previously
+configured managed Playwright MCP unless it is explicitly enabled:
 
 ```bash
 ansible-playbook site.yml --ask-become-pass --tags codex -e codex_playwright_mcp_enabled=true
 ```
+
+The role also writes lightweight Codex profiles and custom agents:
+
+```bash
+codex --profile lean  # faster scans, docs lookup, small edits
+codex --profile deep  # strong reasoning for complex implementation/review
+```
+
+Custom agents are intentionally read-only by default: `explorer-terra`,
+`reviewer-deep`, and `docs-researcher`.
 
 ## Secret Scanning
 
@@ -326,6 +344,12 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-apps-default-tools-approval-mode` | `writes` | Allow read-only app tools while prompting for writes |
 | `--codex-microsoft-learn-mcp-approval-mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
 | `--codex-playwright-mcp-approval-mode` | `prompt` | Keep browser automation MCP tools interactive |
+| `--codex-prune-disabled-optional-mcp` | on | Remove managed optional MCP servers when their enable flag is off |
+| `--codex-keep-disabled-optional-mcp` | off | Preserve already-configured optional MCP servers even when disabled in firstboot |
+| `--codex-profiles-enabled` | on | Create `lean` and `deep` Codex CLI profile files |
+| `--codex-profiles-disabled` | off | Remove managed `lean` and `deep` profile files |
+| `--codex-lean-profile-model` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
+| `--codex-custom-agents` | explorer/reviewer/docs defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
 | `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
 | `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
@@ -333,7 +357,9 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 
 ## Windows 11 quick start
 
-Requires **PowerShell 7+** and **Administrator** privileges.
+Requires **PowerShell 7+**. The default module set requires Administrator
+privileges; user-scope modules such as `codex` and `claude` can run without
+Administrator when selected explicitly.
 
 ```powershell
 git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
@@ -431,6 +457,12 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexGithubMcpApprovalMode` | `writes` | Let GitHub MCP reads run while prompting for writes |
 | `-CodexSerenaMcpApprovalMode` | `writes` | Let Serena read/navigation tools run while prompting for writes |
 | `-CodexPlaywrightMcpApprovalMode` | `prompt` | Keep browser automation MCP tools interactive |
+| `-CodexPruneDisabledOptionalMcp` | `$true` | Remove managed optional MCP servers when their enable flag is off |
+| `-CodexProfilesEnabled` | `$true` | Create `lean` and `deep` Codex CLI profile files |
+| `-CodexLeanProfileModel` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
+| `-CodexLeanProfileReasoningEffort` | `medium` | Balanced reasoning for the lean profile and docs/explorer agents |
+| `-CodexCustomAgentsEnabled` | `$true` | Create curated read-only custom agents |
+| `-CodexCustomAgents` | explorer/reviewer/docs defaults | Custom agent allowlist written to `~\.codex\agents` |
 | `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |

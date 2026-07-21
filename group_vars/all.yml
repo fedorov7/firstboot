@@ -64,6 +64,17 @@ codex_microsoft_learn_mcp_approval_mode: writes
 codex_github_mcp_approval_mode: writes
 codex_serena_mcp_approval_mode: writes
 codex_playwright_mcp_approval_mode: prompt
+codex_prune_disabled_optional_mcp: true
+codex_profiles_enabled: true
+codex_lean_profile_model: gpt-5.6-terra
+codex_lean_profile_reasoning_effort: medium
+codex_lean_profile_agents_max_threads: 2
+codex_lean_profile_agents_job_max_runtime_seconds: 1200
+codex_custom_agents_enabled: true
+codex_custom_agents:
+  - explorer-terra
+  - reviewer-deep
+  - docs-researcher
 codex_update_enabled: false
 
 # Optional MCP servers with broader access or heavier runtime behavior.

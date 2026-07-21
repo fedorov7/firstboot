@@ -57,6 +57,12 @@ CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="${CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MO
 CODEX_GITHUB_MCP_APPROVAL_MODE="${CODEX_GITHUB_MCP_APPROVAL_MODE:-writes}"
 CODEX_SERENA_MCP_APPROVAL_MODE="${CODEX_SERENA_MCP_APPROVAL_MODE:-writes}"
 CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="${CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE:-prompt}"
+CODEX_PRUNE_DISABLED_OPTIONAL_MCP="${CODEX_PRUNE_DISABLED_OPTIONAL_MCP:-1}"
+CODEX_PROFILES_ENABLED="${CODEX_PROFILES_ENABLED:-1}"
+CODEX_LEAN_PROFILE_MODEL="${CODEX_LEAN_PROFILE_MODEL:-gpt-5.6-terra}"
+CODEX_LEAN_PROFILE_REASONING_EFFORT="${CODEX_LEAN_PROFILE_REASONING_EFFORT:-medium}"
+CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"
+CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher}"
 CODEX_UPDATE_ENABLED="${CODEX_UPDATE_ENABLED:-0}"
 CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app}"
 CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents}"
@@ -319,6 +325,15 @@ Options:
   --codex-apps-default-tools-approval-mode <mode> App tool approval mode (default: writes).
   --codex-microsoft-learn-mcp-approval-mode <mode> Microsoft Learn MCP approval mode (default: writes).
   --codex-playwright-mcp-approval-mode <mode> Playwright MCP approval mode (default: prompt).
+  --codex-prune-disabled-optional-mcp Remove disabled optional MCP servers managed by this script (default).
+  --codex-keep-disabled-optional-mcp  Keep disabled optional MCP servers if already configured.
+  --codex-profiles-enabled            Create lean/deep Codex CLI profile files (default).
+  --codex-profiles-disabled           Remove managed lean/deep Codex CLI profile files.
+  --codex-lean-profile-model <model>  Model for the lean Codex profile.
+  --codex-lean-profile-reasoning-effort <effort> Reasoning effort for the lean Codex profile.
+  --codex-custom-agents-enabled       Create curated Codex custom agents (default).
+  --codex-custom-agents-disabled      Remove curated Codex custom agents.
+  --codex-custom-agents <csv>         Curated Codex custom agent allowlist.
   --codex-curated-skills <csv>          Curated Codex skills allowlist.
   --codex-superpowers-skills <csv>      superpowers skill allowlist.
   --codex-karpathy-skills <csv>         karpathy skill allowlist.
@@ -367,6 +382,15 @@ while [[ $# -gt 0 ]]; do
     --codex-apps-default-tools-approval-mode) CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-microsoft-learn-mcp-approval-mode) CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-playwright-mcp-approval-mode) CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="$2"; shift 2 ;;
+    --codex-prune-disabled-optional-mcp) CODEX_PRUNE_DISABLED_OPTIONAL_MCP=1; shift ;;
+    --codex-keep-disabled-optional-mcp) CODEX_PRUNE_DISABLED_OPTIONAL_MCP=0; shift ;;
+    --codex-profiles-enabled) CODEX_PROFILES_ENABLED=1; shift ;;
+    --codex-profiles-disabled) CODEX_PROFILES_ENABLED=0; shift ;;
+    --codex-lean-profile-model) CODEX_LEAN_PROFILE_MODEL="$2"; shift 2 ;;
+    --codex-lean-profile-reasoning-effort) CODEX_LEAN_PROFILE_REASONING_EFFORT="$2"; shift 2 ;;
+    --codex-custom-agents-enabled) CODEX_CUSTOM_AGENTS_ENABLED=1; shift ;;
+    --codex-custom-agents-disabled) CODEX_CUSTOM_AGENTS_ENABLED=0; shift ;;
+    --codex-custom-agents) CODEX_CUSTOM_AGENTS="$2"; shift 2 ;;
     --codex-curated-skills) CODEX_CURATED_SKILLS="$2"; shift 2 ;;
     --codex-superpowers-skills) CODEX_SUPERPOWERS_SKILLS="$2"; shift 2 ;;
     --codex-karpathy-skills) CODEX_KARPATHY_SKILLS="$2"; shift 2 ;;

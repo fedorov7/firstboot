@@ -35,7 +35,8 @@ mkdir -p "$codex_dir"
 codex_rules_dir="$codex_dir/rules"
 codex_default_rules="$codex_rules_dir/default.rules"
 codex_permissions_example="$codex_dir/config.permissions.example.toml"
-mkdir -p "$codex_rules_dir"
+codex_agents_dir="$codex_dir/agents"
+mkdir -p "$codex_rules_dir" "$codex_agents_dir"
 
 test_codex_mcp_configured() {
   local name="$1"
@@ -284,6 +285,168 @@ EOF
 
   printf '%s\n' "$desired" >"$codex_permissions_example"
   write_ok "Codex permissions example updated"
+}
+
+write_codex_managed_file() {
+  local path="$1"
+  local content="$2"
+  local description="$3"
+  mkdir -p "$(dirname "$path")"
+  if [[ -f "$path" ]] && [[ "$(cat "$path")" == "$content" ]]; then
+    write_skip "$description already current"
+    return
+  fi
+  printf '%s' "$content" >"$path"
+  write_ok "$description updated"
+}
+
+remove_codex_managed_file_if_present() {
+  local path="$1"
+  local description="$2"
+  if [[ ! -f "$path" ]]; then
+    write_skip "$description already absent"
+    return
+  fi
+  rm -f "$path"
+  write_ok "$description removed"
+}
+
+ensure_codex_profile_files() {
+  if [[ "$CODEX_PROFILES_ENABLED" != "1" && "$CODEX_PROFILES_ENABLED" != "true" ]]; then
+    remove_codex_managed_file_if_present "$codex_dir/lean.config.toml" "Codex lean profile"
+    remove_codex_managed_file_if_present "$codex_dir/deep.config.toml" "Codex deep profile"
+    return
+  fi
+
+  local lean_profile
+  lean_profile="$(cat <<EOF
+# Managed by firstboot. Use with: codex --profile lean
+model = "$CODEX_LEAN_PROFILE_MODEL"
+model_reasoning_effort = "$CODEX_LEAN_PROFILE_REASONING_EFFORT"
+service_tier = "$CODEX_SERVICE_TIER"
+sandbox_mode = "$CODEX_SANDBOX_MODE"
+approval_policy = "$CODEX_APPROVAL_POLICY"
+approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
+web_search = "cached"
+
+[agents]
+max_threads = 2
+max_depth = 1
+job_max_runtime_seconds = 1200
+interrupt_message = false
+EOF
+)"
+
+  local deep_profile
+  deep_profile="$(cat <<EOF
+# Managed by firstboot. Use with: codex --profile deep
+model = "$CODEX_MODEL"
+model_reasoning_effort = "$CODEX_MODEL_REASONING_EFFORT"
+service_tier = "$CODEX_SERVICE_TIER"
+sandbox_mode = "$CODEX_SANDBOX_MODE"
+approval_policy = "$CODEX_APPROVAL_POLICY"
+approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
+
+[agents]
+max_threads = $CODEX_AGENTS_MAX_THREADS
+max_depth = $CODEX_AGENTS_MAX_DEPTH
+job_max_runtime_seconds = $CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS
+interrupt_message = true
+
+[apps._default]
+default_tools_approval_mode = "$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE"
+destructive_enabled = false
+open_world_enabled = false
+approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
+EOF
+)"
+
+  write_codex_managed_file "$codex_dir/lean.config.toml" "$lean_profile" "Codex lean profile"
+  write_codex_managed_file "$codex_dir/deep.config.toml" "$deep_profile" "Codex deep profile"
+}
+
+new_codex_custom_agent_content() {
+  local name="$1"
+  local description="$2"
+  local model="$3"
+  local reasoning_effort="$4"
+  local nicknames="$5"
+  local instructions="$6"
+  cat <<EOF
+# Managed by firstboot.
+name = "$name"
+description = "$description"
+model = "$model"
+model_reasoning_effort = "$reasoning_effort"
+sandbox_mode = "read-only"
+nickname_candidates = [$nicknames]
+
+developer_instructions = '''
+$instructions
+'''
+EOF
+}
+
+ensure_codex_custom_agent_files() {
+  local managed_agents=(explorer-terra reviewer-deep docs-researcher)
+  local selected_agents=()
+  local agent_name
+
+  if [[ "$CODEX_CUSTOM_AGENTS_ENABLED" == "1" || "$CODEX_CUSTOM_AGENTS_ENABLED" == "true" ]]; then
+    while IFS= read -r agent_name; do
+      selected_agents+=("$agent_name")
+    done < <(split_csv "$CODEX_CUSTOM_AGENTS")
+  fi
+
+  for agent_name in "${managed_agents[@]}"; do
+    if ! array_contains "$agent_name" "${selected_agents[@]}"; then
+      remove_codex_managed_file_if_present "$codex_agents_dir/$agent_name.toml" "Codex custom agent $agent_name"
+    fi
+  done
+
+  if [[ "$CODEX_CUSTOM_AGENTS_ENABLED" != "1" && "$CODEX_CUSTOM_AGENTS_ENABLED" != "true" ]]; then
+    return
+  fi
+
+  for agent_name in "${selected_agents[@]}"; do
+    local content=""
+    case "$agent_name" in
+      explorer-terra)
+        content="$(new_codex_custom_agent_content \
+          "explorer-terra" \
+          "Fast read-only repository exploration and large-file evidence gathering." \
+          "$CODEX_LEAN_PROFILE_MODEL" \
+          "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          '"Scout", "Mapper", "Triage"' \
+          "You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.")"
+        ;;
+      reviewer-deep)
+        content="$(new_codex_custom_agent_content \
+          "reviewer-deep" \
+          "High-reasoning code review focused on bugs, regressions, security risks, and test gaps." \
+          "$CODEX_MODEL" \
+          "$CODEX_MODEL_REASONING_EFFORT" \
+          '"Reviewer", "Auditor", "Skeptic"' \
+          "You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.")"
+        ;;
+      docs-researcher)
+        content="$(new_codex_custom_agent_content \
+          "docs-researcher" \
+          "Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior." \
+          "$CODEX_LEAN_PROFILE_MODEL" \
+          "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          '"Researcher", "Librarian", "Verifier"' \
+          "You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.")"
+        ;;
+      *)
+        write_warn "Unknown Codex custom agent requested: $agent_name"
+        ;;
+    esac
+
+    if [[ -n "$content" ]]; then
+      write_codex_managed_file "$codex_agents_dir/$agent_name.toml" "$content" "Codex custom agent $agent_name"
+    fi
+  done
 }
 
 toml_bool() {
@@ -548,6 +711,8 @@ ensure_codex_prefix_rule '["st-util"]' 'prefix_rule(
     justification = "Allow ST-Link debug server workflows outside sandbox",
 )'
 ensure_codex_permissions_example
+ensure_codex_profile_files
+ensure_codex_custom_agent_files
 
 desired_mcp_servers=()
 while IFS= read -r server_name; do
@@ -584,6 +749,28 @@ if [[ -f "$config_toml" ]]; then
       existing_mcp_servers+=("$server_name")
     fi
   done < <(sed -nE 's/^\[mcp_servers\.([^].]+)\]$/\1/p' "$config_toml")
+fi
+
+if [[ "$CODEX_PRUNE_DISABLED_OPTIONAL_MCP" -eq 1 && "$CODEX_MCP_PRUNE_UNMANAGED" -ne 1 ]]; then
+  disabled_optional_mcp_servers=()
+  if [[ "$CODEX_GITHUB_MCP_ENABLED" -ne 1 && -z "$GITHUB_TOKEN" ]] && ! array_contains github "${desired_mcp_servers[@]}"; then
+    disabled_optional_mcp_servers+=(github)
+  fi
+  if [[ "$CODEX_SERENA_ENABLED" -ne 1 ]] && ! array_contains serena "${desired_mcp_servers[@]}"; then
+    disabled_optional_mcp_servers+=(serena)
+  fi
+  if [[ "$CODEX_PLAYWRIGHT_MCP_ENABLED" -ne 1 ]] && ! array_contains playwright "${desired_mcp_servers[@]}"; then
+    disabled_optional_mcp_servers+=(playwright)
+  fi
+
+  for server_name in "${disabled_optional_mcp_servers[@]}"; do
+    if array_contains "$server_name" "${existing_mcp_servers[@]}"; then
+      codex mcp remove "$server_name"
+      write_ok "Removed disabled optional MCP: $server_name"
+    else
+      write_skip "MCP $server_name already absent"
+    fi
+  done
 fi
 
 if [[ "$CODEX_MCP_PRUNE_UNMANAGED" -eq 1 ]]; then

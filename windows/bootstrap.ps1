@@ -1,4 +1,3 @@
-#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     Firstboot provisioning for Windows 11.
@@ -95,6 +94,18 @@
     Approval mode for Playwright MCP tools (default: prompt).
 .PARAMETER CodexPlaywrightMcpEnabled
     Enable Playwright MCP browser automation. Disabled by default.
+.PARAMETER CodexPruneDisabledOptionalMcp
+    Remove optional Codex MCP servers managed by this script when their enable switch is off.
+.PARAMETER CodexProfilesEnabled
+    Create lean/deep Codex CLI profile files. Enabled by default.
+.PARAMETER CodexLeanProfileModel
+    Model used by the lean Codex profile and fast exploration agents.
+.PARAMETER CodexLeanProfileReasoningEffort
+    Reasoning effort used by the lean Codex profile and fast exploration agents.
+.PARAMETER CodexCustomAgentsEnabled
+    Create curated Codex custom agents for exploration, review, and docs research.
+.PARAMETER CodexCustomAgents
+    Comma-separated allowlist of curated custom agents to create.
 .PARAMETER CodexUpdateEnabled
     Update the Codex CLI package during provisioning. Disabled by default.
 .PARAMETER CodexTimesFmSkillEnabled
@@ -163,6 +174,12 @@ param(
     [string]$CodexGithubMcpApprovalMode = "writes",
     [string]$CodexSerenaMcpApprovalMode = "writes",
     [string]$CodexPlaywrightMcpApprovalMode = "prompt",
+    [bool]$CodexPruneDisabledOptionalMcp = $true,
+    [bool]$CodexProfilesEnabled = $true,
+    [string]$CodexLeanProfileModel = "gpt-5.6-terra",
+    [string]$CodexLeanProfileReasoningEffort = "medium",
+    [bool]$CodexCustomAgentsEnabled = $true,
+    [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher",
     [switch]$CodexUpdateEnabled,
     [string]$CodexCuratedSkills = "cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents",
@@ -210,6 +227,32 @@ function Write-Warn {
 function Test-CommandExists {
     param([string]$Name)
     $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Assert-AdministratorForSelectedModules {
+    param([Parameter(Mandatory)][string[]]$SelectedModules)
+
+    $NonAdminModules = @(
+        'codex'
+        'claude'
+    )
+
+    if (Test-IsAdministrator) {
+        return
+    }
+
+    $adminModules = @($SelectedModules | Where-Object { $_ -notin $NonAdminModules })
+    if ($adminModules.Count -eq 0) {
+        return
+    }
+
+    throw "Run PowerShell as Administrator for modules: $($adminModules -join ', '). Non-admin module runs are limited to: $($NonAdminModules -join ', ')."
 }
 
 function ConvertTo-NameList {
@@ -352,6 +395,8 @@ if ([string]::IsNullOrWhiteSpace($Modules)) {
 } else {
     $SelectedModules = $Modules -split ',' | ForEach-Object { $_.Trim() }
 }
+
+Assert-AdministratorForSelectedModules -SelectedModules $SelectedModules
 
 foreach ($mod in $SelectedModules) {
     $modulePath = Join-Path $ScriptRoot "modules\$mod.ps1"

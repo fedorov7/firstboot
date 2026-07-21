@@ -612,6 +612,127 @@
         "/home/alexander/example"
       ]
 
+- name: Create Codex CLI profile files
+  copy:
+    dest: "{{ user_home }}/.codex/{{ item.name }}.config.toml"
+    force: true
+    mode: "0644"
+    content: |
+      # Managed by firstboot. Use with: codex --profile {{ item.name }}
+      model = "{{ item.model }}"
+      model_reasoning_effort = "{{ item.reasoning_effort }}"
+      service_tier = "{{ codex_service_tier | default('default') }}"
+      sandbox_mode = "{{ codex_sandbox_mode | default('workspace-write') }}"
+      approval_policy = "{{ codex_approval_policy | default('on-request') }}"
+      approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
+      {% if item.name == 'lean' %}
+      web_search = "cached"
+      {% endif %}
+
+      [agents]
+      max_threads = {{ item.max_threads }}
+      max_depth = 1
+      job_max_runtime_seconds = {{ item.job_max_runtime_seconds }}
+      interrupt_message = {{ item.interrupt_message }}
+      {% if item.name == 'deep' %}
+
+      [apps._default]
+      default_tools_approval_mode = "{{ codex_apps_default_tools_approval_mode | default('writes') }}"
+      destructive_enabled = false
+      open_world_enabled = false
+      approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
+      {% endif %}
+  loop:
+    - name: lean
+      model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
+      reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+      max_threads: "{{ codex_lean_profile_agents_max_threads | default(2) }}"
+      job_max_runtime_seconds: "{{ codex_lean_profile_agents_job_max_runtime_seconds | default(1200) }}"
+      interrupt_message: "false"
+    - name: deep
+      model: "{{ codex_deep_profile_model | default(codex_model | default('gpt-5.6-sol')) }}"
+      reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default(codex_model_reasoning_effort | default('high')) }}"
+      max_threads: "{{ codex_agents_max_threads | default(4) }}"
+      job_max_runtime_seconds: "{{ codex_agents_job_max_runtime_seconds | default(1800) }}"
+      interrupt_message: "true"
+  loop_control:
+    label: "{{ item.name }}"
+  when: codex_profiles_enabled | default(true) | bool
+
+- name: Remove managed Codex CLI profile files when disabled
+  file:
+    path: "{{ user_home }}/.codex/{{ item }}.config.toml"
+    state: absent
+  loop:
+    - lean
+    - deep
+  when: not (codex_profiles_enabled | default(true) | bool)
+
+- name: Ensure Codex custom agents directory exists
+  file:
+    path: "{{ user_home }}/.codex/agents"
+    state: directory
+
+- name: Set Codex custom agent definitions
+  set_fact:
+    codex_custom_agent_definitions:
+      - name: explorer-terra
+        description: Fast read-only repository exploration and large-file evidence gathering.
+        model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
+        reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+        nicknames: '"Scout", "Mapper", "Triage"'
+        instructions: |
+          You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
+      - name: reviewer-deep
+        description: High-reasoning code review focused on bugs, regressions, security risks, and test gaps.
+        model: "{{ codex_model | default('gpt-5.6-sol') }}"
+        reasoning_effort: "{{ codex_model_reasoning_effort | default('high') }}"
+        nicknames: '"Reviewer", "Auditor", "Skeptic"'
+        instructions: |
+          You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.
+      - name: docs-researcher
+        description: Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior.
+        model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
+        reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+        nicknames: '"Researcher", "Librarian", "Verifier"'
+        instructions: |
+          You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.
+
+- name: Remove disabled managed Codex custom agents
+  file:
+    path: "{{ user_home }}/.codex/agents/{{ item.name }}.toml"
+    state: absent
+  loop: "{{ codex_custom_agent_definitions }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    not (codex_custom_agents_enabled | default(true) | bool)
+    or item.name not in (codex_custom_agents | default([]))
+
+- name: Create Codex custom agents
+  copy:
+    dest: "{{ user_home }}/.codex/agents/{{ item.name }}.toml"
+    force: true
+    mode: "0644"
+    content: |
+      # Managed by firstboot.
+      name = "{{ item.name }}"
+      description = "{{ item.description }}"
+      model = "{{ item.model }}"
+      model_reasoning_effort = "{{ item.reasoning_effort }}"
+      sandbox_mode = "read-only"
+      nickname_candidates = [{{ item.nicknames }}]
+
+      developer_instructions = '''
+      {{ item.instructions }}
+      '''
+  loop: "{{ codex_custom_agent_definitions }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - codex_custom_agents_enabled | default(true) | bool
+    - item.name in (codex_custom_agents | default([]))
+
 - name: Disable Codex built-in ChatGPT Apps MCP by default
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
@@ -656,6 +777,29 @@
 - name: Find existing top-level Codex MCP servers
   set_fact:
     codex_mcp_existing_servers: "{{ codex_config | regex_findall('(?m)^\\[mcp_servers\\.([^.\\]]+)\\]\\s*$') | unique | list }}"
+
+- name: Set disabled optional Codex MCP servers
+  set_fact:
+    codex_mcp_disabled_optional_servers: >-
+      {{ ((['github'] if not (codex_github_mcp_enabled | default(false) | bool) and (github_token | default('') | trim == '') else [])
+          + (['serena'] if not (codex_serena_enabled | default(false) | bool) else [])
+          + (['playwright'] if not (codex_playwright_mcp_enabled | default(false) | bool) else []))
+         | unique | list }}
+
+- name: Remove disabled optional Codex MCP servers
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp remove {{ item }}
+  args:
+    executable: /bin/bash
+  loop: "{{ codex_mcp_disabled_optional_servers | intersect(codex_mcp_existing_servers) | difference(codex_mcp_desired_servers) }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - codex_prune_disabled_optional_mcp | default(true) | bool
+    - not (codex_mcp_prune_unmanaged | default(false) | bool)
 
 - name: Set Codex context7 MCP config block
   set_fact:
