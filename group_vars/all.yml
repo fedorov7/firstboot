@@ -53,9 +53,6 @@ codex_check_for_update_on_startup: true
 codex_model: gpt-5.6-sol
 codex_model_reasoning_effort: high
 codex_service_tier: default
-codex_agents_max_threads: 4
-codex_agents_max_depth: 1
-codex_agents_job_max_runtime_seconds: 1800
 codex_apps_default_tools_approval_mode: writes
 codex_apps_destructive_enabled: false
 codex_apps_open_world_enabled: false
@@ -68,8 +65,6 @@ codex_prune_disabled_optional_mcp: true
 codex_profiles_enabled: true
 codex_lean_profile_model: gpt-5.6-terra
 codex_lean_profile_reasoning_effort: medium
-codex_lean_profile_agents_max_threads: 2
-codex_lean_profile_agents_job_max_runtime_seconds: 1200
 codex_custom_agents_enabled: true
 codex_custom_agents:
   - explorer-terra

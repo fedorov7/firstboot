@@ -138,15 +138,6 @@
   register: codex_runtime_table_defaults
   changed_when: "'OK:' in codex_runtime_table_defaults.stdout"
   loop:
-    - table: agents
-      key: max_threads
-      value: "{{ codex_agents_max_threads | default(4) }}"
-    - table: agents
-      key: max_depth
-      value: "{{ codex_agents_max_depth | default(1) }}"
-    - table: agents
-      key: job_max_runtime_seconds
-      value: "{{ codex_agents_job_max_runtime_seconds | default(1800) }}"
     - table: apps._default
       key: default_tools_approval_mode
       value: '"{{ codex_apps_default_tools_approval_mode | default(''writes'') }}"'
@@ -161,6 +152,12 @@
       value: '"{{ codex_approvals_reviewer | default(''user'') }}"'
   loop_control:
     label: "{{ item.table }} {{ item.key }}"
+
+- name: Remove legacy Codex agent runtime settings
+  replace:
+    path: "{{ user_home }}/.codex/config.toml"
+    regexp: '(?m)^\[agents\]\nmax_threads\s*=\s*\d+\nmax_depth\s*=\s*\d+\njob_max_runtime_seconds\s*=\s*\d+\n(?:interrupt_message\s*=\s*(?:true|false)\n)?\n?'
+    replace: ''
 
 - name: Set Codex approval reviewer default
   lineinfile:
@@ -596,11 +593,6 @@
       approvals_reviewer = "user"
       check_for_update_on_startup = true
 
-      [agents]
-      max_threads = 4
-      max_depth = 1
-      job_max_runtime_seconds = 1800
-
       [apps._default]
       default_tools_approval_mode = "writes"
       destructive_enabled = false
@@ -629,11 +621,6 @@
       web_search = "cached"
       {% endif %}
 
-      [agents]
-      max_threads = {{ item.max_threads }}
-      max_depth = 1
-      job_max_runtime_seconds = {{ item.job_max_runtime_seconds }}
-      interrupt_message = {{ item.interrupt_message }}
       {% if item.name == 'deep' %}
 
       [apps._default]
@@ -646,15 +633,9 @@
     - name: lean
       model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
       reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
-      max_threads: "{{ codex_lean_profile_agents_max_threads | default(2) }}"
-      job_max_runtime_seconds: "{{ codex_lean_profile_agents_job_max_runtime_seconds | default(1200) }}"
-      interrupt_message: "false"
     - name: deep
       model: "{{ codex_deep_profile_model | default(codex_model | default('gpt-5.6-sol')) }}"
       reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default(codex_model_reasoning_effort | default('high')) }}"
-      max_threads: "{{ codex_agents_max_threads | default(4) }}"
-      job_max_runtime_seconds: "{{ codex_agents_job_max_runtime_seconds | default(1800) }}"
-      interrupt_message: "true"
   loop_control:
     label: "{{ item.name }}"
   when: codex_profiles_enabled | default(true) | bool
