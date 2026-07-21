@@ -89,6 +89,12 @@
     Approval mode for GitHub MCP tools (default: writes).
 .PARAMETER CodexSerenaMcpApprovalMode
     Approval mode for Serena MCP tools (default: writes).
+.PARAMETER CodexMicrosoftLearnMcpApprovalMode
+    Approval mode for Microsoft Learn MCP tools (default: writes).
+.PARAMETER CodexPlaywrightMcpApprovalMode
+    Approval mode for Playwright MCP tools (default: prompt).
+.PARAMETER CodexPlaywrightMcpEnabled
+    Enable Playwright MCP browser automation. Disabled by default.
 .PARAMETER CodexUpdateEnabled
     Update the Codex CLI package during provisioning. Disabled by default.
 .PARAMETER CodexTimesFmSkillEnabled
@@ -131,11 +137,12 @@ param(
     [switch]$WslSparseVhdEnabled,
     [switch]$WindowsSudoEnabled,
     [string]$WindowsSudoMode = "forceNewWindow",
-    [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,memory,fetch,sequential-thinking",
+    [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking",
     [switch]$CodexMcpPruneUnmanaged,
     [switch]$CodexGithubMcpEnabled,
     [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
     [switch]$CodexSerenaEnabled,
+    [switch]$CodexPlaywrightMcpEnabled,
     [string]$CodexSandboxMode = "workspace-write",
     [string]$CodexApprovalPolicy = "on-request",
     [string]$CodexApprovalsReviewer = "user",
@@ -152,13 +159,15 @@ param(
     [bool]$CodexAppsDestructiveEnabled = $false,
     [bool]$CodexAppsOpenWorldEnabled = $false,
     [string]$CodexFetchMcpApprovalMode = "prompt",
+    [string]$CodexMicrosoftLearnMcpApprovalMode = "writes",
     [string]$CodexGithubMcpApprovalMode = "writes",
     [string]$CodexSerenaMcpApprovalMode = "writes",
+    [string]$CodexPlaywrightMcpApprovalMode = "prompt",
     [switch]$CodexUpdateEnabled,
-    [string]$CodexCuratedSkills = "pdf",
-    [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills",
+    [string]$CodexCuratedSkills = "cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app",
+    [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
-    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",
+    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",
     [switch]$CodexTimesFmSkillEnabled,
     [string]$CodexTimesFmSkillRepo = "https://github.com/google-research/timesfm.git",
     [string]$CodexTimesFmSkillPath = "timesfm-forecasting",

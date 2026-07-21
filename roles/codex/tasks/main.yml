@@ -649,7 +649,8 @@
     codex_mcp_desired_servers: >-
       {{ ((codex_mcp_allowlist | default([]))
           + (['github'] if (codex_github_mcp_enabled | default(false) | bool) else [])
-          + (['serena'] if (codex_serena_enabled | default(false) | bool) else []))
+          + (['serena'] if (codex_serena_enabled | default(false) | bool) else [])
+          + (['playwright'] if (codex_playwright_mcp_enabled | default(false) | bool) else []))
          | unique | list }}
 
 - name: Find existing top-level Codex MCP servers
@@ -733,6 +734,18 @@
     - "'openaiDeveloperDocs' in codex_mcp_desired_servers"
     - "'[mcp_servers.openaiDeveloperDocs]' not in codex_config_clean"
 
+- name: Configure Codex MCP — Microsoft Learn Docs
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp
+  args:
+    executable: /bin/bash
+  when:
+    - "'microsoft-learn' in codex_mcp_desired_servers"
+    - "'[mcp_servers.microsoft-learn]' not in codex_config_clean"
+
 - name: Ensure Codex memory directory exists
   file:
     path: "{{ user_home }}/.local/share/codex"
@@ -808,6 +821,18 @@
     - "'[mcp_servers.serena]' not in codex_config_clean"
     - uv_available.rc == 0
 
+- name: Configure Codex MCP — playwright (browser automation)
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp add playwright -- npx -y @playwright/mcp@latest
+  args:
+    executable: /bin/bash
+  when:
+    - "'playwright' in codex_mcp_desired_servers"
+    - "'[mcp_servers.playwright]' not in codex_config_clean"
+
 - name: Harden Codex MCP server settings
   shell: |
     config_toml="{{ user_home }}/.codex/config.toml"
@@ -867,15 +892,27 @@
     - name: openaiDeveloperDocs
       key: startup_timeout_sec
       value: "30"
+    - name: microsoft-learn
+      key: startup_timeout_sec
+      value: "30"
     - name: fetch
       key: default_tools_approval_mode
       value: '"{{ codex_fetch_mcp_approval_mode | default(''prompt'') }}"'
+    - name: microsoft-learn
+      key: default_tools_approval_mode
+      value: '"{{ codex_microsoft_learn_mcp_approval_mode | default(''writes'') }}"'
     - name: github
       key: default_tools_approval_mode
       value: '"{{ codex_github_mcp_approval_mode | default(''writes'') }}"'
     - name: serena
       key: default_tools_approval_mode
       value: '"{{ codex_serena_mcp_approval_mode | default(''writes'') }}"'
+    - name: playwright
+      key: startup_timeout_sec
+      value: "30"
+    - name: playwright
+      key: default_tools_approval_mode
+      value: '"{{ codex_playwright_mcp_approval_mode | default(''prompt'') }}"'
   loop_control:
     label: "{{ item.name }} {{ item.key }}"
 

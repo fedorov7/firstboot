@@ -19,7 +19,7 @@ Automated provisioning for **Arch Linux** (Ansible), **macOS** (Bash + Homebrew)
 | **uefi** | Optional role for UEFI/EDK2/QEMU tooling (`nasm`, `acpica`, QEMU emulators, `edk2-ovmf`, signing and firmware analysis utilities) |
 | **security_tools** | Optional role for local security/compliance scanners (`gitleaks`, `trivy`, `osv-scanner`, `cargo-audit`, `cargo-deny`, `flawfinder`, `codespell`, `reuse`) |
 | **cli_tools** | Installs `lua`, configures WSL `interop` settings when applicable |
-| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, memory, fetch, sequential-thinking, optional official GitHub/Serena), and installs an optimized allowlist of skills for app development, systems work, Python data/ML, review, and workflow discipline |
+| **codex** | Installs [OpenAI Codex CLI](https://github.com/openai/codex), configures MCP servers from an allowlist (context7, OpenAI Developer Docs, Microsoft Learn, memory, fetch, sequential-thinking, optional official GitHub/Serena/Playwright), and installs an optimized allowlist of skills for app development, systems work, Python data/ML, review, and workflow discipline |
 | **claude** | Optional role that installs [Claude CLI](https://claude.ai/code), deploys `settings.json` (permissions, model, plugins), configures MCP servers (context7, memory, fetch, sequential-thinking, optional github), and enables key plugin marketplaces/plugins |
 
 ## Prerequisites
@@ -114,7 +114,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `embedded_probe_udev_rules_enabled` | `true` | Install common udev rules for ST-Link, J-Link, CMSIS-DAP, Black Magic, and ESP debug probes |
 | `embedded_access_groups` | `uucp`, `lock` | Groups added to the user for serial device access |
 | `embedded_probe_access_group` | `plugdev` | Group granted debug-probe USB access by udev rules |
-| `codex_mcp_allowlist` | context/docs/memory defaults | MCP servers managed by the Codex role |
+| `codex_mcp_allowlist` | context/OpenAI/Microsoft docs/memory defaults | MCP servers managed by the Codex role |
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
@@ -134,11 +134,14 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `codex_fetch_mcp_approval_mode` | `prompt` | Keep broad web fetch MCP interactive by default |
+| `codex_microsoft_learn_mcp_approval_mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
 | `codex_github_mcp_approval_mode` | `writes` | Let GitHub MCP reads run while prompting for write-capable tools |
 | `codex_serena_mcp_approval_mode` | `writes` | Let Serena read/navigation tools run while prompting for write-capable tools |
+| `codex_playwright_mcp_approval_mode` | `prompt` | Keep browser automation MCP tools interactive |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
+| `codex_playwright_mcp_enabled` | `false` | Enables Playwright MCP browser automation via `npx @playwright/mcp` |
 | `codex_remove_legacy_external_skill_sources` | `false` | Remove old role-managed `~/.codex/superpowers` and `~/.codex/claude-skills` source directories |
-| `codex_curated_skills` | `pdf` | Curated OpenAI skills installed directly into `~/.codex/skills` |
+| `codex_curated_skills` | CLI/Jupyter/PDF/Playwright/security/WinUI defaults | Curated OpenAI skills installed directly into `~/.codex/skills` |
 | `codex_superpowers_skills` | workflow discipline allowlist | Superpowers skills symlinked into `~/.agents/skills/superpowers` |
 | `codex_karpathy_skills` | `karpathy-guidelines` | Karpathy-inspired behavioral guidelines symlinked into `~/.agents/skills/karpathy-skills` |
 | `codex_claude_skills` | systems + workflow allowlist | Claude/fullstack-dev skills symlinked into `~/.agents/skills/claude-skills` |
@@ -153,8 +156,11 @@ The Codex role keeps skills allowlist-driven to avoid accidental growth from
 large skill packs. The default Windows profile targets C++/Rust/Lua/Python
 application development and Python data/ML work: code review, debugging,
 testing, C++/Rust/Python specialists, pandas, ML pipelines, fine-tuning,
-documentation, API design, DevOps, legacy analysis, security review, and
-critical reasoning. Embedded-specific tooling remains opt-in. The Google
+SQL/database tuning, MCP development, documentation, API design, DevOps, legacy
+analysis, security review, and critical reasoning. Curated OpenAI skills add
+CLI creation, Jupyter notebooks, Playwright CLI workflows, security best
+practices, WinUI app work, and PDF handling. Embedded-specific tooling remains
+opt-in. The Google
 TimesFM forecasting skill is also opt-in because it is narrow and resource-aware
 for time-series forecasting workflows. Re-running the role removes stale managed
 entries from `~/.agents/skills/superpowers`,
@@ -171,13 +177,22 @@ remain possible but require confirmation.
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
 documentation and reasoning tools enabled while leaving broader access tools
-disabled. The built-in ChatGPT Apps MCP is disabled by default because it starts
-a remote `chatgpt.com` handshake on Codex startup. To enable GitHub MCP, export
-a token in the configured environment variable and run:
+disabled. Microsoft Learn MCP is included by default for Windows, PowerShell,
+WinUI, .NET, and Microsoft C++ documentation lookups. The built-in ChatGPT Apps
+MCP is disabled by default because it starts a remote `chatgpt.com` handshake on
+Codex startup. To enable GitHub MCP, export a token in the configured
+environment variable and run:
 
 ```bash
 export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxx
 ansible-playbook site.yml --ask-become-pass --tags codex -e codex_github_mcp_enabled=true
+```
+
+Playwright MCP is opt-in because browser automation has heavier startup and
+state behavior than the Playwright curated skill:
+
+```bash
+ansible-playbook site.yml --ask-become-pass --tags codex -e codex_playwright_mcp_enabled=true
 ```
 
 ## Secret Scanning
@@ -298,9 +313,10 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--force-neovim-cleanup` | on | Remove Neovim config/data/state/cache before clone/update |
 | `--preserve-neovim-state` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `--modules` | core module set | Comma-separated module selection |
-| `--codex-mcp-allowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
+| `--codex-mcp-allowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
 | `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
+| `--codex-playwright-mcp-enabled` | off | Enable Playwright MCP browser automation |
 | `--codex-sandbox-mode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
 | `--codex-approval-policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
 | `--codex-model` | `gpt-5.6-sol` | Default Codex model for demanding local development |
@@ -308,6 +324,8 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-service-tier` | `default` | Preserve account default service tier unless overridden |
 | `--codex-agents-max-threads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
 | `--codex-apps-default-tools-approval-mode` | `writes` | Allow read-only app tools while prompting for writes |
+| `--codex-microsoft-learn-mcp-approval-mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
+| `--codex-playwright-mcp-approval-mode` | `prompt` | Keep browser automation MCP tools interactive |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
 | `--ml-environment-path` | `~/.virtualenvs/firstboot-ml` | Path for reusable ML venv |
 | `--ml-timesfm-enabled` | off | Install TimesFM runtime in ML environment |
@@ -391,11 +409,12 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-WindowsSudoEnabled` | off | Enable Sudo for Windows when the `sudo` module is selected |
 | `-WindowsSudoMode` | `forceNewWindow` | Sudo mode: `forceNewWindow`, `disableInput`, or `normal` |
 | `-GithubToken` | (empty) | Optional GitHub PAT copied into `-CodexGithubTokenEnvVar` for official GitHub MCP |
-| `-CodexMcpAllowlist` | context/docs/memory defaults | Comma-separated Codex MCP allowlist |
+| `-CodexMcpAllowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
 | `-CodexSerenaEnabled` | off | Enable Serena MCP via `uvx` |
+| `-CodexPlaywrightMcpEnabled` | off | Enable Playwright MCP browser automation via `npx @playwright/mcp` |
 | `-CodexSandboxMode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
 | `-CodexApprovalPolicy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
 | `-CodexApprovalsReviewer` | `user` | Send eligible approval prompts to the user |
@@ -408,8 +427,10 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexAgentsMaxThreads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
 | `-CodexAppsDefaultToolsApprovalMode` | `writes` | Allow read-only app tools while prompting for writes |
 | `-CodexFetchMcpApprovalMode` | `prompt` | Keep broad fetch MCP tools interactive |
+| `-CodexMicrosoftLearnMcpApprovalMode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
 | `-CodexGithubMcpApprovalMode` | `writes` | Let GitHub MCP reads run while prompting for writes |
 | `-CodexSerenaMcpApprovalMode` | `writes` | Let Serena read/navigation tools run while prompting for writes |
+| `-CodexPlaywrightMcpApprovalMode` | `prompt` | Keep browser automation MCP tools interactive |
 | `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |
 | `-CodexTimesFmSkillEnabled` | off | Enable Google Research TimesFM forecasting skill for Codex |
 | `-CodexTimesFmSkillRepo` | `https://github.com/google-research/timesfm.git` | Source repo for the TimesFM skill |

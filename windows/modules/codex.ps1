@@ -1111,6 +1111,9 @@ if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) 
 if ($CodexSerenaEnabled) {
     $desiredMcpServers += 'serena'
 }
+if ($CodexPlaywrightMcpEnabled) {
+    $desiredMcpServers += 'playwright'
+}
 $desiredMcpServers = @($desiredMcpServers | Select-Object -Unique)
 
 if (-not [string]::IsNullOrWhiteSpace($GithubToken)) {
@@ -1148,6 +1151,10 @@ if ('context7' -in $desiredMcpServers) {
 
 if ('openaiDeveloperDocs' -in $desiredMcpServers) {
     Add-CodexMcpIfMissing 'openaiDeveloperDocs' { codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp }
+}
+
+if ('microsoft-learn' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'microsoft-learn' { codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp }
 }
 
 if ('memory' -in $desiredMcpServers) {
@@ -1189,11 +1196,19 @@ if ('serena' -in $desiredMcpServers) {
     }
 }
 
+if ('playwright' -in $desiredMcpServers) {
+    Add-CodexMcpIfMissing 'playwright' { codex mcp add playwright -- npx -y '@playwright/mcp@latest' }
+}
+
 Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
+Set-CodexMcpSetting 'microsoft-learn' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`""
+Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode' "`"$CodexMicrosoftLearnMcpApprovalMode`""
 Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`""
 Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' "`"$CodexSerenaMcpApprovalMode`""
+Set-CodexMcpSetting 'playwright' 'startup_timeout_sec' '30'
+Set-CodexMcpSetting 'playwright' 'default_tools_approval_mode' "`"$CodexPlaywrightMcpApprovalMode`""
 
 # Skills
 $script:SkillSourceRoot = Join-Path $env:USERPROFILE '.local\share\codex\skill-sources'

@@ -124,6 +124,14 @@ if ($bootstrapSource -notmatch '\[string\]\$CodexApprovalsReviewer = "user"') {
     throw 'Windows bootstrap must default CodexApprovalsReviewer to user'
 }
 
+if (-not $bootstrapSource.Contains('[string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking"')) {
+    throw 'Windows bootstrap must include Microsoft Learn in the default Codex MCP allowlist'
+}
+
+if ($bootstrapSource -notmatch '\[switch\]\$CodexPlaywrightMcpEnabled') {
+    throw 'Windows bootstrap must expose opt-in Playwright MCP'
+}
+
 if ($bootstrapSource -notmatch '\[string\]\$CodexWindowsSandbox = "elevated"') {
     throw 'Windows bootstrap must default CodexWindowsSandbox to elevated'
 }
@@ -143,10 +151,28 @@ foreach ($expected in @(
     '[int]$CodexAgentsMaxThreads = 4',
     '[int]$CodexAgentsMaxDepth = 1',
     '[int]$CodexAgentsJobMaxRuntimeSeconds = 1800',
-    '[string]$CodexAppsDefaultToolsApprovalMode = "writes"'
+    '[string]$CodexAppsDefaultToolsApprovalMode = "writes"',
+    '[string]$CodexMicrosoftLearnMcpApprovalMode = "writes"',
+    '[string]$CodexPlaywrightMcpApprovalMode = "prompt"'
 )) {
     if (-not $bootstrapSource.Contains($expected)) {
         throw "Windows bootstrap must expose Codex default: $expected"
+    }
+}
+
+foreach ($expectedSkill in @(
+    'cli-creator',
+    'jupyter-notebook',
+    'playwright',
+    'security-best-practices',
+    'winui-app',
+    'dispatching-parallel-agents',
+    'database-optimizer',
+    'sql-pro',
+    'mcp-developer'
+)) {
+    if (-not $bootstrapSource.Contains($expectedSkill)) {
+        throw "Windows bootstrap must include Codex skill default: $expectedSkill"
     }
 }
 
@@ -212,6 +238,14 @@ if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'open_world_ena
     throw 'Codex module must keep open-world app tools disabled by default'
 }
 
+if (-not $source.Contains('codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp')) {
+    throw 'Windows Codex module must configure Microsoft Learn MCP'
+}
+
+if (-not $source.Contains("codex mcp add playwright -- npx -y '@playwright/mcp@latest'")) {
+    throw 'Windows Codex module must configure opt-in Playwright MCP'
+}
+
 if (-not $source.Contains('$lines[$i] -match ''^\s*\[''')) {
     throw 'Codex MCP setting updater must stop at any TOML table, including nested MCP tables'
 }
@@ -242,6 +276,18 @@ if (-not $linuxRoleSource.Contains('codex_check_for_update_on_startup | default(
 
 if (-not $linuxRoleSource.Contains('codex_update_enabled | default(false)')) {
     throw 'Linux Codex role must expose opt-in Codex CLI updates'
+}
+
+if (-not $linuxRoleSource.Contains('codex_playwright_mcp_enabled | default(false)')) {
+    throw 'Linux Codex role must expose opt-in Playwright MCP'
+}
+
+if (-not $linuxRoleSource.Contains('codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp')) {
+    throw 'Linux Codex role must configure Microsoft Learn MCP'
+}
+
+if (-not $linuxRoleSource.Contains('codex mcp add playwright -- npx -y @playwright/mcp@latest')) {
+    throw 'Linux Codex role must configure opt-in Playwright MCP'
 }
 
 if ($linuxRoleSource.Contains('pattern = ["pwsh"]')) {
@@ -290,6 +336,14 @@ if ($macosBootstrapSource -notmatch 'CODEX_APPROVALS_REVIEWER="\$\{CODEX_APPROVA
     throw 'macOS bootstrap must default CODEX_APPROVALS_REVIEWER to user'
 }
 
+if (-not $macosBootstrapSource.Contains('CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking}"')) {
+    throw 'macOS bootstrap must include Microsoft Learn in the default Codex MCP allowlist'
+}
+
+if (-not $macosBootstrapSource.Contains('CODEX_PLAYWRIGHT_MCP_ENABLED="${CODEX_PLAYWRIGHT_MCP_ENABLED:-0}"')) {
+    throw 'macOS bootstrap must expose opt-in Playwright MCP'
+}
+
 if ($macosBootstrapSource -notmatch 'CODEX_CHECK_FOR_UPDATE_ON_STARTUP="\$\{CODEX_CHECK_FOR_UPDATE_ON_STARTUP:-1\}"') {
     throw 'macOS bootstrap must default CODEX_CHECK_FOR_UPDATE_ON_STARTUP to true'
 }
@@ -305,7 +359,9 @@ foreach ($expected in @(
     'CODEX_AGENTS_MAX_THREADS="${CODEX_AGENTS_MAX_THREADS:-4}"',
     'CODEX_AGENTS_MAX_DEPTH="${CODEX_AGENTS_MAX_DEPTH:-1}"',
     'CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS="${CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS:-1800}"',
-    'CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"'
+    'CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"',
+    'CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="${CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE:-writes}"',
+    'CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="${CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE:-prompt}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {
         throw "macOS bootstrap must expose Codex default: $expected"
@@ -326,6 +382,14 @@ if (-not $macosCodexSource.Contains('upsert_codex_table_setting agents max_threa
 
 if (-not $macosCodexSource.Contains('upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""')) {
     throw 'macOS Codex module must apply default app approval mode'
+}
+
+if (-not $macosCodexSource.Contains('codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp')) {
+    throw 'macOS Codex module must configure Microsoft Learn MCP'
+}
+
+if (-not $macosCodexSource.Contains('codex mcp add playwright -- npx -y @playwright/mcp@latest')) {
+    throw 'macOS Codex module must configure opt-in Playwright MCP'
 }
 
 if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""')) {

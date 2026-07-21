@@ -33,11 +33,12 @@ GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"
 MODULES_CSV="${MODULES_CSV:-}"
 
-CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,memory,fetch,sequential-thinking}"
+CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking}"
 CODEX_MCP_PRUNE_UNMANAGED="${CODEX_MCP_PRUNE_UNMANAGED:-0}"
 CODEX_GITHUB_MCP_ENABLED="${CODEX_GITHUB_MCP_ENABLED:-0}"
 CODEX_GITHUB_TOKEN_ENV_VAR="${CODEX_GITHUB_TOKEN_ENV_VAR:-GITHUB_PERSONAL_ACCESS_TOKEN}"
 CODEX_SERENA_ENABLED="${CODEX_SERENA_ENABLED:-0}"
+CODEX_PLAYWRIGHT_MCP_ENABLED="${CODEX_PLAYWRIGHT_MCP_ENABLED:-0}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-user}"
@@ -52,13 +53,15 @@ CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE
 CODEX_APPS_DESTRUCTIVE_ENABLED="${CODEX_APPS_DESTRUCTIVE_ENABLED:-0}"
 CODEX_APPS_OPEN_WORLD_ENABLED="${CODEX_APPS_OPEN_WORLD_ENABLED:-0}"
 CODEX_FETCH_MCP_APPROVAL_MODE="${CODEX_FETCH_MCP_APPROVAL_MODE:-prompt}"
+CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="${CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE:-writes}"
 CODEX_GITHUB_MCP_APPROVAL_MODE="${CODEX_GITHUB_MCP_APPROVAL_MODE:-writes}"
 CODEX_SERENA_MCP_APPROVAL_MODE="${CODEX_SERENA_MCP_APPROVAL_MODE:-writes}"
+CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="${CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE:-prompt}"
 CODEX_UPDATE_ENABLED="${CODEX_UPDATE_ENABLED:-0}"
-CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-pdf}"
-CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills}"
+CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app}"
+CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents}"
 CODEX_KARPATHY_SKILLS="${CODEX_KARPATHY_SKILLS:-karpathy-guidelines}"
-CODEX_CLAUDE_SKILLS="${CODEX_CLAUDE_SKILLS:-code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool}"
+CODEX_CLAUDE_SKILLS="${CODEX_CLAUDE_SKILLS:-code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool}"
 CODEX_TIMESFM_SKILL_ENABLED="${CODEX_TIMESFM_SKILL_ENABLED:-0}"
 CODEX_TIMESFM_SKILL_REPO="${CODEX_TIMESFM_SKILL_REPO:-https://github.com/google-research/timesfm.git}"
 CODEX_TIMESFM_SKILL_PATH="${CODEX_TIMESFM_SKILL_PATH:-timesfm-forecasting}"
@@ -306,6 +309,7 @@ Options:
   --codex-github-mcp-enabled            Enable official GitHub MCP server for Codex.
   --codex-github-token-env-var <name>   Env var name used by Codex GitHub MCP.
   --codex-serena-enabled                Enable Serena MCP via uvx.
+  --codex-playwright-mcp-enabled        Enable Playwright MCP browser automation.
   --codex-sandbox-mode <mode>           Codex sandbox mode (default: workspace-write).
   --codex-approval-policy <policy>      Codex approval policy (default: on-request).
   --codex-model <model>                 Codex model (default: gpt-5.6-sol).
@@ -313,6 +317,8 @@ Options:
   --codex-service-tier <tier>           Codex service tier (default: default).
   --codex-agents-max-threads <n>        Concurrent Codex agent thread cap (default: 4).
   --codex-apps-default-tools-approval-mode <mode> App tool approval mode (default: writes).
+  --codex-microsoft-learn-mcp-approval-mode <mode> Microsoft Learn MCP approval mode (default: writes).
+  --codex-playwright-mcp-approval-mode <mode> Playwright MCP approval mode (default: prompt).
   --codex-curated-skills <csv>          Curated Codex skills allowlist.
   --codex-superpowers-skills <csv>      superpowers skill allowlist.
   --codex-karpathy-skills <csv>         karpathy skill allowlist.
@@ -351,6 +357,7 @@ while [[ $# -gt 0 ]]; do
     --codex-github-mcp-enabled) CODEX_GITHUB_MCP_ENABLED=1; shift ;;
     --codex-github-token-env-var) CODEX_GITHUB_TOKEN_ENV_VAR="$2"; shift 2 ;;
     --codex-serena-enabled) CODEX_SERENA_ENABLED=1; shift ;;
+    --codex-playwright-mcp-enabled) CODEX_PLAYWRIGHT_MCP_ENABLED=1; shift ;;
     --codex-sandbox-mode) CODEX_SANDBOX_MODE="$2"; shift 2 ;;
     --codex-approval-policy) CODEX_APPROVAL_POLICY="$2"; shift 2 ;;
     --codex-model) CODEX_MODEL="$2"; shift 2 ;;
@@ -358,6 +365,8 @@ while [[ $# -gt 0 ]]; do
     --codex-service-tier) CODEX_SERVICE_TIER="$2"; shift 2 ;;
     --codex-agents-max-threads) CODEX_AGENTS_MAX_THREADS="$2"; shift 2 ;;
     --codex-apps-default-tools-approval-mode) CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="$2"; shift 2 ;;
+    --codex-microsoft-learn-mcp-approval-mode) CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="$2"; shift 2 ;;
+    --codex-playwright-mcp-approval-mode) CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-curated-skills) CODEX_CURATED_SKILLS="$2"; shift 2 ;;
     --codex-superpowers-skills) CODEX_SUPERPOWERS_SKILLS="$2"; shift 2 ;;
     --codex-karpathy-skills) CODEX_KARPATHY_SKILLS="$2"; shift 2 ;;

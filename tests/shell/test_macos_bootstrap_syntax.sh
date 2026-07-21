@@ -42,8 +42,18 @@ if [[ "$codex_module_source" != *"upsert_codex_mcp_setting openaiDeveloperDocs s
   exit 1
 fi
 
+if [[ "$codex_module_source" != *"upsert_codex_mcp_setting microsoft-learn startup_timeout_sec 30"* ]]; then
+  echo "macOS Codex module must harden Microsoft Learn MCP startup timeout" >&2
+  exit 1
+fi
+
 if [[ "$codex_module_source" != *"upsert_codex_mcp_setting fetch default_tools_approval_mode"* ]]; then
   echo "macOS Codex module must require approval prompts for broad fetch MCP tools" >&2
+  exit 1
+fi
+
+if [[ "$codex_module_source" != *"upsert_codex_mcp_setting playwright default_tools_approval_mode"* ]]; then
+  echo "macOS Codex module must keep Playwright MCP approval mode configurable" >&2
   exit 1
 fi
 

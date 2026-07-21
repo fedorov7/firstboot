@@ -566,6 +566,11 @@ if [[ "$CODEX_SERENA_ENABLED" -eq 1 ]]; then
     desired_mcp_servers+=(serena)
   fi
 fi
+if [[ "$CODEX_PLAYWRIGHT_MCP_ENABLED" -eq 1 ]]; then
+  if ! array_contains playwright "${desired_mcp_servers[@]}"; then
+    desired_mcp_servers+=(playwright)
+  fi
+fi
 
 if [[ -n "$GITHUB_TOKEN" ]]; then
   export "$CODEX_GITHUB_TOKEN_ENV_VAR=$GITHUB_TOKEN"
@@ -606,6 +611,9 @@ fi
 if array_contains openaiDeveloperDocs "${desired_mcp_servers[@]}"; then
   add_codex_mcp_if_missing openaiDeveloperDocs codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp
 fi
+if array_contains microsoft-learn "${desired_mcp_servers[@]}"; then
+  add_codex_mcp_if_missing microsoft-learn codex mcp add microsoft-learn --url https://learn.microsoft.com/api/mcp
+fi
 if array_contains memory "${desired_mcp_servers[@]}"; then
   memory_dir="$HOME/.local/share/codex"
   mkdir -p "$memory_dir"
@@ -632,12 +640,19 @@ if array_contains serena "${desired_mcp_servers[@]}"; then
     write_warn "uvx not available. Run python module first to enable Serena MCP."
   fi
 fi
+if array_contains playwright "${desired_mcp_servers[@]}"; then
+  add_codex_mcp_if_missing playwright codex mcp add playwright -- npx -y @playwright/mcp@latest
+fi
 
 upsert_codex_mcp_setting context7 startup_timeout_sec 30
 upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30
+upsert_codex_mcp_setting microsoft-learn startup_timeout_sec 30
 upsert_codex_mcp_setting fetch default_tools_approval_mode "\"$CODEX_FETCH_MCP_APPROVAL_MODE\""
+upsert_codex_mcp_setting microsoft-learn default_tools_approval_mode "\"$CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting github default_tools_approval_mode "\"$CODEX_GITHUB_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting serena default_tools_approval_mode "\"$CODEX_SERENA_MCP_APPROVAL_MODE\""
+upsert_codex_mcp_setting playwright startup_timeout_sec 30
+upsert_codex_mcp_setting playwright default_tools_approval_mode "\"$CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE\""
 
 skill_source_root="$HOME/.local/share/codex/skill-sources"
 agents_skills_dir="$HOME/.agents/skills"

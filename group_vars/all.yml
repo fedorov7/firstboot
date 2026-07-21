@@ -40,6 +40,7 @@ embedded_probe_access_group: plugdev
 codex_mcp_allowlist:
   - context7
   - openaiDeveloperDocs
+  - microsoft-learn
   - memory
   - fetch
   - sequential-thinking
@@ -59,18 +60,26 @@ codex_apps_default_tools_approval_mode: writes
 codex_apps_destructive_enabled: false
 codex_apps_open_world_enabled: false
 codex_fetch_mcp_approval_mode: prompt
+codex_microsoft_learn_mcp_approval_mode: writes
 codex_github_mcp_approval_mode: writes
 codex_serena_mcp_approval_mode: writes
+codex_playwright_mcp_approval_mode: prompt
 codex_update_enabled: false
 
 # Optional MCP servers with broader access or heavier runtime behavior.
 codex_github_mcp_enabled: false
 codex_github_token_env_var: GITHUB_PERSONAL_ACCESS_TOKEN
 codex_serena_enabled: false
+codex_playwright_mcp_enabled: false
 codex_remove_legacy_external_skill_sources: false
 
 codex_curated_skills:
+  - cli-creator
+  - jupyter-notebook
   - pdf
+  - playwright
+  - security-best-practices
+  - winui-app
 
 codex_superpowers_skills:
   - systematic-debugging
@@ -83,7 +92,7 @@ codex_superpowers_skills:
   - requesting-code-review     # Enable when you want formal review checkpoints.
   - brainstorming               # Broad creative workflow gate.
   - writing-skills
-  # - dispatching-parallel-agents  # Parallel research/development workflow.
+  - dispatching-parallel-agents  # Parallel research/development workflow.
   # - subagent-driven-development  # Multi-agent implementation workflow.
   # - using-git-worktrees          # Isolated feature branch workflow.
   # - finishing-a-development-branch
@@ -94,9 +103,15 @@ codex_karpathy_skills:
 codex_claude_skills:
   - code-reviewer
   - cpp-pro
+  - rust-engineer
+  - python-pro
+  - pandas-pro
+  - ml-pipeline
+  - fine-tuning-expert
+  - database-optimizer
+  - sql-pro
+  - mcp-developer
   - debugging-wizard
-  - embedded-systems
-  - security-reviewer
   - test-master
   - api-designer               # API/backend work.
   - architecture-designer      # Enable for ADRs and high-level system architecture.
@@ -106,16 +121,20 @@ codex_claude_skills:
   - legacy-modernizer          # Enable for large migrations of older codebases.
   - python-pro                 # Python application development.
   - secure-code-guardian       # Enable for auth/input-validation implementation work.
+  - security-reviewer
   - spec-miner                 # Legacy/undocumented system discovery.
   - the-fool                   # Enable for explicit red-team / devil's advocate review.
   # - csharp-developer             # .NET/C# work.
-  # - database-optimizer           # Database tuning.
+  # - dotnet-core-expert           # .NET runtime/framework work.
+  # - embedded-systems             # MCU/UEFI/hardware workflows.
   # - fullstack-guardian           # Full-stack feature work.
   # - golang-pro                   # Go development.
   # - java-architect               # Java/Spring architecture.
   # - kubernetes-specialist        # Kubernetes operations.
   # - microservices-architect      # Distributed services design.
-  # - rust-engineer                # Rust systems development.
-  # - sql-pro                      # SQL design and optimization.
+  # - playwright-expert            # Browser/E2E workflows when OpenAI playwright skill is not enough.
+  # - prompt-engineer              # Prompt/system-instruction design.
+  # - rag-architect                # Retrieval-augmented generation systems.
+  # - spark-engineer               # Distributed data/ML pipelines.
   # - terraform-engineer           # Terraform infrastructure.
   # - typescript-pro               # TypeScript development.
