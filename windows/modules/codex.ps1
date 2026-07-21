@@ -266,7 +266,8 @@ function Add-CodexPrefixRuleIfMissing {
     }
 
     $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ($source -and $source.Contains("pattern = $Pattern")) {
+    $escapedPattern = [regex]::Escape($Pattern)
+    if ($source -and [regex]::IsMatch($source, "pattern\s*=\s*$escapedPattern")) {
         Write-Skip "Codex rule already present: $Pattern"
         return
     }
@@ -302,13 +303,35 @@ function Remove-CodexPrefixAllowRulesByPattern {
 
     if ($updated -eq $source) {
         if (-not $Quiet) {
-            Write-Skip "Unsafe Codex allow rule absent: $Pattern"
+            Write-Skip "Codex allow rule absent: $Pattern"
         }
         return
     }
 
     Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
-    Write-Ok "Removed unsafe Codex allow rule: $Pattern"
+    Write-Ok "Removed Codex allow rule: $Pattern"
+}
+
+function Set-CodexPrefixRule {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [Parameter(Mandatory)][string]$Rule
+    )
+
+    $source = if (Test-Path $script:CodexDefaultRules) {
+        Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    } else {
+        ''
+    }
+    $normalizedSource = $source -replace "`r`n", "`n"
+    $normalizedRule = $Rule.Trim() -replace "`r`n", "`n"
+    if ($normalizedSource.Contains($normalizedRule)) {
+        Write-Skip "Codex rule already current: $Pattern"
+        return
+    }
+
+    Remove-CodexPrefixAllowRulesByPattern -Pattern $Pattern -Quiet
+    Add-CodexPrefixRuleIfMissing -Pattern $Pattern -Rule $Rule
 }
 
 function Remove-CodexUnsafeShellWrapperRules {
@@ -914,6 +937,170 @@ prefix_rule(
     justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
     match = ["uv run python -m pytest"],
     not_match = ["uvx ruff"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cmake", "--build"]' @'
+prefix_rule(
+    pattern = ["cmake", "--build"],
+    decision = "allow",
+    justification = "Allow trusted CMake workspace builds without repeated prompts",
+    match = ["cmake --build --preset=dev-win64 --target format-check -j 4"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["ctest"]' @'
+prefix_rule(
+    pattern = ["ctest"],
+    decision = "allow",
+    justification = "Allow trusted CTest workspace test runs without repeated prompts",
+    match = ["ctest --preset=dev-win64 --output-on-failure"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["ninja"]' @'
+prefix_rule(
+    pattern = ["ninja"],
+    decision = "allow",
+    justification = "Allow trusted Ninja workspace builds without repeated prompts",
+    match = ["ninja -C build"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["meson", "compile"]' @'
+prefix_rule(
+    pattern = ["meson", "compile"],
+    decision = "allow",
+    justification = "Allow trusted Meson workspace builds without repeated prompts",
+    match = ["meson compile -C build"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["meson", "test"]' @'
+prefix_rule(
+    pattern = ["meson", "test"],
+    decision = "allow",
+    justification = "Allow trusted Meson workspace test runs without repeated prompts",
+    match = ["meson test -C build"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "build"]' @'
+prefix_rule(
+    pattern = ["cargo", "build"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace builds without repeated prompts",
+    match = ["cargo build --all-targets"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "check"]' @'
+prefix_rule(
+    pattern = ["cargo", "check"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace checks without repeated prompts",
+    match = ["cargo check --all-targets"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "test"]' @'
+prefix_rule(
+    pattern = ["cargo", "test"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace tests without repeated prompts",
+    match = ["cargo test"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "clippy"]' @'
+prefix_rule(
+    pattern = ["cargo", "clippy"],
+    decision = "allow",
+    justification = "Allow trusted Cargo clippy checks without repeated prompts",
+    match = ["cargo clippy --all-targets --all-features -- -D warnings"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["cargo", "nextest"]' @'
+prefix_rule(
+    pattern = ["cargo", "nextest"],
+    decision = "allow",
+    justification = "Allow trusted Cargo nextest runs without repeated prompts",
+    match = ["cargo nextest run"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["python", "-m", "pytest"]' @'
+prefix_rule(
+    pattern = ["python", "-m", "pytest"],
+    decision = "allow",
+    justification = "Allow trusted Python pytest runs without repeated prompts",
+    match = ["python -m pytest"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["py", "-m", "pytest"]' @'
+prefix_rule(
+    pattern = ["py", "-m", "pytest"],
+    decision = "allow",
+    justification = "Allow trusted Windows Python launcher pytest runs without repeated prompts",
+    match = ["py -m pytest"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["pytest"]' @'
+prefix_rule(
+    pattern = ["pytest"],
+    decision = "allow",
+    justification = "Allow trusted pytest runs without repeated prompts",
+    match = ["pytest tests"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "test"]' @'
+prefix_rule(
+    pattern = ["npm", "test"],
+    decision = "allow",
+    justification = "Allow trusted npm test scripts without repeated prompts",
+    match = ["npm test"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "run", "test"]' @'
+prefix_rule(
+    pattern = ["npm", "run", "test"],
+    decision = "allow",
+    justification = "Allow trusted npm run test scripts without repeated prompts",
+    match = ["npm run test"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "run", "build"]' @'
+prefix_rule(
+    pattern = ["npm", "run", "build"],
+    decision = "allow",
+    justification = "Allow trusted npm run build scripts without repeated prompts",
+    match = ["npm run build"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["npm", "run", "lint"]' @'
+prefix_rule(
+    pattern = ["npm", "run", "lint"],
+    decision = "allow",
+    justification = "Allow trusted npm run lint scripts without repeated prompts",
+    match = ["npm run lint"],
+)
+'@
+Set-CodexPrefixRule '["Set-Item", "Env:\\VCPKG_ROOT"]' @'
+prefix_rule(
+    pattern = ["Set-Item", "Env:\\VCPKG_ROOT"],
+    decision = "allow",
+    justification = "Allow process-local VCPKG_ROOT overrides before trusted build commands",
+)
+'@
+Set-CodexPrefixRule '["Set-Item", "-Path", "Env:\\VCPKG_ROOT"]' @'
+prefix_rule(
+    pattern = ["Set-Item", "-Path", "Env:\\VCPKG_ROOT"],
+    decision = "allow",
+    justification = "Allow explicit process-local VCPKG_ROOT overrides before trusted build commands",
+)
+'@
+Set-CodexPrefixRule '["Set-Item", "Env:\\PROTOC"]' @'
+prefix_rule(
+    pattern = ["Set-Item", "Env:\\PROTOC"],
+    decision = "allow",
+    justification = "Allow process-local PROTOC overrides before trusted build commands",
+)
+'@
+Set-CodexPrefixRule '["Set-Item", "-Path", "Env:\\PROTOC"]' @'
+prefix_rule(
+    pattern = ["Set-Item", "-Path", "Env:\\PROTOC"],
+    decision = "allow",
+    justification = "Allow explicit process-local PROTOC overrides before trusted build commands",
 )
 '@
 Add-CodexPrefixRuleIfMissing '["Get-Content"]' @'

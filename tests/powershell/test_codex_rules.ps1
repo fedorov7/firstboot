@@ -28,8 +28,9 @@ if ($source.Contains('-like "*pattern = $Pattern*"')) {
     throw 'Codex prefix rule detection must not use wildcard matching for TOML array patterns'
 }
 
-if (-not $source.Contains('$source.Contains("pattern = $Pattern")')) {
-    throw 'Codex prefix rule detection must use literal matching for TOML array patterns'
+if (-not $source.Contains('$escapedPattern = [regex]::Escape($Pattern)') -or
+    $source -notmatch '\[regex\]::IsMatch\(\$source, "pattern\\s\*=\\s\*\$escapedPattern"\)') {
+    throw 'Codex prefix rule detection must use escaped regex matching for TOML array patterns'
 }
 
 foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
@@ -39,6 +40,45 @@ foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difft
 }
 if (-not $source.Contains('Add-CodexPrefixRuleIfMissing ''["uv", "run"]''')) {
     throw 'Windows Codex module must allow trusted workspace tool: uv run'
+}
+
+foreach ($pattern in @(
+    '["cmake", "--build"]',
+    '["ctest"]',
+    '["ninja"]',
+    '["meson", "compile"]',
+    '["meson", "test"]',
+    '["cargo", "build"]',
+    '["cargo", "check"]',
+    '["cargo", "test"]',
+    '["cargo", "clippy"]',
+    '["cargo", "nextest"]',
+    '["python", "-m", "pytest"]',
+    '["py", "-m", "pytest"]',
+    '["pytest"]',
+    '["npm", "test"]',
+    '["npm", "run", "test"]',
+    '["npm", "run", "build"]',
+    '["npm", "run", "lint"]'
+)) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
+        throw "Windows Codex module must allow trusted build/test command: $pattern"
+    }
+}
+
+foreach ($pattern in @(
+    '["Set-Item", "Env:\\VCPKG_ROOT"]',
+    '["Set-Item", "-Path", "Env:\\VCPKG_ROOT"]',
+    '["Set-Item", "Env:\\PROTOC"]',
+    '["Set-Item", "-Path", "Env:\\PROTOC"]'
+)) {
+    if (-not ($source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'") -or $source.Contains("Set-CodexPrefixRule '$pattern'"))) {
+        throw "Windows Codex module must allow trusted process-local build environment command: $pattern"
+    }
+}
+
+if ($source -match 'match = \["Set-Item .*Env:') {
+    throw 'Windows Codex build environment rules must not use path-heavy match examples that break execpolicy parsing'
 }
 
 foreach ($pattern in @(
@@ -319,6 +359,30 @@ if (-not $linuxRoleSource.Contains('pattern = ["uv", "run"]')) {
 }
 
 foreach ($pattern in @(
+    'pattern = ["cmake", "--build"]',
+    'pattern = ["ctest"]',
+    'pattern = ["ninja"]',
+    'pattern = ["meson", "compile"]',
+    'pattern = ["meson", "test"]',
+    'pattern = ["cargo", "build"]',
+    'pattern = ["cargo", "check"]',
+    'pattern = ["cargo", "test"]',
+    'pattern = ["cargo", "clippy"]',
+    'pattern = ["cargo", "nextest"]',
+    'pattern = ["python", "-m", "pytest"]',
+    'pattern = ["python3", "-m", "pytest"]',
+    'pattern = ["pytest"]',
+    'pattern = ["npm", "test"]',
+    'pattern = ["npm", "run", "test"]',
+    'pattern = ["npm", "run", "build"]',
+    'pattern = ["npm", "run", "lint"]'
+)) {
+    if (-not $linuxRoleSource.Contains($pattern)) {
+        throw "Linux Codex role must allow trusted build/test command: $pattern"
+    }
+}
+
+foreach ($pattern in @(
     'pattern = ["sudo"]',
     'pattern = ["git", "push"]',
     'pattern = ["git", "reset", "--hard"]',
@@ -434,6 +498,30 @@ foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difft
 }
 if (-not $macosCodexSource.Contains('ensure_codex_prefix_rule ''["uv", "run"]''')) {
     throw 'macOS Codex module must allow trusted workspace tool: uv run'
+}
+
+foreach ($pattern in @(
+    '["cmake", "--build"]',
+    '["ctest"]',
+    '["ninja"]',
+    '["meson", "compile"]',
+    '["meson", "test"]',
+    '["cargo", "build"]',
+    '["cargo", "check"]',
+    '["cargo", "test"]',
+    '["cargo", "clippy"]',
+    '["cargo", "nextest"]',
+    '["python", "-m", "pytest"]',
+    '["python3", "-m", "pytest"]',
+    '["pytest"]',
+    '["npm", "test"]',
+    '["npm", "run", "test"]',
+    '["npm", "run", "build"]',
+    '["npm", "run", "lint"]'
+)) {
+    if (-not $macosCodexSource.Contains("ensure_codex_prefix_rule '$pattern'")) {
+        throw "macOS Codex module must allow trusted build/test command: $pattern"
+    }
 }
 
 foreach ($pattern in @(

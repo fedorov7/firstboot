@@ -127,9 +127,10 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_agents_max_threads` | `4` | Caps concurrent agent threads below Codex's higher default to reduce rate-limit and local-resource spikes |
 | `codex_apps_default_tools_approval_mode` | `writes` | Allow read-only app tools while prompting for write-capable tools |
 | `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
-| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run | Allow common local workspace inspection and project commands without repeated prompts |
+| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run + CMake/CTest/Ninja/Meson/Cargo/Pytest/npm build-test runners | Allow common local workspace inspection, compilation, and test commands without repeated prompts |
 | Codex privileged prompt rules | git push/reset/clean, sudo/winget/brew/cargo install/uv tool/npm global/pip install/system settings | Keep destructive, remote, and system-changing commands available through explicit approval instead of broad shell trust |
 | Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
+| Windows Codex build env rules | Set-Item Env:\VCPKG_ROOT/PROTOC | Allow process-local build environment overrides before trusted build/test commands; prefer this over inline `$env:...; cmake ...` shell wrappers |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |

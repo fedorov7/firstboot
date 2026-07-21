@@ -530,6 +530,108 @@ ensure_codex_prefix_rule '["uv", "run"]' 'prefix_rule(
     match = ["uv run python -m pytest"],
     not_match = ["uvx ruff"],
 )'
+ensure_codex_prefix_rule '["cmake", "--build"]' 'prefix_rule(
+    pattern = ["cmake", "--build"],
+    decision = "allow",
+    justification = "Allow trusted CMake workspace builds without repeated prompts",
+    match = ["cmake --build --preset=dev-win64 --target format-check -j 4"],
+)'
+ensure_codex_prefix_rule '["ctest"]' 'prefix_rule(
+    pattern = ["ctest"],
+    decision = "allow",
+    justification = "Allow trusted CTest workspace test runs without repeated prompts",
+    match = ["ctest --preset=dev-win64 --output-on-failure"],
+)'
+ensure_codex_prefix_rule '["ninja"]' 'prefix_rule(
+    pattern = ["ninja"],
+    decision = "allow",
+    justification = "Allow trusted Ninja workspace builds without repeated prompts",
+    match = ["ninja -C build"],
+)'
+ensure_codex_prefix_rule '["meson", "compile"]' 'prefix_rule(
+    pattern = ["meson", "compile"],
+    decision = "allow",
+    justification = "Allow trusted Meson workspace builds without repeated prompts",
+    match = ["meson compile -C build"],
+)'
+ensure_codex_prefix_rule '["meson", "test"]' 'prefix_rule(
+    pattern = ["meson", "test"],
+    decision = "allow",
+    justification = "Allow trusted Meson workspace test runs without repeated prompts",
+    match = ["meson test -C build"],
+)'
+ensure_codex_prefix_rule '["cargo", "build"]' 'prefix_rule(
+    pattern = ["cargo", "build"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace builds without repeated prompts",
+    match = ["cargo build --all-targets"],
+)'
+ensure_codex_prefix_rule '["cargo", "check"]' 'prefix_rule(
+    pattern = ["cargo", "check"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace checks without repeated prompts",
+    match = ["cargo check --all-targets"],
+)'
+ensure_codex_prefix_rule '["cargo", "test"]' 'prefix_rule(
+    pattern = ["cargo", "test"],
+    decision = "allow",
+    justification = "Allow trusted Cargo workspace tests without repeated prompts",
+    match = ["cargo test"],
+)'
+ensure_codex_prefix_rule '["cargo", "clippy"]' 'prefix_rule(
+    pattern = ["cargo", "clippy"],
+    decision = "allow",
+    justification = "Allow trusted Cargo clippy checks without repeated prompts",
+    match = ["cargo clippy --all-targets --all-features -- -D warnings"],
+)'
+ensure_codex_prefix_rule '["cargo", "nextest"]' 'prefix_rule(
+    pattern = ["cargo", "nextest"],
+    decision = "allow",
+    justification = "Allow trusted Cargo nextest runs without repeated prompts",
+    match = ["cargo nextest run"],
+)'
+ensure_codex_prefix_rule '["python", "-m", "pytest"]' 'prefix_rule(
+    pattern = ["python", "-m", "pytest"],
+    decision = "allow",
+    justification = "Allow trusted Python pytest runs without repeated prompts",
+    match = ["python -m pytest"],
+)'
+ensure_codex_prefix_rule '["python3", "-m", "pytest"]' 'prefix_rule(
+    pattern = ["python3", "-m", "pytest"],
+    decision = "allow",
+    justification = "Allow trusted Python 3 pytest runs without repeated prompts",
+    match = ["python3 -m pytest"],
+)'
+ensure_codex_prefix_rule '["pytest"]' 'prefix_rule(
+    pattern = ["pytest"],
+    decision = "allow",
+    justification = "Allow trusted pytest runs without repeated prompts",
+    match = ["pytest tests"],
+)'
+ensure_codex_prefix_rule '["npm", "test"]' 'prefix_rule(
+    pattern = ["npm", "test"],
+    decision = "allow",
+    justification = "Allow trusted npm test scripts without repeated prompts",
+    match = ["npm test"],
+)'
+ensure_codex_prefix_rule '["npm", "run", "test"]' 'prefix_rule(
+    pattern = ["npm", "run", "test"],
+    decision = "allow",
+    justification = "Allow trusted npm run test scripts without repeated prompts",
+    match = ["npm run test"],
+)'
+ensure_codex_prefix_rule '["npm", "run", "build"]' 'prefix_rule(
+    pattern = ["npm", "run", "build"],
+    decision = "allow",
+    justification = "Allow trusted npm run build scripts without repeated prompts",
+    match = ["npm run build"],
+)'
+ensure_codex_prefix_rule '["npm", "run", "lint"]' 'prefix_rule(
+    pattern = ["npm", "run", "lint"],
+    decision = "allow",
+    justification = "Allow trusted npm run lint scripts without repeated prompts",
+    match = ["npm run lint"],
+)'
 
 ensure_codex_prefix_rule '["git", "push"]' 'prefix_rule(
     pattern = ["git", "push"],
