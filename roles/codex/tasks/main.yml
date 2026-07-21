@@ -61,25 +61,63 @@
     path: "{{ user_home }}/.codex"
     state: directory
 
-- name: Set Codex workspace access defaults
-  lineinfile:
-    path: "{{ user_home }}/.codex/config.toml"
-    regexp: "^{{ item.key }}\\s*="
-    line: '{{ item.key }} = "{{ item.value }}"'
-    insertbefore: '^\['
-    create: true
-    mode: "0644"
+- name: Set Codex top-level defaults
+  shell: |
+    config_toml="{{ user_home }}/.codex/config.toml"
+    key="{{ item.key }}"
+    value='{{ item.value }}'
+    touch "$config_toml"
+    chmod 0644 "$config_toml"
+    temp_config="$(mktemp)"
+    awk -v key="$key" -v value="$value" '
+      BEGIN { in_preamble = 1; setting_seen = 0 }
+      in_preamble && /^\[/ {
+        if (!setting_seen) {
+          print key " = " value
+          setting_seen = 1
+        }
+        in_preamble = 0
+      }
+      in_preamble && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        if (!setting_seen) {
+          print key " = " value
+          setting_seen = 1
+        }
+        next
+      }
+      { print }
+      END {
+        if (in_preamble && !setting_seen) {
+          print key " = " value
+        }
+      }
+    ' "$config_toml" >"$temp_config"
+    if cmp -s "$temp_config" "$config_toml"; then
+      rm -f "$temp_config"
+      exit 0
+    fi
+    cp "$temp_config" "$config_toml"
+    rm -f "$temp_config"
+    echo "OK: $key"
+  args:
+    executable: /bin/bash
+  register: codex_top_level_defaults
+  changed_when: "'OK:' in codex_top_level_defaults.stdout"
   loop:
     - key: model
-      value: "{{ codex_model | default('gpt-5.6-sol') }}"
+      value: '"{{ codex_model | default(''gpt-5.6-sol'') }}"'
     - key: model_reasoning_effort
-      value: "{{ codex_model_reasoning_effort | default('high') }}"
+      value: '"{{ codex_model_reasoning_effort | default(''high'') }}"'
     - key: service_tier
-      value: "{{ codex_service_tier | default('default') }}"
+      value: '"{{ codex_service_tier | default(''default'') }}"'
     - key: sandbox_mode
-      value: "{{ codex_sandbox_mode | default('workspace-write') }}"
+      value: '"{{ codex_sandbox_mode | default(''workspace-write'') }}"'
     - key: approval_policy
-      value: "{{ codex_approval_policy | default('on-request') }}"
+      value: '"{{ codex_approval_policy | default(''on-request'') }}"'
+    - key: approvals_reviewer
+      value: '"{{ codex_approvals_reviewer | default(''user'') }}"'
+    - key: check_for_update_on_startup
+      value: "{{ (codex_check_for_update_on_startup | default(true) | bool) | ternary('true', 'false') }}"
   loop_control:
     label: "{{ item.key }}"
 
@@ -159,23 +197,37 @@
     regexp: '(?m)^\[agents\]\nmax_threads\s*=\s*\d+\nmax_depth\s*=\s*\d+\njob_max_runtime_seconds\s*=\s*\d+\n(?:interrupt_message\s*=\s*(?:true|false)\n)?\n?'
     replace: ''
 
-- name: Set Codex approval reviewer default
-  lineinfile:
-    path: "{{ user_home }}/.codex/config.toml"
-    regexp: "^approvals_reviewer\\s*="
-    line: 'approvals_reviewer = "{{ codex_approvals_reviewer | default(''user'') }}"'
-    insertbefore: '^\['
-    create: true
-    mode: "0644"
-
-- name: Set Codex update check default
-  lineinfile:
-    path: "{{ user_home }}/.codex/config.toml"
-    regexp: "^check_for_update_on_startup\\s*="
-    line: "check_for_update_on_startup = {{ (codex_check_for_update_on_startup | default(true) | bool) | ternary('true', 'false') }}"
-    insertbefore: '^\['
-    create: true
-    mode: "0644"
+- name: Remove misplaced Codex top-level settings from Codex-owned tables
+  shell: |
+    config_toml="{{ user_home }}/.codex/config.toml"
+    temp_config="$(mktemp)"
+    awk '
+      /^\[/ { section = $0 }
+      section ~ /^\[(notice\.model_migrations|tui|tui\.model_availability_nux)\]$/ &&
+      $0 ~ /^(model|model_reasoning_effort|service_tier|sandbox_mode|approval_policy|approvals_reviewer|check_for_update_on_startup|startup_timeout_sec)[[:space:]]*=/ {
+        changed = 1
+        next
+      }
+      { print }
+      END {
+        if (changed) {
+          exit 2
+        }
+      }
+    ' "$config_toml" >"$temp_config"
+    rc=$?
+    if [[ $rc -eq 2 ]]; then
+      cp "$temp_config" "$config_toml"
+      rm -f "$temp_config"
+      echo "OK: removed misplaced settings"
+      exit 0
+    fi
+    rm -f "$temp_config"
+    exit "$rc"
+  args:
+    executable: /bin/bash
+  register: codex_misplaced_top_level_cleanup
+  changed_when: "'OK:' in codex_misplaced_top_level_cleanup.stdout"
 
 - name: Read codex config.toml
   slurp:
