@@ -459,6 +459,48 @@ function Remove-CodexManagedFileIfPresent {
     Write-Ok "$Description removed"
 }
 
+function Normalize-CodexText {
+    param([string]$Text)
+    return (($Text -replace "`r`n", "`n").TrimEnd())
+}
+
+function Test-CodexDirectoryCurrent {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Target
+    )
+
+    if (-not (Test-Path -LiteralPath $Target)) {
+        return $false
+    }
+
+    $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
+    $targetRoot = (Resolve-Path -LiteralPath $Target).Path
+    $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File)
+    $targetFiles = @(Get-ChildItem -LiteralPath $targetRoot -Recurse -File)
+
+    if ($sourceFiles.Count -ne $targetFiles.Count) {
+        return $false
+    }
+
+    foreach ($sourceFile in $sourceFiles) {
+        $relativePath = [System.IO.Path]::GetRelativePath($sourceRoot, $sourceFile.FullName)
+        $targetFile = Join-Path $targetRoot $relativePath
+
+        if (-not (Test-Path -LiteralPath $targetFile)) {
+            return $false
+        }
+
+        $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFile.FullName).Hash
+        $targetHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $targetFile).Hash
+        if ($sourceHash -ne $targetHash) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
 function Set-CodexProfileFiles {
     if (-not $CodexProfilesEnabled) {
         Remove-CodexManagedFileIfPresent -Path (Join-Path $codexDir 'lean.config.toml') -Description 'Codex lean profile'
@@ -515,6 +557,7 @@ function New-CodexCustomAgentContent {
         [Parameter(Mandatory)][string]$Description,
         [Parameter(Mandatory)][string]$Model,
         [Parameter(Mandatory)][string]$ReasoningEffort,
+        [Parameter(Mandatory)][string]$SandboxMode,
         [Parameter(Mandatory)][string]$Instructions,
         [Parameter(Mandatory)][string]$Nicknames
     )
@@ -525,7 +568,7 @@ name = "$Name"
 description = "$Description"
 model = "$Model"
 model_reasoning_effort = "$ReasoningEffort"
-sandbox_mode = "read-only"
+sandbox_mode = "$SandboxMode"
 nickname_candidates = [$Nicknames]
 
 developer_instructions = '''
@@ -535,7 +578,7 @@ $Instructions
 }
 
 function Set-CodexCustomAgentFiles {
-    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher')
+    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher', 'tester-terra', 'architect-deep')
     $selectedAgents = if ($CodexCustomAgentsEnabled) { ConvertTo-NameList $CodexCustomAgents } else { @() }
 
     foreach ($agent in $managedAgents) {
@@ -557,6 +600,7 @@ function Set-CodexCustomAgentFiles {
                     -Description 'Fast read-only repository exploration and large-file evidence gathering.' `
                     -Model $CodexLeanProfileModel `
                     -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -SandboxMode 'read-only' `
                     -Nicknames '"Scout", "Mapper", "Triage"' `
                     -Instructions @'
 You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
@@ -569,6 +613,7 @@ You are a read-only exploration agent. Inspect files, logs, docs, and command ou
                     -Description 'High-reasoning code review focused on bugs, regressions, security risks, and test gaps.' `
                     -Model $CodexModel `
                     -ReasoningEffort $CodexModelReasoningEffort `
+                    -SandboxMode 'read-only' `
                     -Nicknames '"Reviewer", "Auditor", "Skeptic"' `
                     -Instructions @'
 You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.
@@ -581,9 +626,36 @@ You are a read-only review agent. Prioritize concrete bugs, behavioral regressio
                     -Description 'Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior.' `
                     -Model $CodexLeanProfileModel `
                     -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -SandboxMode 'read-only' `
                     -Nicknames '"Researcher", "Librarian", "Verifier"' `
                     -Instructions @'
 You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.
+'@
+                break
+            }
+            'tester-terra' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'tester-terra' `
+                    -Description 'Fast build, lint, typecheck, and test runner that reports focused failures without editing source.' `
+                    -Model $CodexLeanProfileModel `
+                    -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -SandboxMode 'workspace-write' `
+                    -Nicknames '"Runner", "Verifier", "Harness"' `
+                    -Instructions @'
+You are a verification agent. Run focused build, lint, typecheck, and test commands requested by the parent thread. You may create normal build/test artifacts in the workspace, but do not edit source files. Return commands, exit codes, concise failure summaries, and likely next investigation targets.
+'@
+                break
+            }
+            'architect-deep' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'architect-deep' `
+                    -Description 'High-reasoning architecture and migration analyst for ambiguous cross-module design decisions.' `
+                    -Model $CodexModel `
+                    -ReasoningEffort $CodexModelReasoningEffort `
+                    -SandboxMode 'read-only' `
+                    -Nicknames '"Architect", "Planner", "Strategist"' `
+                    -Instructions @'
+You are a read-only architecture agent. Analyze constraints, coupling, data flow, rollout risk, and tradeoffs. Do not edit files. Return a concise recommendation, alternatives rejected, and concrete files or interfaces that constrain the design.
 '@
                 break
             }
@@ -596,6 +668,83 @@ You are a documentation research agent. Prefer official docs and configured docu
             Set-CodexManagedFile -Path (Join-Path $script:CodexAgentsDir "$agent.toml") -Content $content -Description "Codex custom agent $agent"
         }
     }
+}
+
+function Set-CodexAgentTeamworkSkill {
+    $sourceSkill = Join-Path $script:RepoRoot 'codex\skills\codex-agent-teamwork'
+    $targetSkill = Join-Path $script:CodexSkillsDir 'codex-agent-teamwork'
+
+    if (-not $CodexAgentTeamworkSkillEnabled) {
+        if (Test-Path $targetSkill) {
+            Remove-Item -LiteralPath $targetSkill -Recurse -Force
+            Write-Ok "Codex agent teamwork skill removed"
+        } else {
+            Write-Skip "Codex agent teamwork skill already absent"
+        }
+        return
+    }
+
+    if (-not (Test-Path (Join-Path $sourceSkill 'SKILL.md'))) {
+        Write-Warn "Codex agent teamwork skill source not found: $sourceSkill"
+        return
+    }
+
+    if (Test-CodexDirectoryCurrent -Source $sourceSkill -Target $targetSkill) {
+        Write-Skip "Codex agent teamwork skill already current"
+        return
+    }
+
+    if (Test-Path $targetSkill) {
+        Remove-Item -LiteralPath $targetSkill -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $script:CodexSkillsDir -Force | Out-Null
+    Copy-Item -LiteralPath $sourceSkill -Destination $script:CodexSkillsDir -Recurse -Force
+    Write-Ok "Codex agent teamwork skill installed"
+}
+
+function Set-CodexGlobalAgentsGuidance {
+    $path = Join-Path $codexDir 'AGENTS.md'
+    $begin = '<!-- BEGIN FIRSTBOOT CODEX AGENT TEAMWORK -->'
+    $end = '<!-- END FIRSTBOOT CODEX AGENT TEAMWORK -->'
+    $block = @'
+## Firstboot Agent Teamwork
+
+Use $codex-agent-teamwork for non-trivial development, debugging, review, architecture, docs research, and multi-file changes.
+Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
+Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
+Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
+Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+'@
+    $managedBlock = "$begin`n$block`n$end"
+    $source = if (Test-Path $path) { Get-Content -LiteralPath $path -Raw } else { '' }
+    $pattern = "(?ms)(?:^|\r?\n)$([regex]::Escape($begin))\r?\n.*?\r?\n$([regex]::Escape($end))(?:\r?\n|$)"
+
+    if (-not $CodexGlobalAgentsGuidanceEnabled) {
+        if ([regex]::IsMatch($source, $pattern)) {
+            $updated = [regex]::Replace($source, $pattern, [Environment]::NewLine).Trim() + [Environment]::NewLine
+            Set-Content -LiteralPath $path -Value $updated -NoNewline -Encoding utf8
+            Write-Ok "Codex global AGENTS.md teamwork guidance removed"
+        } else {
+            Write-Skip "Codex global AGENTS.md teamwork guidance already absent"
+        }
+        return
+    }
+
+    $updatedContent = if ([regex]::IsMatch($source, $pattern)) {
+        [regex]::Replace($source, $pattern, [Environment]::NewLine + $managedBlock + [Environment]::NewLine)
+    } elseif ([string]::IsNullOrWhiteSpace($source)) {
+        "# Global Codex Guidance`n`n$managedBlock`n"
+    } else {
+        $source.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + $managedBlock + [Environment]::NewLine
+    }
+
+    if ((Normalize-CodexText $source) -eq (Normalize-CodexText $updatedContent)) {
+        Write-Skip "Codex global AGENTS.md teamwork guidance already current"
+        return
+    }
+
+    Set-Content -LiteralPath $path -Value $updatedContent -NoNewline -Encoding utf8
+    Write-Ok "Codex global AGENTS.md teamwork guidance updated"
 }
 
 function Sync-CodexSkillNamespace {
@@ -777,6 +926,7 @@ if (-not (Test-CommandExists codex)) {
 }
 
 # MCP servers
+$script:RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $codexDir = Join-Path $env:USERPROFILE '.codex'
 $script:ConfigToml = Join-Path $codexDir 'config.toml'
 if (-not (Test-Path $codexDir)) {
@@ -786,11 +936,15 @@ $codexRulesDir = Join-Path $codexDir 'rules'
 $script:CodexDefaultRules = Join-Path $codexRulesDir 'default.rules'
 $script:CodexPermissionsExample = Join-Path $codexDir 'config.permissions.example.toml'
 $script:CodexAgentsDir = Join-Path $codexDir 'agents'
+$script:CodexSkillsDir = Join-Path $codexDir 'skills'
 if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
 }
 if (-not (Test-Path $script:CodexAgentsDir)) {
     New-Item -ItemType Directory -Path $script:CodexAgentsDir -Force | Out-Null
+}
+if (-not (Test-Path $script:CodexSkillsDir)) {
+    New-Item -ItemType Directory -Path $script:CodexSkillsDir -Force | Out-Null
 }
 
 Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
@@ -1623,6 +1777,9 @@ Set-CodexMcpSetting 'playwright' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'playwright' 'default_tools_approval_mode' "`"$CodexPlaywrightMcpApprovalMode`""
 
 # Skills
+Set-CodexAgentTeamworkSkill
+Set-CodexGlobalAgentsGuidance
+
 $script:SkillSourceRoot = Join-Path $env:USERPROFILE '.local\share\codex\skill-sources'
 $script:AgentsSkillsDir = Join-Path $env:USERPROFILE '.agents\skills'
 New-Item -ItemType Directory -Path $script:SkillSourceRoot -Force | Out-Null

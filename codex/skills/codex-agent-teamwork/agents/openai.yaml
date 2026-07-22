@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Agent Teamwork"
+  short_description: "Route Codex work across specialized subagents"
+  default_prompt: "Use codex-agent-teamwork to decide whether to spawn specialized agents for this task."

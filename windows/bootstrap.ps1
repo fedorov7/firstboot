@@ -106,6 +106,10 @@
     Create curated Codex custom agents for exploration, review, and docs research.
 .PARAMETER CodexCustomAgents
     Comma-separated allowlist of curated custom agents to create.
+.PARAMETER CodexAgentTeamworkSkillEnabled
+    Install the firstboot Codex agent teamwork skill. Enabled by default.
+.PARAMETER CodexGlobalAgentsGuidanceEnabled
+    Write global AGENTS.md guidance that invokes the teamwork skill for non-trivial work.
 .PARAMETER CodexUpdateEnabled
     Update the Codex CLI package during provisioning. Disabled by default.
 .PARAMETER CodexTimesFmSkillEnabled
@@ -179,7 +183,9 @@ param(
     [string]$CodexLeanProfileModel = "gpt-5.6-terra",
     [string]$CodexLeanProfileReasoningEffort = "medium",
     [bool]$CodexCustomAgentsEnabled = $true,
-    [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher",
+    [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep",
+    [bool]$CodexAgentTeamworkSkillEnabled = $true,
+    [bool]$CodexGlobalAgentsGuidanceEnabled = $true,
     [switch]$CodexUpdateEnabled,
     [string]$CodexCuratedSkills = "cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app",
     [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents",

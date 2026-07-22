@@ -849,6 +849,7 @@
         description: Fast read-only repository exploration and large-file evidence gathering.
         model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
         reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+        sandbox_mode: read-only
         nicknames: '"Scout", "Mapper", "Triage"'
         instructions: |
           You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
@@ -856,6 +857,7 @@
         description: High-reasoning code review focused on bugs, regressions, security risks, and test gaps.
         model: "{{ codex_model | default('gpt-5.6-sol') }}"
         reasoning_effort: "{{ codex_model_reasoning_effort | default('high') }}"
+        sandbox_mode: read-only
         nicknames: '"Reviewer", "Auditor", "Skeptic"'
         instructions: |
           You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.
@@ -863,9 +865,26 @@
         description: Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior.
         model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
         reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+        sandbox_mode: read-only
         nicknames: '"Researcher", "Librarian", "Verifier"'
         instructions: |
           You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.
+      - name: tester-terra
+        description: Fast build, lint, typecheck, and test runner that reports focused failures without editing source.
+        model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
+        reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+        sandbox_mode: workspace-write
+        nicknames: '"Runner", "Verifier", "Harness"'
+        instructions: |
+          You are a verification agent. Run focused build, lint, typecheck, and test commands requested by the parent thread. You may create normal build/test artifacts in the workspace, but do not edit source files. Return commands, exit codes, concise failure summaries, and likely next investigation targets.
+      - name: architect-deep
+        description: High-reasoning architecture and migration analyst for ambiguous cross-module design decisions.
+        model: "{{ codex_model | default('gpt-5.6-sol') }}"
+        reasoning_effort: "{{ codex_model_reasoning_effort | default('high') }}"
+        sandbox_mode: read-only
+        nicknames: '"Architect", "Planner", "Strategist"'
+        instructions: |
+          You are a read-only architecture agent. Analyze constraints, coupling, data flow, rollout risk, and tradeoffs. Do not edit files. Return a concise recommendation, alternatives rejected, and concrete files or interfaces that constrain the design.
 
 - name: Remove disabled managed Codex custom agents
   file:
@@ -889,7 +908,7 @@
       description = "{{ item.description }}"
       model = "{{ item.model }}"
       model_reasoning_effort = "{{ item.reasoning_effort }}"
-      sandbox_mode = "read-only"
+      sandbox_mode = "{{ item.sandbox_mode }}"
       nickname_candidates = [{{ item.nicknames }}]
 
       developer_instructions = '''
@@ -901,6 +920,42 @@
   when:
     - codex_custom_agents_enabled | default(true) | bool
     - item.name in (codex_custom_agents | default([]))
+
+- name: Install managed Codex agent teamwork skill
+  copy:
+    src: "{{ playbook_dir }}/codex/skills/codex-agent-teamwork/"
+    dest: "{{ user_home }}/.codex/skills/codex-agent-teamwork/"
+    mode: "0644"
+  when: codex_agent_teamwork_skill_enabled | default(true) | bool
+
+- name: Remove managed Codex agent teamwork skill when disabled
+  file:
+    path: "{{ user_home }}/.codex/skills/codex-agent-teamwork"
+    state: absent
+  when: not (codex_agent_teamwork_skill_enabled | default(true) | bool)
+
+- name: Set Codex global AGENTS.md teamwork guidance
+  blockinfile:
+    path: "{{ user_home }}/.codex/AGENTS.md"
+    create: true
+    marker: "<!-- {mark} FIRSTBOOT CODEX AGENT TEAMWORK -->"
+    mode: "0644"
+    block: |
+      ## Firstboot Agent Teamwork
+
+      Use $codex-agent-teamwork for non-trivial development, debugging, review, architecture, docs research, and multi-file changes.
+      Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
+      Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
+      Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
+      Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+  when: codex_global_agents_guidance_enabled | default(true) | bool
+
+- name: Remove Codex global AGENTS.md teamwork guidance when disabled
+  blockinfile:
+    path: "{{ user_home }}/.codex/AGENTS.md"
+    marker: "<!-- {mark} FIRSTBOOT CODEX AGENT TEAMWORK -->"
+    state: absent
+  when: not (codex_global_agents_guidance_enabled | default(true) | bool)
 
 - name: Disable Codex built-in ChatGPT Apps MCP by default
   shell: |

@@ -370,15 +370,16 @@ new_codex_custom_agent_content() {
   local description="$2"
   local model="$3"
   local reasoning_effort="$4"
-  local nicknames="$5"
-  local instructions="$6"
+  local sandbox_mode="$5"
+  local nicknames="$6"
+  local instructions="$7"
   cat <<EOF
 # Managed by firstboot.
 name = "$name"
 description = "$description"
 model = "$model"
 model_reasoning_effort = "$reasoning_effort"
-sandbox_mode = "read-only"
+sandbox_mode = "$sandbox_mode"
 nickname_candidates = [$nicknames]
 
 developer_instructions = '''
@@ -388,7 +389,7 @@ EOF
 }
 
 ensure_codex_custom_agent_files() {
-  local managed_agents=(explorer-terra reviewer-deep docs-researcher)
+  local managed_agents=(explorer-terra reviewer-deep docs-researcher tester-terra architect-deep)
   local selected_agents=()
   local agent_name
 
@@ -417,6 +418,7 @@ ensure_codex_custom_agent_files() {
           "Fast read-only repository exploration and large-file evidence gathering." \
           "$CODEX_LEAN_PROFILE_MODEL" \
           "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          "read-only" \
           '"Scout", "Mapper", "Triage"' \
           "You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.")"
         ;;
@@ -426,6 +428,7 @@ ensure_codex_custom_agent_files() {
           "High-reasoning code review focused on bugs, regressions, security risks, and test gaps." \
           "$CODEX_MODEL" \
           "$CODEX_MODEL_REASONING_EFFORT" \
+          "read-only" \
           '"Reviewer", "Auditor", "Skeptic"' \
           "You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.")"
         ;;
@@ -435,8 +438,29 @@ ensure_codex_custom_agent_files() {
           "Targeted documentation research for current APIs, SDKs, frameworks, and platform behavior." \
           "$CODEX_LEAN_PROFILE_MODEL" \
           "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          "read-only" \
           '"Researcher", "Librarian", "Verifier"' \
           "You are a documentation research agent. Prefer official docs and configured documentation MCP servers. Return concise guidance with source links, version assumptions, and any gaps that need verification before implementation.")"
+        ;;
+      tester-terra)
+        content="$(new_codex_custom_agent_content \
+          "tester-terra" \
+          "Fast build, lint, typecheck, and test runner that reports focused failures without editing source." \
+          "$CODEX_LEAN_PROFILE_MODEL" \
+          "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          "workspace-write" \
+          '"Runner", "Verifier", "Harness"' \
+          "You are a verification agent. Run focused build, lint, typecheck, and test commands requested by the parent thread. You may create normal build/test artifacts in the workspace, but do not edit source files. Return commands, exit codes, concise failure summaries, and likely next investigation targets.")"
+        ;;
+      architect-deep)
+        content="$(new_codex_custom_agent_content \
+          "architect-deep" \
+          "High-reasoning architecture and migration analyst for ambiguous cross-module design decisions." \
+          "$CODEX_MODEL" \
+          "$CODEX_MODEL_REASONING_EFFORT" \
+          "read-only" \
+          '"Architect", "Planner", "Strategist"' \
+          "You are a read-only architecture agent. Analyze constraints, coupling, data flow, rollout risk, and tradeoffs. Do not edit files. Return a concise recommendation, alternatives rejected, and concrete files or interfaces that constrain the design.")"
         ;;
       *)
         write_warn "Unknown Codex custom agent requested: $agent_name"
@@ -447,6 +471,93 @@ ensure_codex_custom_agent_files() {
       write_codex_managed_file "$codex_agents_dir/$agent_name.toml" "$content" "Codex custom agent $agent_name"
     fi
   done
+}
+
+ensure_codex_agent_teamwork_skill() {
+  local source_skill="$REPO_ROOT/codex/skills/codex-agent-teamwork"
+  local target_skill="$codex_dir/skills/codex-agent-teamwork"
+
+  if [[ "$CODEX_AGENT_TEAMWORK_SKILL_ENABLED" != "1" && "$CODEX_AGENT_TEAMWORK_SKILL_ENABLED" != "true" ]]; then
+    if [[ -e "$target_skill" ]]; then
+      rm -rf "$target_skill"
+      write_ok "Codex agent teamwork skill removed"
+    else
+      write_skip "Codex agent teamwork skill already absent"
+    fi
+    return
+  fi
+
+  if [[ ! -f "$source_skill/SKILL.md" ]]; then
+    write_warn "Codex agent teamwork skill source not found: $source_skill"
+    return
+  fi
+
+  if [[ -d "$target_skill" ]] && diff -qr "$source_skill" "$target_skill" >/dev/null 2>&1; then
+    write_skip "Codex agent teamwork skill already current"
+    return
+  fi
+
+  rm -rf "$target_skill"
+  mkdir -p "$codex_dir/skills"
+  cp -R "$source_skill" "$target_skill"
+  write_ok "Codex agent teamwork skill installed"
+}
+
+ensure_codex_global_agents_guidance() {
+  local path="$codex_dir/AGENTS.md"
+  local begin="<!-- BEGIN FIRSTBOOT CODEX AGENT TEAMWORK -->"
+  local end="<!-- END FIRSTBOOT CODEX AGENT TEAMWORK -->"
+  local block
+  block="$(cat <<'EOF'
+## Firstboot Agent Teamwork
+
+Use $codex-agent-teamwork for non-trivial development, debugging, review, architecture, docs research, and multi-file changes.
+Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
+Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
+Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
+Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+EOF
+)"
+
+  mkdir -p "$codex_dir"
+  touch "$path"
+
+  if [[ "$CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED" != "1" && "$CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED" != "true" ]]; then
+    if grep -qF "$begin" "$path"; then
+      awk -v begin="$begin" -v end="$end" '
+        $0 == begin { skip = 1; next }
+        $0 == end { skip = 0; next }
+        !skip { print }
+      ' "$path" >"$path.tmp"
+      mv "$path.tmp" "$path"
+      write_ok "Codex global AGENTS.md teamwork guidance removed"
+    else
+      write_skip "Codex global AGENTS.md teamwork guidance already absent"
+    fi
+    return
+  fi
+
+  local desired
+  desired="$(printf '%s\n%s\n%s\n' "$begin" "$block" "$end")"
+  if grep -qF "$begin" "$path"; then
+    awk -v begin="$begin" -v end="$end" -v desired="$desired" '
+      $0 == begin { print desired; skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }
+    ' "$path" >"$path.tmp"
+  elif [[ ! -s "$path" ]]; then
+    printf '# Global Codex Guidance\n\n%s\n' "$desired" >"$path.tmp"
+  else
+    { sed '${/^$/d;}' "$path"; printf '\n\n%s\n' "$desired"; } >"$path.tmp"
+  fi
+
+  if cmp -s "$path.tmp" "$path"; then
+    rm -f "$path.tmp"
+    write_skip "Codex global AGENTS.md teamwork guidance already current"
+    return
+  fi
+  mv "$path.tmp" "$path"
+  write_ok "Codex global AGENTS.md teamwork guidance updated"
 }
 
 toml_bool() {
@@ -815,6 +926,8 @@ ensure_codex_prefix_rule '["st-util"]' 'prefix_rule(
 ensure_codex_permissions_example
 ensure_codex_profile_files
 ensure_codex_custom_agent_files
+ensure_codex_agent_teamwork_skill
+ensure_codex_global_agents_guidance
 
 desired_mcp_servers=()
 while IFS= read -r server_name; do

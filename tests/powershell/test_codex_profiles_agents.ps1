@@ -12,7 +12,7 @@ foreach ($expected in @(
     '[string]$CodexLeanProfileModel = "gpt-5.6-terra"',
     '[string]$CodexLeanProfileReasoningEffort = "medium"',
     '[bool]$CodexCustomAgentsEnabled = $true',
-    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher"',
+    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep"',
     '[bool]$CodexPruneDisabledOptionalMcp = $true'
 )) {
     if (-not $windowsBootstrapSource.Contains($expected)) {
@@ -28,6 +28,8 @@ foreach ($expected in @(
     "explorer-terra",
     "reviewer-deep",
     "docs-researcher",
+    "tester-terra",
+    "architect-deep",
     '$CodexPruneDisabledOptionalMcp',
     "Remove-CodexMcpIfConfigured 'playwright'"
 )) {
@@ -45,6 +47,8 @@ foreach ($expected in @(
     '- explorer-terra',
     '- reviewer-deep',
     '- docs-researcher',
+    '- tester-terra',
+    '- architect-deep',
     'codex_prune_disabled_optional_mcp: true'
 )) {
     if (-not $linuxRoleSource.Contains($expected) -and -not (Get-Content -LiteralPath (Join-Path $repoRoot 'group_vars\all.yml') -Raw).Contains($expected)) {
@@ -60,6 +64,8 @@ foreach ($expected in @(
     'explorer-terra',
     'reviewer-deep',
     'docs-researcher',
+    'tester-terra',
+    'architect-deep',
     'Remove disabled optional Codex MCP servers'
 )) {
     if (-not $linuxRoleSource.Contains($expected)) {
@@ -72,7 +78,7 @@ foreach ($expected in @(
     'CODEX_LEAN_PROFILE_MODEL="${CODEX_LEAN_PROFILE_MODEL:-gpt-5.6-terra}"',
     'CODEX_LEAN_PROFILE_REASONING_EFFORT="${CODEX_LEAN_PROFILE_REASONING_EFFORT:-medium}"',
     'CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"',
-    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher}"',
+    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep}"',
     'CODEX_PRUNE_DISABLED_OPTIONAL_MCP="${CODEX_PRUNE_DISABLED_OPTIONAL_MCP:-1}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {
@@ -88,6 +94,8 @@ foreach ($expected in @(
     'explorer-terra',
     'reviewer-deep',
     'docs-researcher',
+    'tester-terra',
+    'architect-deep',
     'CODEX_PRUNE_DISABLED_OPTIONAL_MCP'
 )) {
     if (-not $macosCodexSource.Contains($expected)) {

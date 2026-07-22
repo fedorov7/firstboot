@@ -62,7 +62,9 @@ CODEX_PROFILES_ENABLED="${CODEX_PROFILES_ENABLED:-1}"
 CODEX_LEAN_PROFILE_MODEL="${CODEX_LEAN_PROFILE_MODEL:-gpt-5.6-terra}"
 CODEX_LEAN_PROFILE_REASONING_EFFORT="${CODEX_LEAN_PROFILE_REASONING_EFFORT:-medium}"
 CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"
-CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher}"
+CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep}"
+CODEX_AGENT_TEAMWORK_SKILL_ENABLED="${CODEX_AGENT_TEAMWORK_SKILL_ENABLED:-1}"
+CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED="${CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED:-1}"
 CODEX_UPDATE_ENABLED="${CODEX_UPDATE_ENABLED:-0}"
 CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app}"
 CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents}"
@@ -334,6 +336,10 @@ Options:
   --codex-custom-agents-enabled       Create curated Codex custom agents (default).
   --codex-custom-agents-disabled      Remove curated Codex custom agents.
   --codex-custom-agents <csv>         Curated Codex custom agent allowlist.
+  --codex-agent-teamwork-skill-enabled  Install managed Codex teamwork skill (default).
+  --codex-agent-teamwork-skill-disabled Remove managed Codex teamwork skill.
+  --codex-global-agents-guidance-enabled  Write global AGENTS.md teamwork guidance (default).
+  --codex-global-agents-guidance-disabled Remove global AGENTS.md teamwork guidance.
   --codex-curated-skills <csv>          Curated Codex skills allowlist.
   --codex-superpowers-skills <csv>      superpowers skill allowlist.
   --codex-karpathy-skills <csv>         karpathy skill allowlist.
@@ -391,6 +397,10 @@ while [[ $# -gt 0 ]]; do
     --codex-custom-agents-enabled) CODEX_CUSTOM_AGENTS_ENABLED=1; shift ;;
     --codex-custom-agents-disabled) CODEX_CUSTOM_AGENTS_ENABLED=0; shift ;;
     --codex-custom-agents) CODEX_CUSTOM_AGENTS="$2"; shift 2 ;;
+    --codex-agent-teamwork-skill-enabled) CODEX_AGENT_TEAMWORK_SKILL_ENABLED=1; shift ;;
+    --codex-agent-teamwork-skill-disabled) CODEX_AGENT_TEAMWORK_SKILL_ENABLED=0; shift ;;
+    --codex-global-agents-guidance-enabled) CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED=1; shift ;;
+    --codex-global-agents-guidance-disabled) CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED=0; shift ;;
     --codex-curated-skills) CODEX_CURATED_SKILLS="$2"; shift 2 ;;
     --codex-superpowers-skills) CODEX_SUPERPOWERS_SKILLS="$2"; shift 2 ;;
     --codex-karpathy-skills) CODEX_KARPATHY_SKILLS="$2"; shift 2 ;;
