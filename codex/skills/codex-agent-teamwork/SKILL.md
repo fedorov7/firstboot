@@ -19,6 +19,8 @@ Use `explorer-terra` for fast read-only repository exploration, log triage, larg
 
 Use `docs-researcher` for current API, SDK, framework, platform, or Codex behavior research. Prefer official docs and configured documentation MCP servers.
 
+Use `improvement-researcher` for external improvement research: better tools, skills, MCP servers, configuration recipes, process upgrades, developer-experience tuning, or agent workflow practices. Require sources, repo fit, risk, and suggested next steps.
+
 Use `tester-terra` for running focused build, lint, typecheck, and test commands, then summarizing failures. It may write normal build/test artifacts but must not edit source files.
 
 Use `reviewer-deep` for final or risky review: correctness, regressions, security, edge cases, and missing tests.
@@ -33,9 +35,28 @@ For medium implementation tasks, start one `explorer-terra` only when context is
 
 For debugging, spawn `explorer-terra` to map code and logs, and `tester-terra` to reproduce or characterize failures. Add `docs-researcher` only when external behavior or current tool docs matter.
 
+For improvement research, spawn `improvement-researcher` only when the user asks to improve processes, tooling, skills, MCP, Codex configuration, or developer experience using current external information. Do not use it for direct API lookup; use `docs-researcher` instead.
+
 For code review, spawn `reviewer-deep`; add `tester-terra` when test selection or failures are unclear. Ask for findings first, sorted by severity.
 
 For architecture, spawn `architect-deep` and optionally `explorer-terra` for codebase constraints. Do not edit until the main thread selects the approach.
+
+## Improvement Research
+
+Use `improvement-researcher` as an opt-in or intent-triggered role, not as a default step. It is appropriate for questions like "what can we improve", "find new useful skills or MCP servers", "update our Codex workflow", or "research current best practices before provisioning changes".
+
+Ask it to return ranked proposals in this shape:
+
+```text
+Finding: short title
+Source: link or exact source name
+Why It Matters: concrete benefit
+Fit For This Repo: how it maps to current firstboot scripts, skills, agents, or docs
+Risk Or Cost: security, maintenance, runtime, token, or compatibility concern
+Suggested Next Step: adopt, test, document, defer, or reject
+```
+
+The researcher is advisory. The main thread filters proposals, verifies sources, and decides what to implement. After a change proves useful, use `knowledge-curator` to decide whether to preserve it as a skill or repository guidance.
 
 ## Knowledge Capture
 

@@ -143,8 +143,8 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_profiles_enabled` | `true` | Create `lean.config.toml` and `deep.config.toml` for `codex --profile ...` |
 | `codex_lean_profile_model` | `gpt-5.6-terra` | Faster model used by the lean profile and exploration agents |
 | `codex_lean_profile_reasoning_effort` | `medium` | Balanced reasoning for token-conscious scans and docs research |
-| `codex_custom_agents_enabled` | `true` | Create curated custom agents for exploration, verification, review, architecture, docs lookup, and knowledge capture |
-| `codex_custom_agents` | explorer/reviewer/docs/tester/architect/curator defaults | Custom agent allowlist written to `~/.codex/agents` |
+| `codex_custom_agents_enabled` | `true` | Create curated custom agents for exploration, verification, review, architecture, docs lookup, improvement research, and knowledge capture |
+| `codex_custom_agents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `codex_agent_teamwork_skill_enabled` | `true` | Install the repo-managed `codex-agent-teamwork` skill into `~/.codex/skills` |
 | `codex_global_agents_guidance_enabled` | `true` | Write a managed global AGENTS.md block that invokes the teamwork skill for non-trivial work |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
@@ -220,6 +220,10 @@ cheap read-heavy work, `tester-terra` for build/test verification, and
 `reviewer-deep` or `architect-deep` only when high reasoning materially improves
 correctness. Source-editing remains coordinated by the main thread unless the
 user explicitly asks for parallel implementation.
+`improvement-researcher` is a read-only opt-in role for external improvement
+research across tools, skills, MCP servers, configuration recipes, and agent
+workflow practices. It differs from `docs-researcher`, which answers targeted
+known-tool documentation questions.
 `knowledge-curator` is a read-only end-of-task role for reusable knowledge
 capture. It proposes evidence-backed candidates for skills, `AGENTS.md`, README,
 or no action; the main thread still decides what to save and verifies guidance
@@ -361,7 +365,7 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-profiles-enabled` | on | Create `lean` and `deep` Codex CLI profile files |
 | `--codex-profiles-disabled` | off | Remove managed `lean` and `deep` profile files |
 | `--codex-lean-profile-model` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
-| `--codex-custom-agents` | explorer/reviewer/docs/tester/architect/curator defaults | Custom agent allowlist written to `~/.codex/agents` |
+| `--codex-custom-agents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `--codex-agent-teamwork-skill-enabled` | on | Install the repo-managed `codex-agent-teamwork` skill |
 | `--codex-global-agents-guidance-enabled` | on | Write the managed global AGENTS.md teamwork hint |
 | `--ml-python-version` | `3.12` | Python version for reusable ML environment |
@@ -476,7 +480,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexLeanProfileModel` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
 | `-CodexLeanProfileReasoningEffort` | `medium` | Balanced reasoning for the lean profile and docs/explorer agents |
 | `-CodexCustomAgentsEnabled` | `$true` | Create curated Codex custom agents |
-| `-CodexCustomAgents` | explorer/reviewer/docs/tester/architect/curator defaults | Custom agent allowlist written to `~\.codex\agents` |
+| `-CodexCustomAgents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~\.codex\agents` |
 | `-CodexAgentTeamworkSkillEnabled` | `$true` | Install the repo-managed `codex-agent-teamwork` skill |
 | `-CodexGlobalAgentsGuidanceEnabled` | `$true` | Write the managed global AGENTS.md teamwork hint |
 | `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |

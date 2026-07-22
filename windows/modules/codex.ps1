@@ -578,7 +578,7 @@ $Instructions
 }
 
 function Set-CodexCustomAgentFiles {
-    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher', 'tester-terra', 'architect-deep', 'knowledge-curator')
+    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher', 'tester-terra', 'architect-deep', 'knowledge-curator', 'improvement-researcher')
     $selectedAgents = if ($CodexCustomAgentsEnabled) { ConvertTo-NameList $CodexCustomAgents } else { @() }
 
     foreach ($agent in $managedAgents) {
@@ -677,6 +677,25 @@ Draft Guidance: 3-6 lines of reusable instruction
 '@
                 break
             }
+            'improvement-researcher' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'improvement-researcher' `
+                    -Description 'Read-only external improvement researcher for tooling, process, skills, MCP, and agent workflow updates.' `
+                    -Model $CodexLeanProfileModel `
+                    -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -SandboxMode 'read-only' `
+                    -Nicknames '"Researcher", "Scout", "Optimizer"' `
+                    -Instructions @'
+You are a read-only improvement research agent. Search current external information when requested: official docs, primary repositories, release notes, and credible technical posts when primary sources are insufficient. Do not edit files, install tools, change configuration, or create skills. Return ranked, evidence-backed improvement proposals using this format:
+Finding: short title
+Source: link or exact source name
+Why It Matters: concrete benefit
+Fit For This Repo: how it maps to current firstboot scripts, skills, agents, or docs
+Risk Or Cost: security, maintenance, runtime, token, or compatibility concern
+Suggested Next Step: adopt, test, document, defer, or reject
+'@
+                break
+            }
             default {
                 Write-Warn "Unknown Codex custom agent requested: $agent"
             }
@@ -732,6 +751,7 @@ Do not spawn subagents for simple one-file edits, direct questions, or mechanica
 Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
+Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
 Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
 '@
     $managedBlock = "$begin`n$block`n$end"

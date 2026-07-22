@@ -389,7 +389,7 @@ EOF
 }
 
 ensure_codex_custom_agent_files() {
-  local managed_agents=(explorer-terra reviewer-deep docs-researcher tester-terra architect-deep knowledge-curator)
+  local managed_agents=(explorer-terra reviewer-deep docs-researcher tester-terra architect-deep knowledge-curator improvement-researcher)
   local selected_agents=()
   local agent_name
 
@@ -477,6 +477,22 @@ Reuse Trigger: when future Codex sessions should remember this
 Recommended Target: skill, AGENTS.md, README, or no action
 Draft Guidance: 3-6 lines of reusable instruction")"
         ;;
+      improvement-researcher)
+        content="$(new_codex_custom_agent_content \
+          "improvement-researcher" \
+          "Read-only external improvement researcher for tooling, process, skills, MCP, and agent workflow updates." \
+          "$CODEX_LEAN_PROFILE_MODEL" \
+          "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          "read-only" \
+          '"Researcher", "Scout", "Optimizer"' \
+          "You are a read-only improvement research agent. Search current external information when requested: official docs, primary repositories, release notes, and credible technical posts when primary sources are insufficient. Do not edit files, install tools, change configuration, or create skills. Return ranked, evidence-backed improvement proposals using this format:
+Finding: short title
+Source: link or exact source name
+Why It Matters: concrete benefit
+Fit For This Repo: how it maps to current firstboot scripts, skills, agents, or docs
+Risk Or Cost: security, maintenance, runtime, token, or compatibility concern
+Suggested Next Step: adopt, test, document, defer, or reject")"
+        ;;
       *)
         write_warn "Unknown Codex custom agent requested: $agent_name"
         ;;
@@ -531,6 +547,7 @@ Do not spawn subagents for simple one-file edits, direct questions, or mechanica
 Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
+Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
 Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
 EOF
 )"

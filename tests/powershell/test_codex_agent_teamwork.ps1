@@ -23,8 +23,11 @@ foreach ($expected in @(
     'reviewer-deep',
     'architect-deep',
     'knowledge-curator',
+    'improvement-researcher',
     'Knowledge Capture',
+    'Improvement Research',
     'Recommended Target: skill, AGENTS.md, README, or no action',
+    'Suggested Next Step: adopt, test, document, defer, or reject',
     'Do not delegate simple tasks',
     'Use no more than three subagents by default'
 )) {
@@ -36,7 +39,7 @@ foreach ($expected in @(
 foreach ($expected in @(
     '[bool]$CodexAgentTeamworkSkillEnabled = $true',
     '[bool]$CodexGlobalAgentsGuidanceEnabled = $true',
-    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator"'
+    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher"'
 )) {
     if (-not $windowsBootstrapSource.Contains($expected)) {
         throw "Windows bootstrap must expose agent teamwork default: $expected"
@@ -50,9 +53,12 @@ foreach ($expected in @(
     'tester-terra',
     'architect-deep',
     'knowledge-curator',
+    'improvement-researcher',
     'sandbox_mode = "$SandboxMode"',
     '-SandboxMode ''read-only''',
     'Candidate: short title',
+    'Finding: short title',
+    'Suggested Next Step: adopt, test, document, defer, or reject',
     'workspace-write',
     'Use $codex-agent-teamwork for non-trivial development'
 )) {
@@ -66,7 +72,8 @@ foreach ($expected in @(
     'codex_global_agents_guidance_enabled: true',
     '- tester-terra',
     '- architect-deep',
-    '- knowledge-curator'
+    '- knowledge-curator',
+    '- improvement-researcher'
 )) {
     if (-not $linuxDefaultsSource.Contains($expected)) {
         throw "Linux defaults must expose agent teamwork default: $expected"
@@ -79,7 +86,10 @@ foreach ($expected in @(
     'tester-terra',
     'architect-deep',
     'knowledge-curator',
+    'improvement-researcher',
     'Candidate: short title',
+    'Finding: short title',
+    'Suggested Next Step: adopt, test, document, defer, or reject',
     'sandbox_mode = "{{ item.sandbox_mode }}"',
     'Use $codex-agent-teamwork for non-trivial development'
 )) {
@@ -91,7 +101,7 @@ foreach ($expected in @(
 foreach ($expected in @(
     'CODEX_AGENT_TEAMWORK_SKILL_ENABLED="${CODEX_AGENT_TEAMWORK_SKILL_ENABLED:-1}"',
     'CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED="${CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED:-1}"',
-    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator}"'
+    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {
         throw "macOS bootstrap must expose agent teamwork default: $expected"
@@ -105,7 +115,10 @@ foreach ($expected in @(
     'tester-terra',
     'architect-deep',
     'knowledge-curator',
+    'improvement-researcher',
     'Candidate: short title',
+    'Finding: short title',
+    'Suggested Next Step: adopt, test, document, defer, or reject',
     'sandbox_mode = "$sandbox_mode"',
     'Use $codex-agent-teamwork for non-trivial development'
 )) {
@@ -119,7 +132,9 @@ foreach ($expected in @(
     'tester-terra',
     'architect-deep',
     'knowledge-curator',
+    'improvement-researcher',
     'knowledge capture',
+    'improvement research',
     'global AGENTS.md'
 )) {
     if (-not $readmeSource.Contains($expected)) {
