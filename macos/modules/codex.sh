@@ -2,6 +2,8 @@
 
 # shellcheck source=/dev/null
 source "$SCRIPT_ROOT/lib/codex_config.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_ROOT/lib/managed_block.sh"
 
 write_step "Setting up Codex CLI..."
 
@@ -689,11 +691,11 @@ EOF
   local desired
   desired="$(printf '%s\n%s\n%s\n' "$begin" "$block" "$end")"
   if grep -qF "$begin" "$path"; then
-    awk -v begin="$begin" -v end="$end" -v desired="$desired" '
-      $0 == begin { print desired; skip = 1; next }
-      $0 == end { skip = 0; next }
-      !skip { print }
-    ' "$path" >"$path.tmp"
+    local desired_path
+    desired_path="$(mktemp)"
+    printf '%s\n' "$desired" >"$desired_path"
+    replace_managed_block "$path" "$begin" "$end" "$desired_path" >"$path.tmp"
+    rm -f "$desired_path"
   elif [[ ! -s "$path" ]]; then
     printf '# Global Codex Guidance\n\n%s\n' "$desired" >"$path.tmp"
   else
