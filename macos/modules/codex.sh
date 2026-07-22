@@ -389,7 +389,7 @@ EOF
 }
 
 ensure_codex_custom_agent_files() {
-  local managed_agents=(explorer-terra reviewer-deep docs-researcher tester-terra architect-deep)
+  local managed_agents=(explorer-terra reviewer-deep docs-researcher tester-terra architect-deep knowledge-curator)
   local selected_agents=()
   local agent_name
 
@@ -462,6 +462,21 @@ ensure_codex_custom_agent_files() {
           '"Architect", "Planner", "Strategist"' \
           "You are a read-only architecture agent. Analyze constraints, coupling, data flow, rollout risk, and tradeoffs. Do not edit files. Return a concise recommendation, alternatives rejected, and concrete files or interfaces that constrain the design.")"
         ;;
+      knowledge-curator)
+        content="$(new_codex_custom_agent_content \
+          "knowledge-curator" \
+          "Read-only project knowledge curator that proposes durable skills or documentation after non-trivial work." \
+          "$CODEX_LEAN_PROFILE_MODEL" \
+          "$CODEX_LEAN_PROFILE_REASONING_EFFORT" \
+          "read-only" \
+          '"Curator", "Archivist", "Analyst"' \
+          "You are a read-only knowledge-curation agent. Inspect recent diffs, command results, failure modes, and successful fixes. Do not edit files or create skills. Return only reusable, evidence-backed knowledge-capture candidates using this format:
+Candidate: short title
+Evidence: files, commands, errors, or artifacts that prove this was useful
+Reuse Trigger: when future Codex sessions should remember this
+Recommended Target: skill, AGENTS.md, README, or no action
+Draft Guidance: 3-6 lines of reusable instruction")"
+        ;;
       *)
         write_warn "Unknown Codex custom agent requested: $agent_name"
         ;;
@@ -515,6 +530,7 @@ Use $codex-agent-teamwork for non-trivial development, debugging, review, archit
 Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
 Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
+Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
 EOF
 )"

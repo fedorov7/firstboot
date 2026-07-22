@@ -578,7 +578,7 @@ $Instructions
 }
 
 function Set-CodexCustomAgentFiles {
-    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher', 'tester-terra', 'architect-deep')
+    $managedAgents = @('explorer-terra', 'reviewer-deep', 'docs-researcher', 'tester-terra', 'architect-deep', 'knowledge-curator')
     $selectedAgents = if ($CodexCustomAgentsEnabled) { ConvertTo-NameList $CodexCustomAgents } else { @() }
 
     foreach ($agent in $managedAgents) {
@@ -659,6 +659,24 @@ You are a read-only architecture agent. Analyze constraints, coupling, data flow
 '@
                 break
             }
+            'knowledge-curator' {
+                $content = New-CodexCustomAgentContent `
+                    -Name 'knowledge-curator' `
+                    -Description 'Read-only project knowledge curator that proposes durable skills or documentation after non-trivial work.' `
+                    -Model $CodexLeanProfileModel `
+                    -ReasoningEffort $CodexLeanProfileReasoningEffort `
+                    -SandboxMode 'read-only' `
+                    -Nicknames '"Curator", "Archivist", "Analyst"' `
+                    -Instructions @'
+You are a read-only knowledge-curation agent. Inspect recent diffs, command results, failure modes, and successful fixes. Do not edit files or create skills. Return only reusable, evidence-backed knowledge-capture candidates using this format:
+Candidate: short title
+Evidence: files, commands, errors, or artifacts that prove this was useful
+Reuse Trigger: when future Codex sessions should remember this
+Recommended Target: skill, AGENTS.md, README, or no action
+Draft Guidance: 3-6 lines of reusable instruction
+'@
+                break
+            }
             default {
                 Write-Warn "Unknown Codex custom agent requested: $agent"
             }
@@ -713,6 +731,7 @@ Use $codex-agent-teamwork for non-trivial development, debugging, review, archit
 Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
 Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
+Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
 '@
     $managedBlock = "$begin`n$block`n$end"

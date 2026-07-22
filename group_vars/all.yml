@@ -72,6 +72,7 @@ codex_custom_agents:
   - docs-researcher
   - tester-terra
   - architect-deep
+  - knowledge-curator
 codex_agent_teamwork_skill_enabled: true
 codex_global_agents_guidance_enabled: true
 codex_update_enabled: false

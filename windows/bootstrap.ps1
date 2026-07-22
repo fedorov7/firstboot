@@ -183,7 +183,7 @@ param(
     [string]$CodexLeanProfileModel = "gpt-5.6-terra",
     [string]$CodexLeanProfileReasoningEffort = "medium",
     [bool]$CodexCustomAgentsEnabled = $true,
-    [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep",
+    [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator",
     [bool]$CodexAgentTeamworkSkillEnabled = $true,
     [bool]$CodexGlobalAgentsGuidanceEnabled = $true,
     [switch]$CodexUpdateEnabled,

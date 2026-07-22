@@ -25,6 +25,8 @@ Use `reviewer-deep` for final or risky review: correctness, regressions, securit
 
 Use `architect-deep` for ambiguous architecture, migration, cross-module design, or high-impact tradeoff analysis before implementation.
 
+Use `knowledge-curator` near the end of non-trivial work when the session discovered a reusable command, debugging path, cross-platform provisioning fix, Codex permission rule, or workflow pattern that may be worth saving as a skill or repository guidance.
+
 ## Delegation Patterns
 
 For medium implementation tasks, start one `explorer-terra` only when context is unclear. The main thread implements after reading the summary.
@@ -34,6 +36,22 @@ For debugging, spawn `explorer-terra` to map code and logs, and `tester-terra` t
 For code review, spawn `reviewer-deep`; add `tester-terra` when test selection or failures are unclear. Ask for findings first, sorted by severity.
 
 For architecture, spawn `architect-deep` and optionally `explorer-terra` for codebase constraints. Do not edit until the main thread selects the approach.
+
+## Knowledge Capture
+
+Use `knowledge-curator` at most once per task, after the main fix or investigation is understood. Do not use it for simple one-file edits, direct answers, mechanical formatting, or one-off findings.
+
+Ask it to return only evidence-backed candidates in this shape:
+
+```text
+Candidate: short title
+Evidence: files, commands, errors, or artifacts that prove this was useful
+Reuse Trigger: when future Codex sessions should remember this
+Recommended Target: skill, AGENTS.md, README, or no action
+Draft Guidance: 3-6 lines of reusable instruction
+```
+
+The curator is advisory. The main thread decides whether to write or update a skill, and must verify the proposed guidance before saving it.
 
 ## Prompt Contract
 
