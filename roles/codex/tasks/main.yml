@@ -97,6 +97,7 @@
       rm -f "$temp_config"
       exit 0
     fi
+    python3 -c 'import pathlib, sys, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$temp_config"
     cp "$temp_config" "$config_toml"
     rm -f "$temp_config"
     echo "OK: $key"
@@ -169,6 +170,7 @@
       rm -f "$temp_config"
       exit 0
     fi
+    python3 -c 'import pathlib, sys, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$temp_config"
     cp "$temp_config" "$config_toml"
     rm -f "$temp_config"
     echo "OK: $section $key"
@@ -218,6 +220,7 @@
     ' "$config_toml" >"$temp_config"
     rc=$?
     if [[ $rc -eq 2 ]]; then
+      python3 -c 'import pathlib, sys, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$temp_config"
       cp "$temp_config" "$config_toml"
       rm -f "$temp_config"
       echo "OK: removed misplaced settings"
@@ -237,6 +240,16 @@
       - -c
       - "import sys, tomllib; tomllib.load(open(sys.argv[1], 'rb'))"
       - "{{ user_home }}/.codex/config.toml"
+  changed_when: false
+
+- name: Validate generated Codex configuration
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp list >/dev/null
+  args:
+    executable: /bin/bash
   changed_when: false
 
 - name: Read codex config.toml
@@ -1479,6 +1492,7 @@
         }
       }
     ' "$config_toml" >"$temp_config"
+    python3 -c 'import pathlib, sys, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$temp_config"
     cp "$temp_config" "$config_toml"
     rm -f "$temp_config"
     echo "OK: $section $key"

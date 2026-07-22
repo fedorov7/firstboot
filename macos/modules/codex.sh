@@ -1,5 +1,8 @@
 # shellcheck shell=bash
 
+# shellcheck source=/dev/null
+source "$SCRIPT_ROOT/lib/codex_config.sh"
+
 write_step "Setting up Codex CLI..."
 
 load_nvm
@@ -127,7 +130,11 @@ upsert_codex_table_setting() {
     return
   fi
 
-  cp "$temp_config" "$config_toml"
+  if ! codex_config_install_candidate "$temp_config" "$config_toml"; then
+    rm -f "$temp_config"
+    write_warn "Refusing invalid Codex config update for $table.$key"
+    return 1
+  fi
   rm -f "$temp_config"
   write_ok "Codex $table.$key = $value"
 }
@@ -169,7 +176,11 @@ upsert_codex_top_level_setting() {
     return
   fi
 
-  cp "$temp_config" "$config_toml"
+  if ! codex_config_install_candidate "$temp_config" "$config_toml"; then
+    rm -f "$temp_config"
+    write_warn "Refusing invalid Codex config update for $key"
+    return 1
+  fi
   rm -f "$temp_config"
   write_ok "Codex $key = $value"
 }
@@ -405,7 +416,15 @@ write_codex_managed_file() {
     write_skip "$description already current"
     return
   fi
-  printf '%s' "$content" >"$path"
+  local candidate
+  candidate="$(mktemp)"
+  printf '%s\n' "$content" >"$candidate"
+  if ! codex_config_install_candidate "$candidate" "$path"; then
+    rm -f "$candidate"
+    write_warn "Refusing invalid $description"
+    return 1
+  fi
+  rm -f "$candidate"
   write_ok "$description updated"
 }
 
@@ -712,6 +731,11 @@ upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_A
 upsert_codex_table_setting apps._default destructive_enabled "$(toml_bool "$CODEX_APPS_DESTRUCTIVE_ENABLED")"
 upsert_codex_table_setting apps._default open_world_enabled "$(toml_bool "$CODEX_APPS_OPEN_WORLD_ENABLED")"
 upsert_codex_table_setting apps._default approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
+
+if ! codex_config_validate_runtime; then
+  write_warn "Generated Codex config failed runtime validation; refusing to continue"
+  return 1
+fi
 
 remove_codex_unsafe_shell_wrapper_rules
 remove_codex_unsafe_system_mutator_rules

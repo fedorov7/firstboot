@@ -4,6 +4,14 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $modulePath = Join-Path $repoRoot 'windows\modules\codex.ps1'
 $source = Get-Content -LiteralPath $modulePath -Raw
 
+if ($source -notmatch 'function Test-CodexConfigContent') {
+    throw 'Windows Codex module must validate generated config before installation'
+}
+
+if ($source -notmatch 'Refusing invalid Codex config update') {
+    throw 'Windows Codex module must reject invalid generated config'
+}
+
 $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)

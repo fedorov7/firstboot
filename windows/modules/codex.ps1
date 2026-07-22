@@ -69,6 +69,19 @@ function Remove-CodexMcpIfConfigured {
     Write-Ok "Removed disabled optional MCP: $Name"
 }
 
+function Test-CodexConfigContent {
+    param([Parameter(Mandatory)][string]$Content)
+
+    $validationFile = Join-Path ([IO.Path]::GetTempPath()) ("codex-config-" + [guid]::NewGuid().ToString('N') + '.toml')
+    try {
+        Set-Content -LiteralPath $validationFile -Value $Content -NoNewline -Encoding utf8
+        python -c 'import pathlib, sys, tomllib; tomllib.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8-sig"))' $validationFile
+        return $LASTEXITCODE -eq 0
+    } finally {
+        Remove-Item -LiteralPath $validationFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Set-CodexMcpSetting {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -132,7 +145,12 @@ function Set-CodexMcpSetting {
         $result.Add("$Key = $Value")
     }
 
-    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    $next = ($result -join [Environment]::NewLine) + [Environment]::NewLine
+    if (-not (Test-CodexConfigContent $next)) {
+        throw "Refusing invalid Codex config update for mcp_servers.$Name.$Key"
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $next -NoNewline -Encoding utf8
     Write-Ok "MCP $Name $Key = $Value"
 }
 
@@ -182,7 +200,11 @@ function Set-CodexTopLevelSetting {
         return
     }
 
-    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    if (-not (Test-CodexConfigContent $next)) {
+        throw "Refusing invalid Codex config update for $Key"
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $next -NoNewline -Encoding utf8
     Write-Ok "Codex $Key = $Value"
 }
 
@@ -251,7 +273,11 @@ function Set-CodexTableSetting {
         return
     }
 
-    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    if (-not (Test-CodexConfigContent $next)) {
+        throw "Refusing invalid Codex config update for $Table.$Key"
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $next -NoNewline -Encoding utf8
     Write-Ok "Codex $Table.$Key = $Value"
 }
 
@@ -1106,6 +1132,11 @@ Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEn
 Set-CodexTableSetting 'apps._default' 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
 Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktopToml
+
+codex mcp list 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw 'Generated Codex config failed runtime validation; refusing to continue'
+}
 
 Remove-CodexUnsafeShellWrapperRules
 Remove-CodexUnsafeSystemMutatorRules
