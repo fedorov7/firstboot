@@ -441,6 +441,7 @@ function Remove-CodexUnsafeSystemMutatorRules {
         '["git", "stash", "clear"]',
         '["git", "reflog", "expire"]',
         '["git", "gc", "--prune"]',
+        '["git", "gc", "--prune=now"]',
         '["scoop"]',
         '["choco"]',
         '["rustup"]',
@@ -472,6 +473,31 @@ function Remove-CodexUnsafeSystemMutatorRules {
     )) {
         Remove-CodexPrefixAllowRulesByPattern -Pattern $pattern -Quiet
     }
+}
+
+function Remove-CodexMismatchedGitGcPruneRule {
+    if (-not (Test-Path $script:CodexDefaultRules)) {
+        return
+    }
+
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ([string]::IsNullOrWhiteSpace($source)) {
+        return
+    }
+
+    $ruleRegex = [regex]::new(
+        '(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*\["git",\s*"gc",\s*"--prune"\],(?:(?!^\s*prefix_rule\().)*?match\s*=\s*\["git gc --prune=now"\],(?:(?!^\s*prefix_rule\().)*?\)\s*'
+    )
+    $updated = $ruleRegex.Replace($source, [Environment]::NewLine)
+    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
+
+    if ($updated -eq $source) {
+        Write-Skip 'Mismatched Codex git gc --prune rule absent'
+        return
+    }
+
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
+    Write-Ok 'Removed mismatched Codex git gc --prune rule'
 }
 
 function Set-CodexPermissionsExample {
@@ -1083,6 +1109,7 @@ Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPr
 
 Remove-CodexUnsafeShellWrapperRules
 Remove-CodexUnsafeSystemMutatorRules
+Remove-CodexMismatchedGitGcPruneRule
 
 Add-CodexGitAllowRule '["git", "status"]' `
     'Allow read-only Git status checks without repeated prompts' `
@@ -1266,6 +1293,14 @@ prefix_rule(
     pattern = ["git", "gc", "--prune"],
     decision = "prompt",
     justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "gc", "--prune=now"]' @'
+prefix_rule(
+    pattern = ["git", "gc", "--prune=now"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects immediately",
     match = ["git gc --prune=now"],
 )
 '@

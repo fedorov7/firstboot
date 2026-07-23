@@ -66,6 +66,10 @@ require_contains "macos/modules/codex.sh" "remove_codex_misplaced_top_level_sett
   "macOS Codex recipe must clean invalid top-level keys from Codex-owned tables."
 require_contains "windows/modules/codex.ps1" "Remove-CodexMisplacedTopLevelSettings" \
   "Windows Codex recipe must clean invalid top-level keys from Codex-owned tables."
+require_contains "macos/modules/codex.sh" "remove_codex_mismatched_git_gc_prune_rule" \
+  "macOS Codex recipe must migrate the old git gc --prune prompt rule."
+require_contains "windows/modules/codex.ps1" "Remove-CodexMismatchedGitGcPruneRule" \
+  "Windows Codex recipe must migrate the old git gc --prune prompt rule."
 
 require_not_contains "roles/codex/tasks/main.yml" 'pattern = ["git"],' \
   "Codex must not allow every git command outside the sandbox."
@@ -105,6 +109,20 @@ for pattern in \
 do
   require_not_contains "roles/codex/tasks/main.yml" "$pattern" \
     "Codex must not broadly allow git mutations that prefix rules cannot constrain."
+done
+for file in \
+  "roles/codex/tasks/main.yml" \
+  "macos/modules/codex.sh" \
+  "windows/modules/codex.ps1"
+do
+  require_contains "$file" 'pattern = ["git", "gc", "--prune"]' \
+    "Codex must prompt for git gc --prune."
+  require_contains "$file" 'match = ["git gc --prune"]' \
+    "Codex git gc --prune prompt example must match its prefix tokens."
+  require_contains "$file" 'pattern = ["git", "gc", "--prune=now"]' \
+    "Codex must prompt for git gc --prune=now as a distinct argv token."
+  require_contains "$file" 'match = ["git gc --prune=now"]' \
+    "Codex git gc --prune=now prompt example must match its prefix tokens."
 done
 
 require_not_contains "macos/modules/codex.sh" \
@@ -146,7 +164,10 @@ legacy_agents_sample="$(mktemp)"
 legacy_agents_output="$(mktemp)"
 misplaced_tui_sample="$(mktemp)"
 misplaced_tui_output="$(mktemp)"
-trap 'rm -f "$legacy_agents_sample" "$legacy_agents_output" "$misplaced_tui_sample" "$misplaced_tui_output"' EXIT
+mismatched_rule_sample="$(mktemp)"
+execpolicy_output="$(mktemp)"
+execpolicy_error="$(mktemp)"
+trap 'rm -f "$legacy_agents_sample" "$legacy_agents_output" "$misplaced_tui_sample" "$misplaced_tui_output" "$mismatched_rule_sample" "$execpolicy_output" "$execpolicy_error"' EXIT
 cat >"$legacy_agents_sample" <<'EOF'
 model = "gpt-5.6-sol"
 
@@ -198,6 +219,73 @@ if ! grep -Fq '"gpt-5.6-sol" = 3' "$misplaced_tui_output" ||
   ! grep -Fq '[apps._default]' "$misplaced_tui_output"; then
   printf 'FAIL: misplaced TUI cleanup removed valid TUI data or following table\n' >&2
   exit 1
+fi
+
+cat >"$mismatched_rule_sample" <<'EOF'
+prefix_rule(
+    pattern = ["git", "gc", "--prune"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune=now"],
+)
+
+prefix_rule(
+    pattern = ["rg"],
+    decision = "allow",
+    justification = "Allow ripgrep workspace searches without repeated prompts",
+)
+EOF
+
+perl -0pi -e '
+  s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*\["git",\s*"gc",\s*"--prune"\],(?:(?!^\s*prefix_rule\().)*?match\s*=\s*\["git gc --prune=now"\],(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
+  s/\R{3,}/\n\n/g;
+  s/\A\s+//;
+  s/\s+\z/\n/;
+' "$mismatched_rule_sample"
+if grep -Fq 'match = ["git gc --prune=now"]' "$mismatched_rule_sample"; then
+  printf 'FAIL: mismatched git gc --prune rule cleanup kept invalid example\n' >&2
+  exit 1
+fi
+if ! grep -Fq 'pattern = ["rg"]' "$mismatched_rule_sample"; then
+  printf 'FAIL: mismatched git gc --prune rule cleanup removed following rule\n' >&2
+  exit 1
+fi
+cat >>"$mismatched_rule_sample" <<'EOF'
+
+prefix_rule(
+    pattern = ["git", "gc", "--prune"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune"],
+)
+
+prefix_rule(
+    pattern = ["git", "gc", "--prune=now"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects immediately",
+    match = ["git gc --prune=now"],
+)
+EOF
+if command -v codex >/dev/null 2>&1; then
+  if ! codex execpolicy check --rules "$mismatched_rule_sample" --pretty git gc --prune >"$execpolicy_output" 2>"$execpolicy_error"; then
+    printf 'FAIL: codex execpolicy failed for git gc --prune\n' >&2
+    cat "$execpolicy_error" >&2
+    exit 1
+  fi
+  if ! grep -Fq '"decision": "prompt"' "$execpolicy_output"; then
+    printf 'FAIL: codex execpolicy did not prompt for git gc --prune\n' >&2
+    exit 1
+  fi
+
+  if ! codex execpolicy check --rules "$mismatched_rule_sample" --pretty git gc --prune=now >"$execpolicy_output" 2>"$execpolicy_error"; then
+    printf 'FAIL: codex execpolicy failed for git gc --prune=now\n' >&2
+    cat "$execpolicy_error" >&2
+    exit 1
+  fi
+  if ! grep -Fq '"decision": "prompt"' "$execpolicy_output"; then
+    printf 'FAIL: codex execpolicy did not prompt for git gc --prune=now\n' >&2
+    exit 1
+  fi
 fi
 
 printf 'policy hardening tests passed\n'

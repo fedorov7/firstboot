@@ -788,6 +788,14 @@
             pattern = ["git", "gc", "--prune"],
             decision = "prompt",
             justification = "Prompt before pruning unreachable Git objects",
+            match = ["git gc --prune"],
+        )
+    - name: git-gc-prune-now
+      rule: |
+        prefix_rule(
+            pattern = ["git", "gc", "--prune=now"],
+            decision = "prompt",
+            justification = "Prompt before pruning unreachable Git objects immediately",
             match = ["git gc --prune=now"],
         )
     - name: doas

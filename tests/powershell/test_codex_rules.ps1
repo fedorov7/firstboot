@@ -139,6 +139,7 @@ foreach ($pattern in @(
     '["git", "stash", "clear"]',
     '["git", "reflog", "expire"]',
     '["git", "gc", "--prune"]',
+    '["git", "gc", "--prune=now"]',
     '["scoop"]',
     '["choco"]',
     '["rustup"]',
@@ -168,6 +169,19 @@ if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""pwsh""]'")) {
 
 if (-not $source.Contains('Remove-CodexUnsafeShellWrapperRules')) {
     throw 'Windows Codex module must remove legacy unsafe shell wrapper rules'
+}
+
+if (-not $source.Contains('Remove-CodexMismatchedGitGcPruneRule')) {
+    throw 'Windows Codex module must migrate legacy mismatched git gc --prune rules'
+}
+
+foreach ($codexSource in @($source, $linuxRoleSource, $macosCodexSource)) {
+    if (-not $codexSource.Contains('match = ["git gc --prune"]')) {
+        throw 'Codex git gc --prune prompt example must match its prefix tokens'
+    }
+    if (-not $codexSource.Contains('match = ["git gc --prune=now"]')) {
+        throw 'Codex git gc --prune=now prompt example must match its prefix tokens'
+    }
 }
 
 foreach ($badBooleanTomlAssignment in @(
@@ -510,6 +524,7 @@ foreach ($pattern in @(
     'pattern = ["git", "stash", "clear"]',
     'pattern = ["git", "reflog", "expire"]',
     'pattern = ["git", "gc", "--prune"]',
+    'pattern = ["git", "gc", "--prune=now"]',
     'pattern = ["apt"]',
     'pattern = ["apt-get"]',
     'pattern = ["pacman"]',
@@ -716,6 +731,7 @@ foreach ($pattern in @(
     '["git", "stash", "clear"]',
     '["git", "reflog", "expire"]',
     '["git", "gc", "--prune"]',
+    '["git", "gc", "--prune=now"]',
     '["brew", "install"]',
     '["brew", "upgrade"]',
     '["cargo", "install"]',

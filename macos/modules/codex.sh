@@ -252,6 +252,7 @@ remove_codex_unsafe_system_mutator_rules() {
     '["git", "stash", "clear"]' \
     '["git", "reflog", "expire"]' \
     '["git", "gc", "--prune"]' \
+    '["git", "gc", "--prune=now"]' \
     '["doas"]' \
     '["su"]' \
     '["brew", "install"]' \
@@ -271,6 +272,27 @@ remove_codex_unsafe_system_mutator_rules() {
   do
     remove_codex_prefix_allow_rule "$pattern" 1
   done
+}
+
+remove_codex_mismatched_git_gc_prune_rule() {
+  if [[ ! -f "$codex_default_rules" ]]; then
+    return
+  fi
+
+  local before
+  before="$(cat "$codex_default_rules")"
+  perl -0pi -e '
+    s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*\["git",\s*"gc",\s*"--prune"\],(?:(?!^\s*prefix_rule\().)*?match\s*=\s*\["git gc --prune=now"\],(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
+    s/\R{3,}/\n\n/g;
+    s/\A\s+//;
+    s/\s+\z/\n/;
+  ' "$codex_default_rules"
+
+  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
+    write_skip "Mismatched Codex git gc --prune rule absent"
+  else
+    write_ok "Removed mismatched Codex git gc --prune rule"
+  fi
 }
 
 remove_codex_legacy_agents_table() {
@@ -693,6 +715,7 @@ upsert_codex_table_setting apps._default approvals_reviewer "\"$CODEX_APPROVALS_
 
 remove_codex_unsafe_shell_wrapper_rules
 remove_codex_unsafe_system_mutator_rules
+remove_codex_mismatched_git_gc_prune_rule
 
 ensure_codex_git_allow_rule '["git", "status"]' \
   "Allow read-only Git status checks without repeated prompts" \
@@ -989,6 +1012,12 @@ ensure_codex_prefix_rule '["git", "gc", "--prune"]' 'prefix_rule(
     pattern = ["git", "gc", "--prune"],
     decision = "prompt",
     justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune"],
+)'
+ensure_codex_prefix_rule '["git", "gc", "--prune=now"]' 'prefix_rule(
+    pattern = ["git", "gc", "--prune=now"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects immediately",
     match = ["git gc --prune=now"],
 )'
 ensure_codex_prefix_rule '["sudo"]' 'prefix_rule(
