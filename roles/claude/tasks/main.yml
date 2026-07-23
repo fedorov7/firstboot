@@ -8,7 +8,11 @@
   failed_when: false
 
 - name: Install Claude CLI
-  shell: curl -fsSL https://claude.ai/install.sh | bash
+  shell: |
+    set -o pipefail
+    curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    executable: /bin/bash
   when: claude_check.rc != 0
 
 # ── Settings ──
@@ -23,6 +27,7 @@
   copy:
     src: settings.json
     dest: "{{ user_home }}/.claude/settings.json"
+    mode: "0600"
     backup: true
 
 # ── Prerequisites check ──
@@ -43,10 +48,36 @@
     src: "{{ user_home }}/.claude.json"
   register: claude_json_raw
   failed_when: false
+  no_log: true
 
 - name: Parse Claude user config
   set_fact:
     claude_mcp_servers: "{{ ((claude_json_raw.content | b64decode | from_json).mcpServers | default({})) if claude_json_raw.content is defined else {} }}"
+  no_log: true
+
+- name: Detect Claude GitHub MCP token handling
+  set_fact:
+    claude_github_token_env_var: "GITHUB_PERSONAL_ACCESS_TOKEN"
+    claude_github_runtime_token_available: >-
+      {{ lookup('env', 'GITHUB_PERSONAL_ACCESS_TOKEN') | length > 0 }}
+    claude_github_mcp_env_token: >-
+      {{ (claude_mcp_servers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN
+          if (claude_mcp_servers.github is defined
+              and claude_mcp_servers.github.env is defined
+              and claude_mcp_servers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN is defined)
+          else '') | string }}
+  no_log: true
+
+- name: Detect Claude GitHub MCP inline token
+  set_fact:
+    claude_github_mcp_inline_token: >-
+      {{ claude_github_mcp_env_token | length > 0
+         and claude_github_mcp_env_token not in [
+           '${GITHUB_PERSONAL_ACCESS_TOKEN}',
+           '${GITHUB_PERSONAL_ACCESS_TOKEN:-}',
+           '$GITHUB_PERSONAL_ACCESS_TOKEN'
+         ] }}
+  no_log: true
 
 - name: Configure Claude MCP — context7 (library documentation)
   command: claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp
@@ -56,6 +87,7 @@
   file:
     path: "{{ user_home }}/.local/share/claude"
     state: directory
+    mode: "0700"
 
 - name: Configure Claude MCP — memory (persistent knowledge graph)
   command: >
@@ -74,15 +106,34 @@
   command: claude mcp add --scope user sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
   when: "'sequential-thinking' not in claude_mcp_servers"
 
-- name: Configure Claude MCP — github (code search, issues, PRs)
-  command: >
-    claude mcp add --scope user github
-    -e GITHUB_PERSONAL_ACCESS_TOKEN={{ github_token }}
-    -- npx -y @modelcontextprotocol/server-github
+- name: Warn about legacy Claude github_token handling
+  debug:
+    msg: >-
+      github_token is not written to Claude MCP config. Export
+      GITHUB_PERSONAL_ACCESS_TOKEN before launching Claude.
+  when: github_token | default('') | length > 0
+
+- name: Remove Claude MCP — github with inline token
+  command: claude mcp remove --scope user github
+  no_log: true
   when:
-    - "'github' not in claude_mcp_servers"
-    - github_token is defined
-    - github_token | length > 0
+    - "'github' in claude_mcp_servers"
+    - claude_github_mcp_inline_token | bool
+
+- name: Configure Claude MCP — github (code search, issues, PRs)
+  command:
+    argv:
+      - claude
+      - mcp
+      - add-json
+      - --scope
+      - user
+      - github
+      - '{"type":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-github"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${GITHUB_PERSONAL_ACCESS_TOKEN}"}}'
+  no_log: true
+  when:
+    - claude_github_runtime_token_available | bool
+    - "'github' not in claude_mcp_servers or claude_github_mcp_inline_token | bool"
 
 # ── Remove obsolete MCP servers ──
 

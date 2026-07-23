@@ -255,6 +255,59 @@ function Set-CodexTableSetting {
     Write-Ok "Codex $Table.$Key = $Value"
 }
 
+function Remove-CodexLegacyAgentsTable {
+    if (-not (Test-Path $script:ConfigToml)) {
+        return
+    }
+
+    $source = Get-Content -LiteralPath $script:ConfigToml -Raw
+    $updated = [regex]::Replace(
+        $source,
+        '(?m)^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*',
+        ''
+    )
+
+    if ($updated -eq $source) {
+        Write-Skip 'Legacy Codex agents table absent'
+        return
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $updated -NoNewline -Encoding utf8
+    Write-Ok 'Removed legacy Codex agents table'
+}
+
+function Remove-CodexMisplacedTopLevelSettings {
+    if (-not (Test-Path $script:ConfigToml)) {
+        return
+    }
+
+    $result = New-Object System.Collections.Generic.List[string]
+    $section = ''
+    $changed = $false
+
+    foreach ($line in @(Get-Content -LiteralPath $script:ConfigToml)) {
+        if ($line -match '^\s*\[') {
+            $section = $line.Trim()
+        }
+
+        if ($section -match '^\[(notice\.model_migrations|tui|tui\.model_availability_nux)\]$' -and
+            $line -match '^(model|model_reasoning_effort|service_tier|sandbox_mode|approval_policy|approvals_reviewer|check_for_update_on_startup|startup_timeout_sec)\s*=') {
+            $changed = $true
+            continue
+        }
+
+        $result.Add($line)
+    }
+
+    if (-not $changed) {
+        Write-Skip 'Misplaced Codex top-level settings absent'
+        return
+    }
+
+    Set-Content -LiteralPath $script:ConfigToml -Value $result -Encoding utf8
+    Write-Ok 'Removed misplaced Codex top-level settings'
+}
+
 function Add-CodexPrefixRuleIfMissing {
     param(
         [Parameter(Mandatory)][string]$Pattern,
@@ -334,6 +387,23 @@ function Set-CodexPrefixRule {
     Add-CodexPrefixRuleIfMissing -Pattern $Pattern -Rule $Rule
 }
 
+function Add-CodexGitAllowRule {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [Parameter(Mandatory)][string]$Justification,
+        [Parameter(Mandatory)][string]$Example
+    )
+
+    Add-CodexPrefixRuleIfMissing $Pattern @"
+prefix_rule(
+    pattern = $Pattern,
+    decision = "allow",
+    justification = "$Justification",
+    match = ["$Example"],
+)
+"@
+}
+
 function Remove-CodexUnsafeShellWrapperRules {
     foreach ($pattern in @('["pwsh"]', '["wsl", "bash", "-lc"]', '["wsl", "-e", "bash"]')) {
         Remove-CodexPrefixAllowRulesByPattern $pattern
@@ -343,12 +413,34 @@ function Remove-CodexUnsafeShellWrapperRules {
 function Remove-CodexUnsafeSystemMutatorRules {
     foreach ($pattern in @(
         '["winget"]',
+        '["git"]',
+        '["git", "diff"]',
+        '["git", "log"]',
+        '["git", "show"]',
+        '["git", "grep"]',
+        '["git", "blame"]',
+        '["git", "config", "--get"]',
+        '["git", "config", "--global", "--get"]',
+        '["git", "config", "--list"]',
         '["git", "push"]',
         '["git", "reset", "--hard"]',
+        '["git", "reset"]',
         '["git", "clean"]',
         '["git", "restore"]',
         '["git", "checkout", "--"]',
         '["git", "rebase"]',
+        '["git", "commit", "--amend"]',
+        '["git", "branch", "-D"]',
+        '["git", "branch", "-d"]',
+        '["git", "tag", "-d"]',
+        '["git", "checkout", "-f"]',
+        '["git", "switch", "-C"]',
+        '["git", "switch", "--discard-changes"]',
+        '["git", "rm"]',
+        '["git", "stash", "drop"]',
+        '["git", "stash", "clear"]',
+        '["git", "reflog", "expire"]',
+        '["git", "gc", "--prune"]',
         '["scoop"]',
         '["choco"]',
         '["rustup"]',
@@ -392,11 +484,6 @@ sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 approvals_reviewer = "user"
 check_for_update_on_startup = true
-
-[agents]
-max_threads = 4
-max_depth = 1
-job_max_runtime_seconds = 1800
 
 [apps._default]
 default_tools_approval_mode = "writes"
@@ -517,12 +604,6 @@ sandbox_mode = "$CodexSandboxMode"
 approval_policy = "$CodexApprovalPolicy"
 approvals_reviewer = "$CodexApprovalsReviewer"
 web_search = "cached"
-
-[agents]
-max_threads = 2
-max_depth = 1
-job_max_runtime_seconds = 1200
-interrupt_message = false
 "@
 
     $deepProfile = @"
@@ -533,12 +614,6 @@ service_tier = "$CodexServiceTier"
 sandbox_mode = "$CodexSandboxMode"
 approval_policy = "$CodexApprovalPolicy"
 approvals_reviewer = "$CodexApprovalsReviewer"
-
-[agents]
-max_threads = $CodexAgentsMaxThreads
-max_depth = $CodexAgentsMaxDepth
-job_max_runtime_seconds = $CodexAgentsJobMaxRuntimeSeconds
-interrupt_message = true
 
 [apps._default]
 default_tools_approval_mode = "$CodexAppsDefaultToolsApprovalMode"
@@ -997,9 +1072,8 @@ Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`
 Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
 Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartupToml
-Set-CodexTableSetting 'agents' 'max_threads' $CodexAgentsMaxThreads
-Set-CodexTableSetting 'agents' 'max_depth' $CodexAgentsMaxDepth
-Set-CodexTableSetting 'agents' 'job_max_runtime_seconds' $CodexAgentsJobMaxRuntimeSeconds
+Remove-CodexLegacyAgentsTable
+Remove-CodexMisplacedTopLevelSettings
 Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode' "`"$CodexAppsDefaultToolsApprovalMode`""
 Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabledToml
 Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabledToml
@@ -1010,15 +1084,39 @@ Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPr
 Remove-CodexUnsafeShellWrapperRules
 Remove-CodexUnsafeSystemMutatorRules
 
-Add-CodexPrefixRuleIfMissing '["git"]' @'
-prefix_rule(
-    pattern = ["git"],
-    decision = "allow",
-    justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
-    match = ["git status --short"],
-    not_match = ["git-lfs status"],
-)
-'@
+Add-CodexGitAllowRule '["git", "status"]' `
+    'Allow read-only Git status checks without repeated prompts' `
+    'git status --short'
+Add-CodexGitAllowRule '["git", "ls-files"]' `
+    'Allow read-only Git index listing without repeated prompts' `
+    'git ls-files'
+Add-CodexGitAllowRule '["git", "ls-tree"]' `
+    'Allow read-only Git tree inspection without repeated prompts' `
+    'git ls-tree -r HEAD'
+Add-CodexGitAllowRule '["git", "rev-parse"]' `
+    'Allow read-only Git revision parsing without repeated prompts' `
+    'git rev-parse --show-toplevel'
+Add-CodexGitAllowRule '["git", "merge-base"]' `
+    'Allow read-only Git merge-base calculations without repeated prompts' `
+    'git merge-base HEAD main'
+Add-CodexGitAllowRule '["git", "remote", "get-url"]' `
+    'Allow read-only Git remote URL lookup without repeated prompts' `
+    'git remote get-url origin'
+Add-CodexGitAllowRule '["git", "branch", "--list"]' `
+    'Allow read-only Git branch listing without repeated prompts' `
+    'git branch --list'
+Add-CodexGitAllowRule '["git", "branch", "--show-current"]' `
+    'Allow read-only current branch lookup without repeated prompts' `
+    'git branch --show-current'
+Add-CodexGitAllowRule '["git", "tag", "--list"]' `
+    'Allow read-only Git tag listing without repeated prompts' `
+    'git tag --list'
+Add-CodexGitAllowRule '["git", "describe"]' `
+    'Allow read-only Git describe lookups without repeated prompts' `
+    'git describe --tags --always'
+Add-CodexGitAllowRule '["git", "add"]' `
+    'Allow staging workspace changes without deleting files or rewriting history' `
+    'git add README.md'
 Add-CodexPrefixRuleIfMissing '["git", "push"]' @'
 prefix_rule(
     pattern = ["git", "push"],
@@ -1065,6 +1163,110 @@ prefix_rule(
     decision = "prompt",
     justification = "Prompt before rewriting local history",
     match = ["git rebase main"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "reset"]' @'
+prefix_rule(
+    pattern = ["git", "reset"],
+    decision = "prompt",
+    justification = "Prompt before moving HEAD or discarding tracked workspace changes",
+    match = ["git reset --hard HEAD"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "commit", "--amend"]' @'
+prefix_rule(
+    pattern = ["git", "commit", "--amend"],
+    decision = "prompt",
+    justification = "Prompt before amending commits and rewriting history",
+    match = ["git commit --amend"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "branch", "-D"]' @'
+prefix_rule(
+    pattern = ["git", "branch", "-D"],
+    decision = "prompt",
+    justification = "Prompt before deleting branch refs",
+    match = ["git branch -D old-branch"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "branch", "-d"]' @'
+prefix_rule(
+    pattern = ["git", "branch", "-d"],
+    decision = "prompt",
+    justification = "Prompt before deleting branch refs",
+    match = ["git branch -d old-branch"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "tag", "-d"]' @'
+prefix_rule(
+    pattern = ["git", "tag", "-d"],
+    decision = "prompt",
+    justification = "Prompt before deleting tag refs",
+    match = ["git tag -d v1.0.0"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "checkout", "-f"]' @'
+prefix_rule(
+    pattern = ["git", "checkout", "-f"],
+    decision = "prompt",
+    justification = "Prompt before forced checkout discards local edits",
+    match = ["git checkout -f main"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "switch", "-C"]' @'
+prefix_rule(
+    pattern = ["git", "switch", "-C"],
+    decision = "prompt",
+    justification = "Prompt before resetting an existing branch with switch -C",
+    match = ["git switch -C topic HEAD~1"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "switch", "--discard-changes"]' @'
+prefix_rule(
+    pattern = ["git", "switch", "--discard-changes"],
+    decision = "prompt",
+    justification = "Prompt before switching branches and discarding local edits",
+    match = ["git switch --discard-changes main"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "rm"]' @'
+prefix_rule(
+    pattern = ["git", "rm"],
+    decision = "prompt",
+    justification = "Prompt before removing tracked files",
+    match = ["git rm old.txt"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "stash", "drop"]' @'
+prefix_rule(
+    pattern = ["git", "stash", "drop"],
+    decision = "prompt",
+    justification = "Prompt before deleting stashed changes",
+    match = ["git stash drop stash@{0}"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "stash", "clear"]' @'
+prefix_rule(
+    pattern = ["git", "stash", "clear"],
+    decision = "prompt",
+    justification = "Prompt before deleting all stashed changes",
+    match = ["git stash clear"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "reflog", "expire"]' @'
+prefix_rule(
+    pattern = ["git", "reflog", "expire"],
+    decision = "prompt",
+    justification = "Prompt before expiring reflog history",
+    match = ["git reflog expire --expire=now --all"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["git", "gc", "--prune"]' @'
+prefix_rule(
+    pattern = ["git", "gc", "--prune"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune=now"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["rg"]' @'
@@ -1698,7 +1900,7 @@ Set-CodexProfileFiles
 Set-CodexCustomAgentFiles
 
 $desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
-if ($CodexGithubMcpEnabled -or -not [string]::IsNullOrWhiteSpace($GithubToken)) {
+if ($CodexGithubMcpEnabled) {
     $desiredMcpServers += 'github'
 }
 if ($CodexSerenaEnabled) {
@@ -1710,7 +1912,7 @@ if ($CodexPlaywrightMcpEnabled) {
 $desiredMcpServers = @($desiredMcpServers | Select-Object -Unique)
 
 if ($CodexPruneDisabledOptionalMcp -and -not $CodexMcpPruneUnmanaged) {
-    if (-not $CodexGithubMcpEnabled -and [string]::IsNullOrWhiteSpace($GithubToken) -and 'github' -notin $desiredMcpServers) {
+    if (-not $CodexGithubMcpEnabled -and 'github' -notin $desiredMcpServers) {
         Remove-CodexMcpIfConfigured 'github'
     }
     if (-not $CodexSerenaEnabled -and 'serena' -notin $desiredMcpServers) {
@@ -1722,8 +1924,7 @@ if ($CodexPruneDisabledOptionalMcp -and -not $CodexMcpPruneUnmanaged) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($GithubToken)) {
-    [System.Environment]::SetEnvironmentVariable($CodexGithubTokenEnvVar, $GithubToken, 'User')
-    Set-Item -Path "Env:\$CodexGithubTokenEnvVar" -Value $GithubToken
+    Write-Warn "GithubToken is not written to Codex MCP config. Export $CodexGithubTokenEnvVar before launching Codex."
 }
 
 $configContent = Get-CodexConfigContent

@@ -37,6 +37,9 @@ codex_default_rules="$codex_rules_dir/default.rules"
 codex_permissions_example="$codex_dir/config.permissions.example.toml"
 codex_agents_dir="$codex_dir/agents"
 mkdir -p "$codex_rules_dir" "$codex_agents_dir"
+touch "$config_toml"
+chmod 700 "$codex_dir" "$codex_rules_dir" "$codex_agents_dir"
+chmod 600 "$config_toml"
 
 test_codex_mcp_configured() {
   local name="$1"
@@ -220,13 +223,35 @@ remove_codex_unsafe_shell_wrapper_rules() {
 remove_codex_unsafe_system_mutator_rules() {
   local pattern
   for pattern in \
+    '["git"]' \
     '["sudo"]' \
+    '["git", "diff"]' \
+    '["git", "log"]' \
+    '["git", "show"]' \
+    '["git", "grep"]' \
+    '["git", "blame"]' \
+    '["git", "config", "--get"]' \
+    '["git", "config", "--global", "--get"]' \
+    '["git", "config", "--list"]' \
     '["git", "push"]' \
     '["git", "reset", "--hard"]' \
+    '["git", "reset"]' \
     '["git", "clean"]' \
     '["git", "restore"]' \
     '["git", "checkout", "--"]' \
     '["git", "rebase"]' \
+    '["git", "commit", "--amend"]' \
+    '["git", "branch", "-D"]' \
+    '["git", "branch", "-d"]' \
+    '["git", "tag", "-d"]' \
+    '["git", "checkout", "-f"]' \
+    '["git", "switch", "-C"]' \
+    '["git", "switch", "--discard-changes"]' \
+    '["git", "rm"]' \
+    '["git", "stash", "drop"]' \
+    '["git", "stash", "clear"]' \
+    '["git", "reflog", "expire"]' \
+    '["git", "gc", "--prune"]' \
     '["doas"]' \
     '["su"]' \
     '["brew", "install"]' \
@@ -248,6 +273,73 @@ remove_codex_unsafe_system_mutator_rules() {
   done
 }
 
+remove_codex_legacy_agents_table() {
+  if [[ ! -f "$config_toml" ]]; then
+    return
+  fi
+
+  local before
+  before="$(cat "$config_toml")"
+  perl -0pi -e 's/^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*//mg' "$config_toml"
+  if [[ "$(cat "$config_toml")" != "$before" ]]; then
+    write_ok "Removed legacy Codex agents table"
+  else
+    write_skip "Legacy Codex agents table absent"
+  fi
+}
+
+remove_codex_misplaced_top_level_settings() {
+  if [[ ! -f "$config_toml" ]]; then
+    return
+  fi
+
+  local temp_config
+  temp_config="$(mktemp)"
+  set +e
+  awk '
+    /^\[/ { section = $0 }
+    section ~ /^\[(notice\.model_migrations|tui|tui\.model_availability_nux)\]$/ &&
+    $0 ~ /^(model|model_reasoning_effort|service_tier|sandbox_mode|approval_policy|approvals_reviewer|check_for_update_on_startup|startup_timeout_sec)[[:space:]]*=/ {
+      changed = 1
+      next
+    }
+    { print }
+    END {
+      if (changed) {
+        exit 2
+      }
+    }
+  ' "$config_toml" >"$temp_config"
+  local rc=$?
+  set -e
+  if [[ $rc -eq 2 ]]; then
+    cp "$temp_config" "$config_toml"
+    rm -f "$temp_config"
+    write_ok "Removed misplaced Codex top-level settings"
+    return
+  fi
+
+  rm -f "$temp_config"
+  if [[ $rc -eq 0 ]]; then
+    write_skip "Misplaced Codex top-level settings absent"
+    return
+  fi
+  return "$rc"
+}
+
+ensure_codex_git_allow_rule() {
+  local pattern="$1"
+  local justification="$2"
+  local example="$3"
+
+  ensure_codex_prefix_rule "$pattern" "prefix_rule(
+    pattern = $pattern,
+    decision = \"allow\",
+    justification = \"$justification\",
+    match = [\"$example\"],
+)"
+}
+
 ensure_codex_permissions_example() {
   local desired
 desired="$(cat <<'EOF'
@@ -259,11 +351,6 @@ sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 approvals_reviewer = "user"
 check_for_update_on_startup = true
-
-[agents]
-max_threads = 4
-max_depth = 1
-job_max_runtime_seconds = 1800
 
 [apps._default]
 default_tools_approval_mode = "writes"
@@ -328,12 +415,6 @@ sandbox_mode = "$CODEX_SANDBOX_MODE"
 approval_policy = "$CODEX_APPROVAL_POLICY"
 approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
 web_search = "cached"
-
-[agents]
-max_threads = 2
-max_depth = 1
-job_max_runtime_seconds = 1200
-interrupt_message = false
 EOF
 )"
 
@@ -346,12 +427,6 @@ service_tier = "$CODEX_SERVICE_TIER"
 sandbox_mode = "$CODEX_SANDBOX_MODE"
 approval_policy = "$CODEX_APPROVAL_POLICY"
 approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
-
-[agents]
-max_threads = $CODEX_AGENTS_MAX_THREADS
-max_depth = $CODEX_AGENTS_MAX_DEPTH
-job_max_runtime_seconds = $CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS
-interrupt_message = true
 
 [apps._default]
 default_tools_approval_mode = "$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE"
@@ -609,9 +684,8 @@ upsert_codex_top_level_setting model_reasoning_effort "\"$CODEX_MODEL_REASONING_
 upsert_codex_top_level_setting service_tier "\"$CODEX_SERVICE_TIER\""
 upsert_codex_top_level_setting approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
 upsert_codex_top_level_setting check_for_update_on_startup "$(toml_bool "$CODEX_CHECK_FOR_UPDATE_ON_STARTUP")"
-upsert_codex_table_setting agents max_threads "$CODEX_AGENTS_MAX_THREADS"
-upsert_codex_table_setting agents max_depth "$CODEX_AGENTS_MAX_DEPTH"
-upsert_codex_table_setting agents job_max_runtime_seconds "$CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS"
+remove_codex_legacy_agents_table
+remove_codex_misplaced_top_level_settings
 upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""
 upsert_codex_table_setting apps._default destructive_enabled "$(toml_bool "$CODEX_APPS_DESTRUCTIVE_ENABLED")"
 upsert_codex_table_setting apps._default open_world_enabled "$(toml_bool "$CODEX_APPS_OPEN_WORLD_ENABLED")"
@@ -620,13 +694,39 @@ upsert_codex_table_setting apps._default approvals_reviewer "\"$CODEX_APPROVALS_
 remove_codex_unsafe_shell_wrapper_rules
 remove_codex_unsafe_system_mutator_rules
 
-ensure_codex_prefix_rule '["git"]' 'prefix_rule(
-    pattern = ["git"],
-    decision = "allow",
-    justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
-    match = ["git status --short"],
-    not_match = ["git-lfs status"],
-)'
+ensure_codex_git_allow_rule '["git", "status"]' \
+  "Allow read-only Git status checks without repeated prompts" \
+  "git status --short"
+ensure_codex_git_allow_rule '["git", "ls-files"]' \
+  "Allow read-only Git index listing without repeated prompts" \
+  "git ls-files"
+ensure_codex_git_allow_rule '["git", "ls-tree"]' \
+  "Allow read-only Git tree inspection without repeated prompts" \
+  "git ls-tree -r HEAD"
+ensure_codex_git_allow_rule '["git", "rev-parse"]' \
+  "Allow read-only Git revision parsing without repeated prompts" \
+  "git rev-parse --show-toplevel"
+ensure_codex_git_allow_rule '["git", "merge-base"]' \
+  "Allow read-only Git merge-base calculations without repeated prompts" \
+  "git merge-base HEAD main"
+ensure_codex_git_allow_rule '["git", "remote", "get-url"]' \
+  "Allow read-only Git remote URL lookup without repeated prompts" \
+  "git remote get-url origin"
+ensure_codex_git_allow_rule '["git", "branch", "--list"]' \
+  "Allow read-only Git branch listing without repeated prompts" \
+  "git branch --list"
+ensure_codex_git_allow_rule '["git", "branch", "--show-current"]' \
+  "Allow read-only current branch lookup without repeated prompts" \
+  "git branch --show-current"
+ensure_codex_git_allow_rule '["git", "tag", "--list"]' \
+  "Allow read-only Git tag listing without repeated prompts" \
+  "git tag --list"
+ensure_codex_git_allow_rule '["git", "describe"]' \
+  "Allow read-only Git describe lookups without repeated prompts" \
+  "git describe --tags --always"
+ensure_codex_git_allow_rule '["git", "add"]' \
+  "Allow staging workspace changes without deleting files or rewriting history" \
+  "git add README.md"
 ensure_codex_prefix_rule '["rg"]' 'prefix_rule(
     pattern = ["rg"],
     decision = "allow",
@@ -789,6 +889,12 @@ ensure_codex_prefix_rule '["git", "reset", "--hard"]' 'prefix_rule(
     justification = "Prompt before discarding tracked workspace changes",
     match = ["git reset --hard HEAD"],
 )'
+ensure_codex_prefix_rule '["git", "reset"]' 'prefix_rule(
+    pattern = ["git", "reset"],
+    decision = "prompt",
+    justification = "Prompt before moving HEAD or discarding tracked workspace changes",
+    match = ["git reset --hard HEAD"],
+)'
 ensure_codex_prefix_rule '["git", "clean"]' 'prefix_rule(
     pattern = ["git", "clean"],
     decision = "prompt",
@@ -812,6 +918,78 @@ ensure_codex_prefix_rule '["git", "rebase"]' 'prefix_rule(
     decision = "prompt",
     justification = "Prompt before rewriting local history",
     match = ["git rebase main"],
+)'
+ensure_codex_prefix_rule '["git", "commit", "--amend"]' 'prefix_rule(
+    pattern = ["git", "commit", "--amend"],
+    decision = "prompt",
+    justification = "Prompt before amending commits and rewriting history",
+    match = ["git commit --amend"],
+)'
+ensure_codex_prefix_rule '["git", "branch", "-D"]' 'prefix_rule(
+    pattern = ["git", "branch", "-D"],
+    decision = "prompt",
+    justification = "Prompt before deleting branch refs",
+    match = ["git branch -D old-branch"],
+)'
+ensure_codex_prefix_rule '["git", "branch", "-d"]' 'prefix_rule(
+    pattern = ["git", "branch", "-d"],
+    decision = "prompt",
+    justification = "Prompt before deleting branch refs",
+    match = ["git branch -d old-branch"],
+)'
+ensure_codex_prefix_rule '["git", "tag", "-d"]' 'prefix_rule(
+    pattern = ["git", "tag", "-d"],
+    decision = "prompt",
+    justification = "Prompt before deleting tag refs",
+    match = ["git tag -d v1.0.0"],
+)'
+ensure_codex_prefix_rule '["git", "checkout", "-f"]' 'prefix_rule(
+    pattern = ["git", "checkout", "-f"],
+    decision = "prompt",
+    justification = "Prompt before forced checkout discards local edits",
+    match = ["git checkout -f main"],
+)'
+ensure_codex_prefix_rule '["git", "switch", "-C"]' 'prefix_rule(
+    pattern = ["git", "switch", "-C"],
+    decision = "prompt",
+    justification = "Prompt before resetting an existing branch with switch -C",
+    match = ["git switch -C topic HEAD~1"],
+)'
+ensure_codex_prefix_rule '["git", "switch", "--discard-changes"]' 'prefix_rule(
+    pattern = ["git", "switch", "--discard-changes"],
+    decision = "prompt",
+    justification = "Prompt before switching branches and discarding local edits",
+    match = ["git switch --discard-changes main"],
+)'
+ensure_codex_prefix_rule '["git", "rm"]' 'prefix_rule(
+    pattern = ["git", "rm"],
+    decision = "prompt",
+    justification = "Prompt before removing tracked files",
+    match = ["git rm old.txt"],
+)'
+ensure_codex_prefix_rule '["git", "stash", "drop"]' 'prefix_rule(
+    pattern = ["git", "stash", "drop"],
+    decision = "prompt",
+    justification = "Prompt before deleting stashed changes",
+    match = ["git stash drop stash@{0}"],
+)'
+ensure_codex_prefix_rule '["git", "stash", "clear"]' 'prefix_rule(
+    pattern = ["git", "stash", "clear"],
+    decision = "prompt",
+    justification = "Prompt before deleting all stashed changes",
+    match = ["git stash clear"],
+)'
+ensure_codex_prefix_rule '["git", "reflog", "expire"]' 'prefix_rule(
+    pattern = ["git", "reflog", "expire"],
+    decision = "prompt",
+    justification = "Prompt before expiring reflog history",
+    match = ["git reflog expire --expire=now --all"],
+)'
+ensure_codex_prefix_rule '["git", "gc", "--prune"]' 'prefix_rule(
+    pattern = ["git", "gc", "--prune"],
+    decision = "prompt",
+    justification = "Prompt before pruning unreachable Git objects",
+    match = ["git gc --prune=now"],
 )'
 ensure_codex_prefix_rule '["sudo"]' 'prefix_rule(
     pattern = ["sudo"],
@@ -969,7 +1147,7 @@ while IFS= read -r server_name; do
   fi
 done < <(split_csv "$CODEX_MCP_ALLOWLIST")
 
-if [[ "$CODEX_GITHUB_MCP_ENABLED" -eq 1 || -n "$GITHUB_TOKEN" ]]; then
+if [[ "$CODEX_GITHUB_MCP_ENABLED" -eq 1 ]]; then
   if ! array_contains github "${desired_mcp_servers[@]}"; then
     desired_mcp_servers+=(github)
   fi
@@ -986,8 +1164,7 @@ if [[ "$CODEX_PLAYWRIGHT_MCP_ENABLED" -eq 1 ]]; then
 fi
 
 if [[ -n "$GITHUB_TOKEN" ]]; then
-  export "$CODEX_GITHUB_TOKEN_ENV_VAR=$GITHUB_TOKEN"
-  write_warn "GitHub token exported in current shell for Codex MCP setup."
+  write_warn "GITHUB_TOKEN is not written to Codex MCP config. Export $CODEX_GITHUB_TOKEN_ENV_VAR before launching Codex."
 fi
 
 existing_mcp_servers=()
@@ -1001,7 +1178,7 @@ fi
 
 if [[ "$CODEX_PRUNE_DISABLED_OPTIONAL_MCP" -eq 1 && "$CODEX_MCP_PRUNE_UNMANAGED" -ne 1 ]]; then
   disabled_optional_mcp_servers=()
-  if [[ "$CODEX_GITHUB_MCP_ENABLED" -ne 1 && -z "$GITHUB_TOKEN" ]] && ! array_contains github "${desired_mcp_servers[@]}"; then
+  if [[ "$CODEX_GITHUB_MCP_ENABLED" -ne 1 ]] && ! array_contains github "${desired_mcp_servers[@]}"; then
     disabled_optional_mcp_servers+=(github)
   fi
   if [[ "$CODEX_SERENA_ENABLED" -ne 1 ]] && ! array_contains serena "${desired_mcp_servers[@]}"; then

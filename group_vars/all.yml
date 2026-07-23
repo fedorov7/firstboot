@@ -5,7 +5,7 @@ user_email: "your-email@example.com"
 git_user_name: "Your Name"
 
 astronvim_repo: "https://github.com/fedorov7/astronvim-config-v4.git"
-neovim_force_cleanup: true
+neovim_force_cleanup: false
 neovim_cleanup_stale: true
 neovim_cleanup_paths:
   - "{{ user_home }}/.config/nvim"
@@ -16,9 +16,8 @@ neovim_cleanup_paths:
 nvm_version: "v0.39.7"
 node_version: "--lts"
 
-# GitHub Personal Access Token for Claude MCP github server (optional).
-# Pass at runtime: -e github_token=ghp_xxx.
-# Codex uses codex_github_token_env_var instead to avoid storing PATs in config.
+# Legacy input kept for compatibility. Claude/Codex GitHub MCP recipes do not
+# write PATs into config; export GITHUB_PERSONAL_ACCESS_TOKEN at runtime.
 github_token: ""
 
 # Embedded / UEFI workstation profile.
@@ -131,7 +130,6 @@ codex_claude_skills:
   - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
   - devops-engineer            # CI/CD and infrastructure.
   - legacy-modernizer          # Enable for large migrations of older codebases.
-  - python-pro                 # Python application development.
   - secure-code-guardian       # Enable for auth/input-validation implementation work.
   - security-reviewer
   - spec-miner                 # Legacy/undocumented system discovery.

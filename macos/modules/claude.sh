@@ -1,3 +1,5 @@
+# shellcheck shell=bash disable=SC2016
+
 write_step "Setting up Claude CLI..."
 
 load_nvm
@@ -39,6 +41,25 @@ test_claude_mcp_configured() {
   grep -q "\"$name\"" "$claude_json"
 }
 
+test_claude_github_mcp_inline_token() {
+  if [[ ! -f "$claude_json" ]]; then
+    return 1
+  fi
+
+  if command_exists jq; then
+    jq -e '
+      (.mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN // "") as $token |
+      ($token != "" and
+       $token != "${GITHUB_PERSONAL_ACCESS_TOKEN}" and
+       $token != "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" and
+       $token != "$GITHUB_PERSONAL_ACCESS_TOKEN")
+    ' "$claude_json" >/dev/null 2>&1
+    return $?
+  fi
+
+  grep -Eq '"GITHUB_PERSONAL_ACCESS_TOKEN"[[:space:]]*:[[:space:]]*"(ghp_|github_pat_|gho_|ghu_|ghs_|ghr_)' "$claude_json"
+}
+
 add_claude_mcp_if_missing() {
   local name="$1"
   shift
@@ -74,7 +95,19 @@ fi
 add_claude_mcp_if_missing sequential-thinking claude mcp add --scope user sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
 
 if [[ -n "$GITHUB_TOKEN" ]]; then
-  add_claude_mcp_if_missing github claude mcp add --scope user github -e "GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_TOKEN" -- npx -y @modelcontextprotocol/server-github
+  write_warn "GITHUB_TOKEN is not written to Claude MCP config. Export GITHUB_PERSONAL_ACCESS_TOKEN before launching Claude."
+fi
+
+if test_claude_github_mcp_inline_token; then
+  claude mcp remove --scope user github
+  write_ok "Removed GitHub MCP with inline token"
+fi
+
+if [[ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
+  add_claude_mcp_if_missing github claude mcp add-json --scope user github \
+    '{"type":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-github"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${GITHUB_PERSONAL_ACCESS_TOKEN}"}}'
+elif ! test_claude_mcp_configured github; then
+  write_warn "Set GITHUB_PERSONAL_ACCESS_TOKEN before running Claude setup to enable GitHub MCP without storing a PAT."
 fi
 
 remove_claude_mcp_if_present sentry

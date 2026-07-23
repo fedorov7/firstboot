@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,8 +32,8 @@ if [[ "$default_modules_block" == *"cleanup"* ]]; then
   exit 1
 fi
 
-if [[ "$bootstrap_source" != *'FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"'* ]]; then
-  echo "macOS Neovim cleanup must be enabled by default" >&2
+if [[ "$bootstrap_source" != *'FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-0}"'* ]]; then
+  echo "macOS Neovim cleanup must be opt-in by default" >&2
   exit 1
 fi
 

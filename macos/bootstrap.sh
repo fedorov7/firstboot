@@ -30,7 +30,7 @@ NODE_VERSION="${NODE_VERSION:-lts/*}"
 NVM_VERSION="${NVM_VERSION:-v0.39.7}"
 ASTRONVIM_REPO="${ASTRONVIM_REPO:-$(detect_astronvim_repo)}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-1}"
+FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-0}"
 MODULES_CSV="${MODULES_CSV:-}"
 
 CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking}"
@@ -46,9 +46,6 @@ CODEX_CHECK_FOR_UPDATE_ON_STARTUP="${CODEX_CHECK_FOR_UPDATE_ON_STARTUP:-1}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"
 CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
 CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"
-CODEX_AGENTS_MAX_THREADS="${CODEX_AGENTS_MAX_THREADS:-4}"
-CODEX_AGENTS_MAX_DEPTH="${CODEX_AGENTS_MAX_DEPTH:-1}"
-CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS="${CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS:-1800}"
 CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"
 CODEX_APPS_DESTRUCTIVE_ENABLED="${CODEX_APPS_DESTRUCTIVE_ENABLED:-0}"
 CODEX_APPS_OPEN_WORLD_ENABLED="${CODEX_APPS_OPEN_WORLD_ENABLED:-0}"
@@ -309,8 +306,8 @@ Options:
   --node-version <value>                Node.js version target for nvm (default: lts/*).
   --nvm-version <tag>                   nvm installer version (default: v0.39.7).
   --astronvim-repo <url>                Neovim config repository URL.
-  --github-token <token>                Optional GitHub token for MCP setup.
-  --force-neovim-cleanup                Remove Neovim config/data before clone/update (default).
+  --github-token <token>                Legacy input; MCP tokens are not written to config.
+  --force-neovim-cleanup                Remove Neovim config/data before clone/update.
   --preserve-neovim-state               Preserve Neovim state unless stale non-git config blocks cloning.
   --codex-mcp-allowlist <csv>           Codex MCP allowlist.
   --codex-mcp-prune-unmanaged           Remove Codex MCP entries not in allowlist.
@@ -323,7 +320,6 @@ Options:
   --codex-model <model>                 Codex model (default: gpt-5.6-sol).
   --codex-model-reasoning-effort <effort> Codex reasoning effort (default: high).
   --codex-service-tier <tier>           Codex service tier (default: default).
-  --codex-agents-max-threads <n>        Concurrent Codex agent thread cap (default: 4).
   --codex-apps-default-tools-approval-mode <mode> App tool approval mode (default: writes).
   --codex-microsoft-learn-mcp-approval-mode <mode> Microsoft Learn MCP approval mode (default: writes).
   --codex-playwright-mcp-approval-mode <mode> Playwright MCP approval mode (default: prompt).
@@ -384,7 +380,6 @@ while [[ $# -gt 0 ]]; do
     --codex-model) CODEX_MODEL="$2"; shift 2 ;;
     --codex-model-reasoning-effort) CODEX_MODEL_REASONING_EFFORT="$2"; shift 2 ;;
     --codex-service-tier) CODEX_SERVICE_TIER="$2"; shift 2 ;;
-    --codex-agents-max-threads) CODEX_AGENTS_MAX_THREADS="$2"; shift 2 ;;
     --codex-apps-default-tools-approval-mode) CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-microsoft-learn-mcp-approval-mode) CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-playwright-mcp-approval-mode) CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="$2"; shift 2 ;;

@@ -60,14 +60,15 @@
   file:
     path: "{{ user_home }}/.codex"
     state: directory
+    mode: "0700"
 
 - name: Set Codex workspace access defaults and top-level options
   shell: |
     config_toml="{{ user_home }}/.codex/config.toml"
     key="{{ item.key }}"
-    value='{{ item.value }}'
+    value={{ item.value | quote }}
     touch "$config_toml"
-    chmod 0644 "$config_toml"
+    chmod 0600 "$config_toml"
     temp_config="$(mktemp)"
     awk -v key="$key" -v value="$value" '
       BEGIN { in_preamble = 1; setting_seen = 0 }
@@ -126,7 +127,7 @@
     config_toml="{{ user_home }}/.codex/config.toml"
     section="[{{ item.table }}]"
     key="{{ item.key }}"
-    value='{{ item.value }}'
+    value={{ item.value | quote }}
     touch "$config_toml"
     temp_config="$(mktemp)"
     awk -v section="$section" -v key="$key" -v value="$value" '
@@ -194,7 +195,7 @@
 - name: Remove legacy Codex agent runtime settings
   replace:
     path: "{{ user_home }}/.codex/config.toml"
-    regexp: '(?m)^\[agents\]\nmax_threads\s*=\s*\d+\nmax_depth\s*=\s*\d+\njob_max_runtime_seconds\s*=\s*\d+\n(?:interrupt_message\s*=\s*(?:true|false)\n)?\n?'
+    regexp: '(?m)^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*'
     replace: ''
 
 - name: Remove misplaced Codex top-level settings from Codex-owned tables
@@ -229,6 +230,15 @@
   register: codex_misplaced_top_level_cleanup
   changed_when: "'OK:' in codex_misplaced_top_level_cleanup.stdout"
 
+- name: Validate Codex config TOML after managed cleanup
+  command:
+    argv:
+      - python3
+      - -c
+      - "import sys, tomllib; tomllib.load(open(sys.argv[1], 'rb'))"
+      - "{{ user_home }}/.codex/config.toml"
+  changed_when: false
+
 - name: Read codex config.toml
   slurp:
     src: "{{ user_home }}/.codex/config.toml"
@@ -243,6 +253,7 @@
   file:
     path: "{{ user_home }}/.codex/rules"
     state: directory
+    mode: "0700"
 
 - name: Remove legacy managed Codex broad shell wrapper rules
   blockinfile:
@@ -252,7 +263,16 @@
     state: absent
     mode: "0644"
   loop:
+    - git
     - pwsh
+    - git-diff
+    - git-log
+    - git-show
+    - git-grep
+    - git-blame
+    - git-config-get
+    - git-config-global-get
+    - git-config-list
 
 - name: Ensure Codex trusted utility prefix rules
   blockinfile:
@@ -262,14 +282,93 @@
     block: "{{ item.rule }}"
     mode: "0644"
   loop:
-    - name: git
+    - name: git-status
       rule: |
         prefix_rule(
-            pattern = ["git"],
+            pattern = ["git", "status"],
             decision = "allow",
-            justification = "Allow local Git workflows in trusted workspaces without repeated prompts",
+            justification = "Allow read-only Git status checks without repeated prompts",
             match = ["git status --short"],
-            not_match = ["git-lfs status"],
+        )
+    - name: git-ls-files
+      rule: |
+        prefix_rule(
+            pattern = ["git", "ls-files"],
+            decision = "allow",
+            justification = "Allow read-only Git index listing without repeated prompts",
+            match = ["git ls-files"],
+        )
+    - name: git-ls-tree
+      rule: |
+        prefix_rule(
+            pattern = ["git", "ls-tree"],
+            decision = "allow",
+            justification = "Allow read-only Git tree inspection without repeated prompts",
+            match = ["git ls-tree -r HEAD"],
+        )
+    - name: git-rev-parse
+      rule: |
+        prefix_rule(
+            pattern = ["git", "rev-parse"],
+            decision = "allow",
+            justification = "Allow read-only Git revision parsing without repeated prompts",
+            match = ["git rev-parse --show-toplevel"],
+        )
+    - name: git-merge-base
+      rule: |
+        prefix_rule(
+            pattern = ["git", "merge-base"],
+            decision = "allow",
+            justification = "Allow read-only Git merge-base calculations without repeated prompts",
+            match = ["git merge-base HEAD main"],
+        )
+    - name: git-remote-get-url
+      rule: |
+        prefix_rule(
+            pattern = ["git", "remote", "get-url"],
+            decision = "allow",
+            justification = "Allow read-only Git remote URL lookup without repeated prompts",
+            match = ["git remote get-url origin"],
+        )
+    - name: git-branch-list
+      rule: |
+        prefix_rule(
+            pattern = ["git", "branch", "--list"],
+            decision = "allow",
+            justification = "Allow read-only Git branch listing without repeated prompts",
+            match = ["git branch --list"],
+        )
+    - name: git-branch-current
+      rule: |
+        prefix_rule(
+            pattern = ["git", "branch", "--show-current"],
+            decision = "allow",
+            justification = "Allow read-only current branch lookup without repeated prompts",
+            match = ["git branch --show-current"],
+        )
+    - name: git-tag-list
+      rule: |
+        prefix_rule(
+            pattern = ["git", "tag", "--list"],
+            decision = "allow",
+            justification = "Allow read-only Git tag listing without repeated prompts",
+            match = ["git tag --list"],
+        )
+    - name: git-describe
+      rule: |
+        prefix_rule(
+            pattern = ["git", "describe"],
+            decision = "allow",
+            justification = "Allow read-only Git describe lookups without repeated prompts",
+            match = ["git describe --tags --always"],
+        )
+    - name: git-add
+      rule: |
+        prefix_rule(
+            pattern = ["git", "add"],
+            decision = "allow",
+            justification = "Allow staging workspace changes without deleting files or rewriting history",
+            match = ["git add README.md"],
         )
     - name: rg
       rule: |
@@ -555,12 +654,12 @@
             justification = "Prompt before publishing commits to a remote repository",
             match = ["git push"],
         )
-    - name: git-reset-hard
+    - name: git-reset
       rule: |
         prefix_rule(
-            pattern = ["git", "reset", "--hard"],
+            pattern = ["git", "reset"],
             decision = "prompt",
-            justification = "Prompt before discarding tracked workspace changes",
+            justification = "Prompt before moving HEAD or discarding tracked workspace changes",
             match = ["git reset --hard HEAD"],
         )
     - name: git-clean
@@ -594,6 +693,102 @@
             decision = "prompt",
             justification = "Prompt before rewriting local history",
             match = ["git rebase main"],
+        )
+    - name: git-commit-amend
+      rule: |
+        prefix_rule(
+            pattern = ["git", "commit", "--amend"],
+            decision = "prompt",
+            justification = "Prompt before amending commits and rewriting history",
+            match = ["git commit --amend"],
+        )
+    - name: git-branch-delete
+      rule: |
+        prefix_rule(
+            pattern = ["git", "branch", "-D"],
+            decision = "prompt",
+            justification = "Prompt before deleting branch refs",
+            match = ["git branch -D old-branch"],
+        )
+    - name: git-branch-delete-merged
+      rule: |
+        prefix_rule(
+            pattern = ["git", "branch", "-d"],
+            decision = "prompt",
+            justification = "Prompt before deleting branch refs",
+            match = ["git branch -d old-branch"],
+        )
+    - name: git-tag-delete
+      rule: |
+        prefix_rule(
+            pattern = ["git", "tag", "-d"],
+            decision = "prompt",
+            justification = "Prompt before deleting tag refs",
+            match = ["git tag -d v1.0.0"],
+        )
+    - name: git-checkout-force
+      rule: |
+        prefix_rule(
+            pattern = ["git", "checkout", "-f"],
+            decision = "prompt",
+            justification = "Prompt before forced checkout discards local edits",
+            match = ["git checkout -f main"],
+        )
+    - name: git-switch-force-create
+      rule: |
+        prefix_rule(
+            pattern = ["git", "switch", "-C"],
+            decision = "prompt",
+            justification = "Prompt before resetting an existing branch with switch -C",
+            match = ["git switch -C topic HEAD~1"],
+        )
+    - name: git-switch-discard
+      rule: |
+        prefix_rule(
+            pattern = ["git", "switch", "--discard-changes"],
+            decision = "prompt",
+            justification = "Prompt before switching branches and discarding local edits",
+            match = ["git switch --discard-changes main"],
+        )
+    - name: git-rm
+      rule: |
+        prefix_rule(
+            pattern = ["git", "rm"],
+            decision = "prompt",
+            justification = "Prompt before removing tracked files",
+            match = ["git rm old.txt"],
+        )
+    - name: git-stash-drop
+      rule: |
+        prefix_rule(
+            pattern = ["git", "stash", "drop"],
+            decision = "prompt",
+            justification = "Prompt before deleting stashed changes",
+            match = ["git stash drop stash@{0}"],
+        )
+    - name: git-stash-clear
+      rule: |
+        prefix_rule(
+            pattern = ["git", "stash", "clear"],
+            decision = "prompt",
+            justification = "Prompt before deleting all stashed changes",
+            match = ["git stash clear"],
+        )
+    - name: git-reflog-expire
+      rule: |
+        prefix_rule(
+            pattern = ["git", "reflog", "expire"],
+            decision = "prompt",
+            justification = "Prompt before expiring reflog history",
+            match = ["git reflog expire --expire=now --all"],
+        )
+    - name: git-gc-prune
+      rule: |
+        prefix_rule(
+            pattern = ["git", "gc", "--prune"],
+            decision = "prompt",
+            justification = "Prompt before pruning unreachable Git objects",
+            match = ["git gc --prune=now"],
         )
     - name: doas
       rule: |
@@ -841,6 +1036,7 @@
   file:
     path: "{{ user_home }}/.codex/agents"
     state: directory
+    mode: "0700"
 
 - name: Set Codex custom agent definitions
   set_fact:
@@ -966,7 +1162,7 @@
     path: "{{ user_home }}/.codex/AGENTS.md"
     create: true
     marker: "<!-- {mark} FIRSTBOOT CODEX AGENT TEAMWORK -->"
-    mode: "0644"
+    mode: "0600"
     block: |
       ## Firstboot Agent Teamwork
 
@@ -1034,7 +1230,7 @@
 - name: Set disabled optional Codex MCP servers
   set_fact:
     codex_mcp_disabled_optional_servers: >-
-      {{ ((['github'] if not (codex_github_mcp_enabled | default(false) | bool) and (github_token | default('') | trim == '') else [])
+      {{ ((['github'] if not (codex_github_mcp_enabled | default(false) | bool) else [])
           + (['serena'] if not (codex_serena_enabled | default(false) | bool) else [])
           + (['playwright'] if not (codex_playwright_mcp_enabled | default(false) | bool) else []))
          | unique | list }}
@@ -1235,7 +1431,7 @@
     config_toml="{{ user_home }}/.codex/config.toml"
     section="[mcp_servers.{{ item.name }}]"
     key="{{ item.key }}"
-    value='{{ item.value }}'
+    value={{ item.value | quote }}
     if [[ ! -f "$config_toml" ]]; then
       exit 0
     fi

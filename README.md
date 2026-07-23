@@ -102,7 +102,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `user_email` | `your-email@example.com` | Used for SSH key comment and git config |
 | `git_user_name` | `Your Name` | Global `git user.name` |
 | `astronvim_repo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repository |
-| `neovim_force_cleanup` | `true` | Remove Neovim config/data/state/cache before cloning, even when config is already a git repo |
+| `neovim_force_cleanup` | `false` | Remove Neovim config/data/state/cache before cloning only when explicitly enabled |
 | `neovim_cleanup_stale` | `true` | Remove stale non-git Neovim config/data/state/cache before cloning AstroNvim |
 | `neovim_cleanup_paths` | Neovim XDG config/data/state/cache paths | Directories removed only when cleanup is explicitly forced or stale state is detected |
 | `nvm_version` | `v0.39.7` | nvm installer version |
@@ -124,11 +124,10 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_model` | `gpt-5.6-sol` | Default Codex model for demanding local development work |
 | `codex_model_reasoning_effort` | `high` | Strong default reasoning without using the highest-cost/limit-heavy effort by default |
 | `codex_service_tier` | `default` | Preserve the account default service tier unless overridden |
-| `codex_agents_max_threads` | `4` | Caps concurrent agent threads below Codex's higher default to reduce rate-limit and local-resource spikes |
 | `codex_apps_default_tools_approval_mode` | `writes` | Allow read-only app tools while prompting for write-capable tools |
 | `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
-| Codex trusted tool rules | git/rg/fd/bat/eza/delta/difft/difftastic/just/uv run + CMake/CTest/Ninja/Meson/Cargo/Pytest/npm build-test runners | Allow common local workspace inspection, compilation, and test commands without repeated prompts |
-| Codex privileged prompt rules | git push/reset/clean, sudo/winget/brew/cargo install/uv tool/npm global/pip install/system settings | Keep destructive, remote, and system-changing commands available through explicit approval instead of broad shell trust |
+| Codex trusted tool rules | safe Git listing/revision queries + `git add`, rg/fd/bat/eza/delta/difft/difftastic/just/uv run + CMake/CTest/Ninja/Meson/Cargo/Pytest/npm build-test runners | Allow common local workspace inspection, staging, compilation, and test commands without repeated prompts |
+| Codex privileged prompt rules | git push/reset/clean/restore/rebase/amend/branch-tag delete/reflog-gc prune, sudo/winget/brew/cargo install/uv tool/npm global/pip install/system settings | Keep destructive, remote, history-rewriting, and system-changing commands available through explicit approval instead of broad shell trust |
 | Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
 | Windows Codex build env rules | Set-Item Env:\VCPKG_ROOT/PROTOC | Allow process-local build environment overrides before trusted build/test commands; prefer this over inline `$env:...; cmake ...` shell wrappers |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
@@ -189,8 +188,9 @@ documentation and reasoning tools enabled while leaving broader access tools
 disabled. Microsoft Learn MCP is included by default for Windows, PowerShell,
 WinUI, .NET, and Microsoft C++ documentation lookups. The built-in ChatGPT Apps
 MCP is disabled by default because it starts a remote `chatgpt.com` handshake on
-Codex startup. To enable GitHub MCP, export a token in the configured
-environment variable and run:
+Codex startup. Codex and Claude GitHub MCP entries do not store PATs in their
+config files. To enable GitHub MCP, export a token in the configured
+environment variable before provisioning and before launching the agent:
 
 ```bash
 export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxx
@@ -344,7 +344,7 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--user-email` | detected from `git config --global user.email` | SSH key comment and git identity |
 | `--git-user-name` | detected from `git config --global user.name` | Global `git user.name` |
 | `--astronvim-repo` | detected from `~/.config/nvim` origin | Neovim config repo |
-| `--force-neovim-cleanup` | on | Remove Neovim config/data/state/cache before clone/update |
+| `--force-neovim-cleanup` | off | Remove Neovim config/data/state/cache before clone/update |
 | `--preserve-neovim-state` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `--modules` | core module set | Comma-separated module selection |
 | `--codex-mcp-allowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
@@ -356,7 +356,6 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-model` | `gpt-5.6-sol` | Default Codex model for demanding local development |
 | `--codex-model-reasoning-effort` | `high` | Strong reasoning default without using max/ultra by default |
 | `--codex-service-tier` | `default` | Preserve account default service tier unless overridden |
-| `--codex-agents-max-threads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
 | `--codex-apps-default-tools-approval-mode` | `writes` | Allow read-only app tools while prompting for writes |
 | `--codex-microsoft-learn-mcp-approval-mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
 | `--codex-playwright-mcp-approval-mode` | `prompt` | Keep browser automation MCP tools interactive |
@@ -436,7 +435,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-GitUserName` | `Your Name` | Global `git user.name` |
 | `-NodeVersion` | `lts-latest` | fnm install target |
 | `-AstroNvimRepo` | `https://github.com/fedorov7/astronvim-config-v4.git` | Neovim config repo |
-| `-ForceNeovimCleanup` | `$true` | Remove Neovim config/data/state/cache before cloning AstroNvim |
+| `-ForceNeovimCleanup` | `$false` | Remove Neovim config/data/state/cache before cloning AstroNvim |
 | `-PreserveNeovimState` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `-WindowsDeveloperModeEnabled` | off | Enable Windows Developer Mode registry settings; long paths and Explorer developer defaults are always configured by `dev_settings` |
 | `-DevDrivePath` | (empty) | Optional Dev Drive volume path to query or trust, for example `D:` |
@@ -452,7 +451,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-WslSparseVhdEnabled` | off | Enable sparse VHD for newly created WSL distributions when `-WslConfigEnabled` is passed |
 | `-WindowsSudoEnabled` | off | Enable Sudo for Windows when the `sudo` module is selected |
 | `-WindowsSudoMode` | `forceNewWindow` | Sudo mode: `forceNewWindow`, `disableInput`, or `normal` |
-| `-GithubToken` | (empty) | Optional GitHub PAT copied into `-CodexGithubTokenEnvVar` for official GitHub MCP |
+| `-GithubToken` | (empty) | Legacy compatibility input; GitHub MCP tokens are not written to config, use `GITHUB_PERSONAL_ACCESS_TOKEN` at runtime |
 | `-CodexMcpAllowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
@@ -468,7 +467,6 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexModel` | `gpt-5.6-sol` | Default Codex model for demanding local development |
 | `-CodexModelReasoningEffort` | `high` | Strong reasoning default without using max/ultra by default |
 | `-CodexServiceTier` | `default` | Preserve account default service tier unless overridden |
-| `-CodexAgentsMaxThreads` | `4` | Limit concurrent Codex agent threads to reduce resource/rate-limit spikes |
 | `-CodexAppsDefaultToolsApprovalMode` | `writes` | Allow read-only app tools while prompting for writes |
 | `-CodexFetchMcpApprovalMode` | `prompt` | Keep broad fetch MCP tools interactive |
 | `-CodexMicrosoftLearnMcpApprovalMode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
@@ -498,11 +496,11 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 The playbook is designed to be safe to re-run at any time, with role-specific
 exceptions documented below.
 
-**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role removes configured XDG paths by default before cloning AstroNvim.
+**Linux:** Package installs use `state: present`, key generation checks for existing keys, yay/nvm/claude installs use `creates` guards, and dotfile copies create backups before overwriting. The Neovim role removes configured XDG paths only when cleanup is explicitly forced or stale non-git config blocks cloning AstroNvim.
 
-**macOS:** Homebrew installs are guarded with `brew list`, ssh/git configuration only updates when values differ, and dotfile/settings deployments create timestamped backups before overwriting. Neovim config/data/state/cache cleanup runs by default unless `--preserve-neovim-state` is passed.
+**macOS:** Homebrew installs are guarded with `brew list`, ssh/git configuration only updates when values differ, and dotfile/settings deployments create timestamped backups before overwriting. Neovim config/data/state/cache cleanup runs only with `--force-neovim-cleanup` or when stale non-git config blocks cloning.
 
-**Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups. Neovim config/data/state/cache cleanup runs by default unless `-PreserveNeovimState` is passed.
+**Windows:** Each action is guarded (`winget list`, `Get-Command`, `Test-Path`, `Get-Module -ListAvailable`). Profile and settings deployments create timestamped backups. Neovim config/data/state/cache cleanup runs only with `-ForceNeovimCleanup` or when stale non-git config blocks cloning.
 
 ## License
 

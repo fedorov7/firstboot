@@ -24,8 +24,8 @@ if ($defaultModulesBlock -match "'claude'") {
     throw 'claude must remain an explicit opt-in Windows module'
 }
 
-if ($source -notmatch '\[bool\]\$ForceNeovimCleanup\s*=\s*\$true') {
-    throw 'Windows Neovim cleanup must be enabled by default'
+if ($source -notmatch '\[bool\]\$ForceNeovimCleanup\s*=\s*\$false') {
+    throw 'Windows Neovim cleanup must be opt-in by default'
 }
 
 if ($source -notmatch '\[switch\]\$PreserveNeovimState') {

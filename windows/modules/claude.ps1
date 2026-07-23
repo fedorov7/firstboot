@@ -45,6 +45,25 @@ $mcpServers = if ($claudeConfig -and $claudeConfig.mcpServers) {
     $claudeConfig.mcpServers.PSObject.Properties.Name
 } else { @() }
 
+function Test-ClaudeGithubMcpInlineToken {
+    if (-not $claudeConfig -or -not $claudeConfig.mcpServers -or -not $claudeConfig.mcpServers.github) {
+        return $false
+    }
+
+    $envConfig = $claudeConfig.mcpServers.github.env
+    if (-not $envConfig -or -not $envConfig.GITHUB_PERSONAL_ACCESS_TOKEN) {
+        return $false
+    }
+
+    $token = [string]$envConfig.GITHUB_PERSONAL_ACCESS_TOKEN
+    return (
+        $token -and
+        $token -ne '${GITHUB_PERSONAL_ACCESS_TOKEN}' -and
+        $token -ne '${GITHUB_PERSONAL_ACCESS_TOKEN:-}' -and
+        $token -ne '$GITHUB_PERSONAL_ACCESS_TOKEN'
+    )
+}
+
 # context7
 if ('context7' -notin $mcpServers) {
     claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp
@@ -72,11 +91,24 @@ if ('sequential-thinking' -notin $mcpServers) {
     Write-Ok "MCP sequential-thinking added"
 } else { Write-Skip "MCP sequential-thinking already configured" }
 
-# github (conditional)
-if ($GithubToken -and ('github' -notin $mcpServers)) {
-    claude mcp add --scope user github -e "GITHUB_PERSONAL_ACCESS_TOKEN=$GithubToken" -- npx -y @modelcontextprotocol/server-github
+# github (conditional, no inline PAT storage)
+if ($GithubToken) {
+    Write-Warn "GithubToken is not written to Claude MCP config. Export GITHUB_PERSONAL_ACCESS_TOKEN before launching Claude."
+}
+
+$githubMcpInlineToken = Test-ClaudeGithubMcpInlineToken
+if ($githubMcpInlineToken) {
+    claude mcp remove --scope user github
+    $mcpServers = @($mcpServers | Where-Object { $_ -ne 'github' })
+    Write-Ok "Removed GitHub MCP with inline token"
+}
+
+if ($env:GITHUB_PERSONAL_ACCESS_TOKEN -and ('github' -notin $mcpServers)) {
+    $githubMcpJson = '{"type":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-github"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${GITHUB_PERSONAL_ACCESS_TOKEN}"}}'
+    claude mcp add-json --scope user github $githubMcpJson
     Write-Ok "MCP github added"
 } elseif ('github' -in $mcpServers) { Write-Skip "MCP github already configured" }
+else { Write-Warn "Set GITHUB_PERSONAL_ACCESS_TOKEN before running Claude setup to enable GitHub MCP without storing a PAT." }
 
 # Remove obsolete MCPs
 foreach ($obsolete in @('sentry', 'playwright')) {

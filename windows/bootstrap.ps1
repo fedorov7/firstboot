@@ -17,9 +17,9 @@
 .PARAMETER AstroNvimRepo
     Git URL for Neovim config.
 .PARAMETER GithubToken
-    Optional GitHub PAT for MCP github server.
+    Legacy compatibility input; MCP tokens are not written to config.
 .PARAMETER ForceNeovimCleanup
-    Remove Neovim config/data/state/cache before cloning AstroNvim. Enabled by default.
+    Remove Neovim config/data/state/cache before cloning AstroNvim. Disabled by default.
 .PARAMETER PreserveNeovimState
     Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning.
 .PARAMETER WindowsDeveloperModeEnabled
@@ -70,12 +70,6 @@
     Codex reasoning effort (default: high; reserve max for explicit hard tasks).
 .PARAMETER CodexServiceTier
     Codex service tier (default: default).
-.PARAMETER CodexAgentsMaxThreads
-    Concurrent Codex agent thread cap (default: 4).
-.PARAMETER CodexAgentsMaxDepth
-    Maximum sub-agent nesting depth (default: 1).
-.PARAMETER CodexAgentsJobMaxRuntimeSeconds
-    Maximum runtime for spawned agent jobs (default: 1800).
 .PARAMETER CodexAppsDefaultToolsApprovalMode
     Default approval mode for ChatGPT app tools (default: writes).
 .PARAMETER CodexAppsDestructiveEnabled
@@ -136,7 +130,7 @@ param(
     [string]$NodeVersion = "lts-latest",
     [string]$AstroNvimRepo = "https://github.com/fedorov7/astronvim-config-v4.git",
     [string]$GithubToken = "",
-    [bool]$ForceNeovimCleanup = $true,
+    [bool]$ForceNeovimCleanup = $false,
     [switch]$PreserveNeovimState,
     [switch]$WindowsDeveloperModeEnabled,
     [string]$DevDrivePath = "",
@@ -167,9 +161,6 @@ param(
     [string]$CodexModel = "gpt-5.6-sol",
     [string]$CodexModelReasoningEffort = "high",
     [string]$CodexServiceTier = "default",
-    [int]$CodexAgentsMaxThreads = 4,
-    [int]$CodexAgentsMaxDepth = 1,
-    [int]$CodexAgentsJobMaxRuntimeSeconds = 1800,
     [string]$CodexAppsDefaultToolsApprovalMode = "writes",
     [bool]$CodexAppsDestructiveEnabled = $false,
     [bool]$CodexAppsOpenWorldEnabled = $false,

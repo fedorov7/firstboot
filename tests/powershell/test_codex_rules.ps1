@@ -33,7 +33,44 @@ if (-not $source.Contains('$escapedPattern = [regex]::Escape($Pattern)') -or
     throw 'Codex prefix rule detection must use escaped regex matching for TOML array patterns'
 }
 
-foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
+if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""git""]'")) {
+    throw 'Windows Codex module must not broadly allow every git command'
+}
+
+foreach ($pattern in @(
+    '["git", "status"]',
+    '["git", "ls-files"]',
+    '["git", "ls-tree"]',
+    '["git", "rev-parse"]',
+    '["git", "merge-base"]',
+    '["git", "remote", "get-url"]',
+    '["git", "branch", "--list"]',
+    '["git", "branch", "--show-current"]',
+    '["git", "tag", "--list"]',
+    '["git", "describe"]',
+    '["git", "add"]'
+)) {
+    if (-not $source.Contains("Add-CodexGitAllowRule '$pattern'")) {
+        throw "Windows Codex module must allow safe git workflow: $pattern"
+    }
+}
+
+foreach ($pattern in @(
+    '["git", "diff"]',
+    '["git", "log"]',
+    '["git", "show"]',
+    '["git", "grep"]',
+    '["git", "blame"]',
+    '["git", "config", "--get"]',
+    '["git", "config", "--global", "--get"]',
+    '["git", "config", "--list"]'
+)) {
+    if ($source.Contains("Add-CodexGitAllowRule '$pattern'")) {
+        throw "Windows Codex module must not allow output-capable git command: $pattern"
+    }
+}
+
+foreach ($pattern in @('rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
     if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
         throw "Windows Codex module must allow trusted workspace tool: $pattern"
     }
@@ -89,6 +126,19 @@ foreach ($pattern in @(
     '["git", "restore"]',
     '["git", "checkout", "--"]',
     '["git", "rebase"]',
+    '["git", "reset"]',
+    '["git", "commit", "--amend"]',
+    '["git", "branch", "-D"]',
+    '["git", "branch", "-d"]',
+    '["git", "tag", "-d"]',
+    '["git", "checkout", "-f"]',
+    '["git", "switch", "-C"]',
+    '["git", "switch", "--discard-changes"]',
+    '["git", "rm"]',
+    '["git", "stash", "drop"]',
+    '["git", "stash", "clear"]',
+    '["git", "reflog", "expire"]',
+    '["git", "gc", "--prune"]',
     '["scoop"]',
     '["choco"]',
     '["rustup"]',
@@ -187,6 +237,11 @@ if ($bootstrapSource -notmatch '\[switch\]\$CodexPlaywrightMcpEnabled') {
     throw 'Windows bootstrap must expose opt-in Playwright MCP'
 }
 
+if ($source.Contains('[System.Environment]::SetEnvironmentVariable($CodexGithubTokenEnvVar, $GithubToken') -or
+    $source.Contains('Set-Item -Path "Env:\$CodexGithubTokenEnvVar" -Value $GithubToken')) {
+    throw 'Windows Codex module must not persist or copy legacy GithubToken values'
+}
+
 if ($bootstrapSource -notmatch '\[string\]\$CodexWindowsSandbox = "elevated"') {
     throw 'Windows bootstrap must default CodexWindowsSandbox to elevated'
 }
@@ -203,15 +258,22 @@ foreach ($expected in @(
     '[string]$CodexModel = "gpt-5.6-sol"',
     '[string]$CodexModelReasoningEffort = "high"',
     '[string]$CodexServiceTier = "default"',
-    '[int]$CodexAgentsMaxThreads = 4',
-    '[int]$CodexAgentsMaxDepth = 1',
-    '[int]$CodexAgentsJobMaxRuntimeSeconds = 1800',
     '[string]$CodexAppsDefaultToolsApprovalMode = "writes"',
     '[string]$CodexMicrosoftLearnMcpApprovalMode = "writes"',
     '[string]$CodexPlaywrightMcpApprovalMode = "prompt"'
 )) {
     if (-not $bootstrapSource.Contains($expected)) {
         throw "Windows bootstrap must expose Codex default: $expected"
+    }
+}
+
+foreach ($removedDefault in @(
+    '[int]$CodexAgentsMaxThreads',
+    '[int]$CodexAgentsMaxDepth',
+    '[int]$CodexAgentsJobMaxRuntimeSeconds'
+)) {
+    if ($bootstrapSource.Contains($removedDefault)) {
+        throw "Windows bootstrap must not expose removed Codex agents setting: $removedDefault"
     }
 }
 
@@ -271,14 +333,22 @@ if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox_private_deskt
     throw 'Codex module must apply the native Windows private desktop setting'
 }
 
-foreach ($expected in @(
-    "Set-CodexTableSetting 'agents' 'max_threads' `$CodexAgentsMaxThreads",
-    "Set-CodexTableSetting 'agents' 'max_depth' `$CodexAgentsMaxDepth",
-    "Set-CodexTableSetting 'agents' 'job_max_runtime_seconds' `$CodexAgentsJobMaxRuntimeSeconds"
+foreach ($removedSetting in @(
+    "Set-CodexTableSetting 'agents' 'max_threads'",
+    "Set-CodexTableSetting 'agents' 'max_depth'",
+    "Set-CodexTableSetting 'agents' 'job_max_runtime_seconds'"
 )) {
-    if (-not $source.Contains($expected)) {
-        throw "Codex module must apply agent limit setting: $expected"
+    if ($source.Contains($removedSetting)) {
+        throw "Codex module must not write removed agent limit setting: $removedSetting"
     }
+}
+
+if (-not $source.Contains('Remove-CodexLegacyAgentsTable')) {
+    throw 'Codex module must clean legacy managed [agents] table from config.toml'
+}
+
+if (-not $source.Contains('Remove-CodexMisplacedTopLevelSettings')) {
+    throw 'Codex module must clean invalid top-level keys from Codex-owned tables'
 }
 
 if (-not $source.Contains("Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode'")) {
@@ -349,7 +419,44 @@ if ($linuxRoleSource.Contains('pattern = ["pwsh"]')) {
     throw 'Linux Codex role must not broadly allow pwsh shell wrappers'
 }
 
-foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
+if ($linuxRoleSource.Contains('pattern = ["git"],')) {
+    throw 'Linux Codex role must not broadly allow every git command'
+}
+
+foreach ($pattern in @(
+    'pattern = ["git", "status"]',
+    'pattern = ["git", "ls-files"]',
+    'pattern = ["git", "ls-tree"]',
+    'pattern = ["git", "rev-parse"]',
+    'pattern = ["git", "merge-base"]',
+    'pattern = ["git", "remote", "get-url"]',
+    'pattern = ["git", "branch", "--list"]',
+    'pattern = ["git", "branch", "--show-current"]',
+    'pattern = ["git", "tag", "--list"]',
+    'pattern = ["git", "describe"]',
+    'pattern = ["git", "add"]'
+)) {
+    if (-not $linuxRoleSource.Contains($pattern)) {
+        throw "Linux Codex role must allow safe git workflow: $pattern"
+    }
+}
+
+foreach ($pattern in @(
+    'pattern = ["git", "diff"]',
+    'pattern = ["git", "log"]',
+    'pattern = ["git", "show"]',
+    'pattern = ["git", "grep"]',
+    'pattern = ["git", "blame"]',
+    'pattern = ["git", "config", "--get"]',
+    'pattern = ["git", "config", "--global", "--get"]',
+    'pattern = ["git", "config", "--list"]'
+)) {
+    if ($linuxRoleSource.Contains($pattern)) {
+        throw "Linux Codex role must not allow output-capable git command: $pattern"
+    }
+}
+
+foreach ($pattern in @('rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
     if (-not $linuxRoleSource.Contains("pattern = [""$pattern""]")) {
         throw "Linux Codex role must allow trusted workspace tool: $pattern"
     }
@@ -386,7 +493,23 @@ foreach ($pattern in @(
     'pattern = ["sudo"]',
     'pattern = ["git", "push"]',
     'pattern = ["git", "reset", "--hard"]',
+    'pattern = ["git", "reset"]',
     'pattern = ["git", "clean"]',
+    'pattern = ["git", "restore"]',
+    'pattern = ["git", "checkout", "--"]',
+    'pattern = ["git", "rebase"]',
+    'pattern = ["git", "commit", "--amend"]',
+    'pattern = ["git", "branch", "-D"]',
+    'pattern = ["git", "branch", "-d"]',
+    'pattern = ["git", "tag", "-d"]',
+    'pattern = ["git", "checkout", "-f"]',
+    'pattern = ["git", "switch", "-C"]',
+    'pattern = ["git", "switch", "--discard-changes"]',
+    'pattern = ["git", "rm"]',
+    'pattern = ["git", "stash", "drop"]',
+    'pattern = ["git", "stash", "clear"]',
+    'pattern = ["git", "reflog", "expire"]',
+    'pattern = ["git", "gc", "--prune"]',
     'pattern = ["apt"]',
     'pattern = ["apt-get"]',
     'pattern = ["pacman"]',
@@ -435,15 +558,22 @@ foreach ($expected in @(
     'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"',
     'CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"',
     'CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"',
-    'CODEX_AGENTS_MAX_THREADS="${CODEX_AGENTS_MAX_THREADS:-4}"',
-    'CODEX_AGENTS_MAX_DEPTH="${CODEX_AGENTS_MAX_DEPTH:-1}"',
-    'CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS="${CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS:-1800}"',
     'CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"',
     'CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="${CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE:-writes}"',
     'CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE="${CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE:-prompt}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {
         throw "macOS bootstrap must expose Codex default: $expected"
+    }
+}
+
+foreach ($removedDefault in @(
+    'CODEX_AGENTS_MAX_THREADS',
+    'CODEX_AGENTS_MAX_DEPTH',
+    'CODEX_AGENTS_JOB_MAX_RUNTIME_SECONDS'
+)) {
+    if ($macosBootstrapSource.Contains($removedDefault)) {
+        throw "macOS bootstrap must not expose removed Codex agents setting: $removedDefault"
     }
 }
 
@@ -455,8 +585,12 @@ if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting model "\"$CO
     throw 'macOS Codex module must apply Codex model to config.toml'
 }
 
-if (-not $macosCodexSource.Contains('upsert_codex_table_setting agents max_threads "$CODEX_AGENTS_MAX_THREADS"')) {
-    throw 'macOS Codex module must apply Codex agent thread limits'
+if (-not $macosCodexSource.Contains('remove_codex_legacy_agents_table')) {
+    throw 'macOS Codex module must clean legacy managed [agents] table from config.toml'
+}
+
+if (-not $macosCodexSource.Contains('remove_codex_misplaced_top_level_settings')) {
+    throw 'macOS Codex module must clean invalid top-level keys from Codex-owned tables'
 }
 
 if (-not $macosCodexSource.Contains('upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""')) {
@@ -491,7 +625,44 @@ if ($macosCodexSource.Contains("ensure_codex_prefix_rule '[""pwsh""]'")) {
     throw 'macOS Codex module must not broadly allow pwsh shell wrappers'
 }
 
-foreach ($pattern in @('git', 'rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
+if ($macosCodexSource.Contains("ensure_codex_prefix_rule '[""git""]'")) {
+    throw 'macOS Codex module must not broadly allow every git command'
+}
+
+foreach ($pattern in @(
+    '["git", "status"]',
+    '["git", "ls-files"]',
+    '["git", "ls-tree"]',
+    '["git", "rev-parse"]',
+    '["git", "merge-base"]',
+    '["git", "remote", "get-url"]',
+    '["git", "branch", "--list"]',
+    '["git", "branch", "--show-current"]',
+    '["git", "tag", "--list"]',
+    '["git", "describe"]',
+    '["git", "add"]'
+)) {
+    if (-not $macosCodexSource.Contains("ensure_codex_git_allow_rule '$pattern'")) {
+        throw "macOS Codex module must allow safe git workflow: $pattern"
+    }
+}
+
+foreach ($pattern in @(
+    '["git", "diff"]',
+    '["git", "log"]',
+    '["git", "show"]',
+    '["git", "grep"]',
+    '["git", "blame"]',
+    '["git", "config", "--get"]',
+    '["git", "config", "--global", "--get"]',
+    '["git", "config", "--list"]'
+)) {
+    if ($macosCodexSource.Contains("ensure_codex_git_allow_rule '$pattern'")) {
+        throw "macOS Codex module must not allow output-capable git command: $pattern"
+    }
+}
+
+foreach ($pattern in @('rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
     if (-not $macosCodexSource.Contains("ensure_codex_prefix_rule '[""$pattern""]'")) {
         throw "macOS Codex module must allow trusted workspace tool: $pattern"
     }
@@ -528,7 +699,23 @@ foreach ($pattern in @(
     '["sudo"]',
     '["git", "push"]',
     '["git", "reset", "--hard"]',
+    '["git", "reset"]',
     '["git", "clean"]',
+    '["git", "restore"]',
+    '["git", "checkout", "--"]',
+    '["git", "rebase"]',
+    '["git", "commit", "--amend"]',
+    '["git", "branch", "-D"]',
+    '["git", "branch", "-d"]',
+    '["git", "tag", "-d"]',
+    '["git", "checkout", "-f"]',
+    '["git", "switch", "-C"]',
+    '["git", "switch", "--discard-changes"]',
+    '["git", "rm"]',
+    '["git", "stash", "drop"]',
+    '["git", "stash", "clear"]',
+    '["git", "reflog", "expire"]',
+    '["git", "gc", "--prune"]',
     '["brew", "install"]',
     '["brew", "upgrade"]',
     '["cargo", "install"]',
