@@ -198,7 +198,7 @@
   replace:
     path: "{{ user_home }}/.codex/config.toml"
     regexp: '(?m)^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*'
-    replace: ''
+    replace: ""
 
 - name: Remove misplaced Codex top-level settings from Codex-owned tables
   shell: |
@@ -278,9 +278,6 @@
   loop:
     - git
     - pwsh
-    - git-diff
-    - git-log
-    - git-show
     - git-grep
     - git-blame
     - git-config-get
@@ -295,6 +292,30 @@
     block: "{{ item.rule }}"
     mode: "0644"
   loop:
+    - name: git-diff
+      rule: |
+        prefix_rule(
+            pattern = ["git", "diff"],
+            decision = "allow",
+            justification = "Allow read-only Git diff checks without repeated prompts",
+            match = ["git diff"],
+        )
+    - name: git-show
+      rule: |
+        prefix_rule(
+            pattern = ["git", "show"],
+            decision = "allow",
+            justification = "Allow read-only Git show checks without repeated prompts",
+            match = ["git show"],
+        )
+    - name: git-log
+      rule: |
+        prefix_rule(
+            pattern = ["git", "log"],
+            decision = "allow",
+            justification = "Allow read-only Git log checks without repeated prompts",
+            match = ["git log"],
+        )
     - name: git-status
       rule: |
         prefix_rule(
