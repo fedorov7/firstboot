@@ -53,6 +53,17 @@ if [[ "$codex_module_source" != *"upsert_codex_mcp_setting fetch default_tools_a
   exit 1
 fi
 
+if [[ "$codex_module_source" != *"remove_codex_incompatible_fetch_mcp"* ||
+  "$codex_module_source" != *"codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch"* ]]; then
+  echo "macOS Codex module must constrain and migrate fetch MCP away from MCP 2.x" >&2
+  exit 1
+fi
+if [[ "$codex_module_source" != *'grep -Eq "^[[:space:]]*\[mcp_servers\.${name}\][[:space:]]*(#.*)?$"'* ||
+  "$codex_module_source" != *'/^[[:space:]]*\[mcp_servers\.fetch\][[:space:]]*(#.*)?$/'* ]]; then
+  echo "macOS Codex MCP detection must accept TOML table whitespace and comments" >&2
+  exit 1
+fi
+
 if [[ "$codex_module_source" != *"upsert_codex_mcp_setting playwright default_tools_approval_mode"* ]]; then
   echo "macOS Codex module must keep Playwright MCP approval mode configurable" >&2
   exit 1
@@ -72,6 +83,23 @@ if ! grep -qF "ensure_codex_prefix_rule '[\"stty\"]'" "$repo_root/macos/modules/
   echo "macOS Codex module must allow serial TTY configuration rule" >&2
   exit 1
 fi
+
+
+for pattern in \
+  '["make"]' \
+  '["west", "build"]' \
+  '["west", "flash"]' \
+  '[".venv/bin/west", "build"]' \
+  '[".venv/bin/west", "flash"]' \
+  '["dmesg"]' \
+  '["lsusb"]' \
+  '["usbreset"]'
+do
+  if ! grep -qF "ensure_codex_prefix_rule '$pattern'" "$repo_root/macos/modules/codex.sh"; then
+    echo "macOS Codex module must allow recurring build/hardware workflow: $pattern" >&2
+    exit 1
+  fi
+done
 
 if [[ "$codex_module_source" != *'sandbox_mode = "workspace-write"'* ]]; then
   echo "macOS Codex module must create a sandbox permissions example" >&2

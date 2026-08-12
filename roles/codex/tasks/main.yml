@@ -278,11 +278,68 @@
   loop:
     - git
     - pwsh
+    - git-diff
+    - git-log
+    - git-show
+    - git-commit-amend
     - git-grep
     - git-blame
     - git-config-get
     - git-config-global-get
     - git-config-list
+
+- name: Remove unsafe interactive Codex allow rules
+  shell: |
+    rules_file="{{ user_home }}/.codex/rules/default.rules"
+    [[ -f "$rules_file" ]] || exit 0
+    before_checksum="$(sha256sum "$rules_file" | awk '{ print $1 }')"
+    perl -0pi -e '
+      my @unsafe_patterns = (
+        q{["uv"]},
+        q{["python3"]},
+        q{["timeout"]},
+        q{["curl", "-fL"]},
+        q{["curl", "-sS", "-D", "-"]},
+        q{["/usr/bin/zsh", "-lc"]},
+        q{["git", "-C"]},
+        q{["git", "restore"]},
+        q{["git", "commit"]},
+      );
+      for my $pattern (@unsafe_patterns) {
+        my $escaped = quotemeta($pattern);
+        s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$escaped(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*"allow"(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
+      }
+      my @managed_one_line_patterns = (
+        q{["git", "add"]},
+        q{["make"]},
+        q{[".venv/bin/west", "build"]},
+        q{[".venv/bin/west", "flash"]},
+        q{["dmesg"]},
+        q{["lsusb"]},
+        q{["usbreset"]},
+        q{["openocd"]},
+      );
+      for my $pattern (@managed_one_line_patterns) {
+        my $escaped = quotemeta($pattern);
+        s/^prefix_rule\(pattern\s*=\s*$escaped,\s*decision\s*=\s*"allow"\)\s*\R?//mg;
+      }
+      s{(?:^|\R)(prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*)}{
+        my $rule = $1;
+        $rule =~ /pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])/s &&
+        $rule =~ /decision\s*=\s*"allow"/s ? "\n" : $&;
+      }egms;
+      s/\R{3,}/\n\n/g;
+      s/\A\s+//;
+      s/\s+\z/\n/;
+    ' "$rules_file"
+    after_checksum="$(sha256sum "$rules_file" | awk '{ print $1 }')"
+    if [[ "$before_checksum" != "$after_checksum" ]]; then
+      echo "OK: removed unsafe interactive rules"
+    fi
+  args:
+    executable: /bin/bash
+  register: codex_unsafe_interactive_rules_cleanup
+  changed_when: "'OK:' in codex_unsafe_interactive_rules_cleanup.stdout"
 
 - name: Ensure Codex trusted utility prefix rules
   blockinfile:
@@ -292,30 +349,6 @@
     block: "{{ item.rule }}"
     mode: "0644"
   loop:
-    - name: git-diff
-      rule: |
-        prefix_rule(
-            pattern = ["git", "diff"],
-            decision = "allow",
-            justification = "Allow read-only Git diff checks without repeated prompts",
-            match = ["git diff"],
-        )
-    - name: git-show
-      rule: |
-        prefix_rule(
-            pattern = ["git", "show"],
-            decision = "allow",
-            justification = "Allow read-only Git show checks without repeated prompts",
-            match = ["git show"],
-        )
-    - name: git-log
-      rule: |
-        prefix_rule(
-            pattern = ["git", "log"],
-            decision = "allow",
-            justification = "Allow read-only Git log checks without repeated prompts",
-            match = ["git log"],
-        )
     - name: git-status
       rule: |
         prefix_rule(
@@ -459,6 +492,14 @@
             pattern = ["just"],
             decision = "allow",
             justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
+        )
+    - name: make
+      rule: |
+        prefix_rule(
+            pattern = ["make"],
+            decision = "allow",
+            justification = "Allow Makefile workflows in trusted workspaces without repeated prompts",
+            match = ["make test"],
         )
     - name: uv-run
       rule: |
@@ -605,6 +646,62 @@
             justification = "Allow trusted npm run lint scripts without repeated prompts",
             match = ["npm run lint"],
         )
+    - name: west-build
+      rule: |
+        prefix_rule(
+            pattern = ["west", "build"],
+            decision = "allow",
+            justification = "Allow trusted Zephyr workspace builds without repeated prompts",
+            match = ["west build -b mik32_evb"],
+        )
+    - name: west-flash
+      rule: |
+        prefix_rule(
+            pattern = ["west", "flash"],
+            decision = "allow",
+            justification = "Allow explicitly requested Zephyr hardware flashing without repeated prompts",
+            match = ["west flash -d build"],
+        )
+    - name: venv-west-build
+      rule: |
+        prefix_rule(
+            pattern = [".venv/bin/west", "build"],
+            decision = "allow",
+            justification = "Allow virtualenv Zephyr workspace builds without repeated prompts",
+            match = [".venv/bin/west build -b mik32_evb"],
+        )
+    - name: venv-west-flash
+      rule: |
+        prefix_rule(
+            pattern = [".venv/bin/west", "flash"],
+            decision = "allow",
+            justification = "Allow explicitly requested virtualenv Zephyr flashing without repeated prompts",
+            match = [".venv/bin/west flash -d build"],
+        )
+    - name: dmesg
+      rule: |
+        prefix_rule(
+            pattern = ["dmesg"],
+            decision = "allow",
+            justification = "Allow read-only kernel diagnostics outside sandbox",
+            match = ["dmesg --level=err,warn"],
+        )
+    - name: lsusb
+      rule: |
+        prefix_rule(
+            pattern = ["lsusb"],
+            decision = "allow",
+            justification = "Allow read-only USB device inspection outside sandbox",
+            match = ["lsusb -t"],
+        )
+    - name: usbreset
+      rule: |
+        prefix_rule(
+            pattern = ["usbreset"],
+            decision = "allow",
+            justification = "Allow explicitly requested USB device resets during hardware workflows",
+            match = ["usbreset 1d50:6018"],
+        )
     - name: probe-rs
       rule: |
         prefix_rule(
@@ -728,13 +825,13 @@
             justification = "Prompt before rewriting local history",
             match = ["git rebase main"],
         )
-    - name: git-commit-amend
+    - name: git-commit
       rule: |
         prefix_rule(
-            pattern = ["git", "commit", "--amend"],
+            pattern = ["git", "commit"],
             decision = "prompt",
-            justification = "Prompt before amending commits and rewriting history",
-            match = ["git commit --amend"],
+            justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
+            match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
         )
     - name: git-branch-delete
       rule: |
@@ -1345,6 +1442,25 @@
   set_fact:
     codex_config_clean: "{{ (codex_config_clean_raw.content | default('') | b64decode) if codex_config_clean_raw.content is defined else '' }}"
 
+- name: Set Codex fetch MCP config block
+  set_fact:
+    codex_fetch_mcp_block: "{{ codex_config_clean | regex_search('(?ms)^[ \\t]*\\[mcp_servers\\.fetch\\][ \\t]*(?:#.*)?\\r?\\n.*?(?=^[ \\t]*\\[|\\Z)') | default('', true) }}"
+
+- name: Remove incompatible Codex fetch MCP dependency resolution
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp remove fetch
+  args:
+    executable: /bin/bash
+  register: codex_fetch_mcp_migration
+  when:
+    - "'fetch' in codex_mcp_desired_servers"
+    - uv_available.rc == 0
+    - "'mcp-server-fetch' in codex_fetch_mcp_block"
+    - "'mcp<2' not in codex_fetch_mcp_block"
+
 - name: Configure Codex MCP — context7 (library documentation)
   shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
@@ -1404,12 +1520,12 @@
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
     nvm use {{ node_version }} >/dev/null || exit 1
-    codex mcp add fetch -- uvx mcp-server-fetch
+    codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch
   args:
     executable: /bin/bash
   when:
     - "'fetch' in codex_mcp_desired_servers"
-    - "'[mcp_servers.fetch]' not in codex_config_clean"
+    - "'[mcp_servers.fetch]' not in codex_config_clean or codex_fetch_mcp_migration is changed"
     - uv_available.rc == 0
 
 - name: Configure Codex MCP — sequential-thinking (structured reasoning)
@@ -1529,6 +1645,9 @@
       key: startup_timeout_sec
       value: "30"
     - name: microsoft-learn
+      key: startup_timeout_sec
+      value: "30"
+    - name: fetch
       key: startup_timeout_sec
       value: "30"
     - name: fetch

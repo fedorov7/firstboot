@@ -71,6 +71,19 @@ require_contains "macos/modules/codex.sh" "remove_codex_mismatched_git_gc_prune_
 require_contains "windows/modules/codex.ps1" "Remove-CodexMismatchedGitGcPruneRule" \
   "Windows Codex recipe must migrate the old git gc --prune prompt rule."
 
+require_contains "roles/codex/tasks/main.yml" "Remove incompatible Codex fetch MCP dependency resolution" \
+  "Linux Codex recipe must migrate fetch away from incompatible MCP 2.x resolution."
+require_contains "roles/codex/tasks/main.yml" "codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch" \
+  "Linux Codex fetch MCP must constrain the incompatible MCP SDK major version."
+require_contains "macos/modules/codex.sh" "remove_codex_incompatible_fetch_mcp" \
+  "macOS Codex recipe must migrate fetch away from incompatible MCP 2.x resolution."
+require_contains "macos/modules/codex.sh" "codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch" \
+  "macOS Codex fetch MCP must constrain the incompatible MCP SDK major version."
+require_contains "windows/modules/codex.ps1" "Remove-CodexIncompatibleFetchMcp" \
+  "Windows Codex recipe must migrate fetch away from incompatible MCP 2.x resolution."
+require_contains "windows/modules/codex.ps1" "codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch" \
+  "Windows Codex fetch MCP must constrain the incompatible MCP SDK major version."
+
 require_not_contains "roles/codex/tasks/main.yml" 'pattern = ["git"],' \
   "Codex must not allow every git command outside the sandbox."
 require_not_contains "macos/modules/codex.sh" "ensure_codex_prefix_rule '[\"git\"]'" \
@@ -93,6 +106,15 @@ do
   require_contains "roles/codex/tasks/main.yml" "$pattern" \
     "Codex git allowlist must keep safe daily git workflows convenient."
 done
+require_contains "roles/codex/tasks/main.yml" \
+  'justification = "Prompt for commits because Git permits history-rewriting flags in any argument position"' \
+  "Codex must prompt for the complete git commit command because --amend can follow other options."
+require_not_contains "macos/modules/codex.sh" \
+  "ensure_codex_git_allow_rule '[\"git\", \"commit\"]'" \
+  "macOS Codex must not broadly allow git commit with a reorderable --amend flag."
+require_not_contains "windows/modules/codex.ps1" \
+  "Add-CodexGitAllowRule '[\"git\", \"commit\"]'" \
+  "Windows Codex must not broadly allow git commit with a reorderable --amend flag."
 for pattern in \
   'pattern = ["git", "diff"]' \
   'pattern = ["git", "log"]' \
@@ -102,13 +124,26 @@ for pattern in \
   'pattern = ["git", "config", "--get"]' \
   'pattern = ["git", "config", "--global", "--get"]' \
   'pattern = ["git", "config", "--list"]' \
-  'pattern = ["git", "commit"]' \
   'pattern = ["git", "fetch"]' \
   'pattern = ["git", "switch", "-c"]' \
   'pattern = ["git", "checkout", "-b"]'
 do
   require_not_contains "roles/codex/tasks/main.yml" "$pattern" \
     "Codex must not broadly allow git mutations that prefix rules cannot constrain."
+done
+
+for pattern in \
+  'pattern = ["make"]' \
+  'pattern = ["west", "build"]' \
+  'pattern = ["west", "flash"]' \
+  'pattern = [".venv/bin/west", "build"]' \
+  'pattern = [".venv/bin/west", "flash"]' \
+  'pattern = ["dmesg"]' \
+  'pattern = ["lsusb"]' \
+  'pattern = ["usbreset"]'
+do
+  require_contains "roles/codex/tasks/main.yml" "$pattern" \
+    "Linux Codex recipe must manage recurring build and hardware workflows."
 done
 for file in \
   "roles/codex/tasks/main.yml" \
@@ -165,9 +200,11 @@ legacy_agents_output="$(mktemp)"
 misplaced_tui_sample="$(mktemp)"
 misplaced_tui_output="$(mktemp)"
 mismatched_rule_sample="$(mktemp)"
+git_commit_rule_sample="$(mktemp)"
+credential_rule_sample="$(mktemp)"
 execpolicy_output="$(mktemp)"
 execpolicy_error="$(mktemp)"
-trap 'rm -f "$legacy_agents_sample" "$legacy_agents_output" "$misplaced_tui_sample" "$misplaced_tui_output" "$mismatched_rule_sample" "$execpolicy_output" "$execpolicy_error"' EXIT
+trap 'rm -f "$legacy_agents_sample" "$legacy_agents_output" "$misplaced_tui_sample" "$misplaced_tui_output" "$mismatched_rule_sample" "$git_commit_rule_sample" "$credential_rule_sample" "$execpolicy_output" "$execpolicy_error"' EXIT
 cat >"$legacy_agents_sample" <<'EOF'
 model = "gpt-5.6-sol"
 
@@ -286,6 +323,64 @@ if command -v codex >/dev/null 2>&1; then
     printf 'FAIL: codex execpolicy did not prompt for git gc --prune=now\n' >&2
     exit 1
   fi
+
+  cat >"$git_commit_rule_sample" <<'EOF'
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "prompt",
+    justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
+    match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
+)
+EOF
+  for args in '-m update' '--amend' '-m update --amend' '--no-edit --amend'; do
+    # shellcheck disable=SC2086
+    if ! codex execpolicy check --rules "$git_commit_rule_sample" --pretty git commit $args >"$execpolicy_output" 2>"$execpolicy_error"; then
+      printf 'FAIL: codex execpolicy failed for git commit %s\n' "$args" >&2
+      cat "$execpolicy_error" >&2
+      exit 1
+    fi
+    if ! grep -Fq '"decision": "prompt"' "$execpolicy_output"; then
+      printf 'FAIL: codex execpolicy did not prompt for git commit %s\n' "$args" >&2
+      exit 1
+    fi
+  done
+fi
+
+cat >"$credential_rule_sample" <<'EOF'
+prefix_rule(
+    decision = "allow",
+    pattern = ["sshpass", "-p", "secret", "ssh"],
+)
+
+prefix_rule(
+    pattern = ["rg"],
+    justification = "Search documentation that may mention sshpass",
+    decision = "allow",
+)
+
+prefix_rule(
+    pattern = ["fd"],
+    decision = "allow",
+)
+EOF
+perl -0pi -e '
+  s{(?:^|\R)(prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*)}{
+    my $rule = $1;
+    $rule =~ /pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])/s &&
+    $rule =~ /decision\s*=\s*"allow"/s ? "\n" : $&;
+  }egms;
+  s/\R{3,}/\n\n/g;
+  s/\A\s+//;
+  s/\s+\z/\n/;
+' "$credential_rule_sample"
+if grep -Fq 'pattern = ["sshpass"' "$credential_rule_sample"; then
+  printf 'FAIL: credential-bearing sshpass rule cleanup kept an unsafe rule\n' >&2
+  exit 1
+fi
+if ! grep -Fq 'pattern = ["rg"]' "$credential_rule_sample" ||
+  ! grep -Fq 'pattern = ["fd"]' "$credential_rule_sample"; then
+  printf 'FAIL: credential-bearing rule cleanup removed unrelated custom rules\n' >&2
+  exit 1
 fi
 
 printf 'policy hardening tests passed\n'

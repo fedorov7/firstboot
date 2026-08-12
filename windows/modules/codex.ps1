@@ -69,6 +69,32 @@ function Remove-CodexMcpIfConfigured {
     Write-Ok "Removed disabled optional MCP: $Name"
 }
 
+function Remove-CodexIncompatibleFetchMcp {
+    if (-not (Test-CodexMcpConfigured 'fetch')) {
+        return
+    }
+
+    $lines = @(Get-Content -LiteralPath $script:ConfigToml)
+    $fetchBlock = New-Object System.Collections.Generic.List[string]
+    $inSection = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[mcp_servers\.fetch\]\s*(?:#.*)?$') {
+            $inSection = $true
+        } elseif ($inSection -and $line -match '^\s*\[') {
+            break
+        }
+        if ($inSection) {
+            $fetchBlock.Add($line)
+        }
+    }
+
+    $fetchText = $fetchBlock -join "`n"
+    if ($fetchText.Contains('mcp-server-fetch') -and -not $fetchText.Contains('mcp<2')) {
+        Remove-CodexMcp 'fetch'
+        Write-Ok 'Removed incompatible fetch MCP dependency resolution'
+    }
+}
+
 function Test-CodexConfigContent {
     param([Parameter(Mandatory)][string]$Content)
 
@@ -431,7 +457,13 @@ prefix_rule(
 }
 
 function Remove-CodexUnsafeShellWrapperRules {
-    foreach ($pattern in @('["pwsh"]', '["wsl", "bash", "-lc"]', '["wsl", "-e", "bash"]')) {
+    foreach ($pattern in @(
+        '["pwsh"]',
+        '["powershell", "-Command"]',
+        '["cmd", "/c"]',
+        '["wsl", "bash", "-lc"]',
+        '["wsl", "-e", "bash"]'
+    )) {
         Remove-CodexPrefixAllowRulesByPattern $pattern
     }
 }
@@ -440,6 +472,14 @@ function Remove-CodexUnsafeSystemMutatorRules {
     foreach ($pattern in @(
         '["winget"]',
         '["git"]',
+        '["uv"]',
+        '["python"]',
+        '["python3"]',
+        '["py"]',
+        '["timeout"]',
+        '["curl", "-fL"]',
+        '["git", "-C"]',
+        '["git", "commit"]',
         '["git", "diff"]',
         '["git", "log"]',
         '["git", "show"]',
@@ -499,6 +539,36 @@ function Remove-CodexUnsafeSystemMutatorRules {
     )) {
         Remove-CodexPrefixAllowRulesByPattern -Pattern $pattern -Quiet
     }
+}
+
+function Remove-CodexCredentialBearingRules {
+    if (-not (Test-Path $script:CodexDefaultRules)) {
+        return
+    }
+
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ([string]::IsNullOrWhiteSpace($source)) {
+        return
+    }
+
+    $ruleRegex = [regex]::new('(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*')
+    $updated = $ruleRegex.Replace($source, {
+        param($match)
+        $rule = $match.Value
+        if ($rule -match '(?ms)pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])' -and
+            $rule -match '(?ms)decision\s*=\s*"allow"') {
+            return [Environment]::NewLine
+        }
+        return $rule
+    })
+    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
+    if ($updated -eq $source) {
+        Write-Skip 'Credential-bearing Codex rules absent'
+        return
+    }
+
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
+    Write-Ok 'Removed credential-bearing Codex rules'
 }
 
 function Remove-CodexMismatchedGitGcPruneRule {
@@ -1140,6 +1210,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Remove-CodexUnsafeShellWrapperRules
 Remove-CodexUnsafeSystemMutatorRules
+Remove-CodexCredentialBearingRules
 Remove-CodexMismatchedGitGcPruneRule
 
 Add-CodexGitAllowRule '["git", "status"]' `
@@ -1231,12 +1302,12 @@ prefix_rule(
     match = ["git reset --hard HEAD"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["git", "commit", "--amend"]' @'
+Add-CodexPrefixRuleIfMissing '["git", "commit"]' @'
 prefix_rule(
-    pattern = ["git", "commit", "--amend"],
+    pattern = ["git", "commit"],
     decision = "prompt",
-    justification = "Prompt before amending commits and rewriting history",
-    match = ["git commit --amend"],
+    justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
+    match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["git", "branch", "-D"]' @'
@@ -1391,6 +1462,14 @@ prefix_rule(
     justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
 )
 '@
+Add-CodexPrefixRuleIfMissing '["make"]' @'
+prefix_rule(
+    pattern = ["make"],
+    decision = "allow",
+    justification = "Allow Makefile workflows in trusted workspaces without repeated prompts",
+    match = ["make test"],
+)
+'@
 Add-CodexPrefixRuleIfMissing '["uv", "run"]' @'
 prefix_rule(
     pattern = ["uv", "run"],
@@ -1534,6 +1613,22 @@ prefix_rule(
     decision = "allow",
     justification = "Allow trusted npm run lint scripts without repeated prompts",
     match = ["npm run lint"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["west", "build"]' @'
+prefix_rule(
+    pattern = ["west", "build"],
+    decision = "allow",
+    justification = "Allow trusted Zephyr workspace builds without repeated prompts",
+    match = ["west build -b mik32_evb"],
+)
+'@
+Add-CodexPrefixRuleIfMissing '["west", "flash"]' @'
+prefix_rule(
+    pattern = ["west", "flash"],
+    decision = "allow",
+    justification = "Allow explicitly requested Zephyr hardware flashing without repeated prompts",
+    match = ["west flash -d build"],
 )
 '@
 Set-CodexPrefixRule '["Set-Item", "Env:\\VCPKG_ROOT"]' @'
@@ -2040,7 +2135,8 @@ if ('memory' -in $desiredMcpServers) {
 
 if ('fetch' -in $desiredMcpServers) {
     if (Test-CommandExists uvx) {
-        Add-CodexMcpIfMissing 'fetch' { codex mcp add fetch -- uvx mcp-server-fetch }
+        Remove-CodexIncompatibleFetchMcp
+        Add-CodexMcpIfMissing 'fetch' { codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch }
     } else {
         Write-Warn "uvx not available. Run python module first to enable fetch MCP."
     }
@@ -2075,6 +2171,7 @@ if ('playwright' -in $desiredMcpServers) {
 Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'microsoft-learn' 'startup_timeout_sec' '30'
+Set-CodexMcpSetting 'fetch' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`""
 Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode' "`"$CodexMicrosoftLearnMcpApprovalMode`""
 Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`""

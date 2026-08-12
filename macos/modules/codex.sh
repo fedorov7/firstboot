@@ -48,7 +48,8 @@ chmod 600 "$config_toml"
 
 test_codex_mcp_configured() {
   local name="$1"
-  [[ -f "$config_toml" ]] && grep -q "^\[mcp_servers\.${name}\]" "$config_toml"
+  [[ -f "$config_toml" ]] &&
+    grep -Eq "^[[:space:]]*\[mcp_servers\.${name}\][[:space:]]*(#.*)?$" "$config_toml"
 }
 
 add_codex_mcp_if_missing() {
@@ -68,6 +69,23 @@ remove_codex_mcp_if_present() {
   if test_codex_mcp_configured "$name"; then
     codex mcp remove "$name"
     write_ok "Removed MCP: $name"
+  fi
+}
+
+remove_codex_incompatible_fetch_mcp() {
+  if ! test_codex_mcp_configured fetch; then
+    return
+  fi
+
+  local fetch_block
+  fetch_block="$(awk '
+    /^[[:space:]]*\[mcp_servers\.fetch\][[:space:]]*(#.*)?$/ { in_section = 1; print; next }
+    in_section && /^[[:space:]]*\[/ { exit }
+    in_section { print }
+  ' "$config_toml")"
+  if [[ "$fetch_block" == *"mcp-server-fetch"* && "$fetch_block" != *"mcp<2"* ]]; then
+    remove_codex_mcp_if_present fetch
+    write_ok "Removed incompatible fetch MCP dependency resolution"
   fi
 }
 
@@ -231,6 +249,7 @@ remove_codex_unsafe_shell_wrapper_rules() {
   remove_codex_prefix_allow_rule '["pwsh"]'
   remove_codex_prefix_allow_rule '["wsl", "bash", "-lc"]'
   remove_codex_prefix_allow_rule '["wsl", "-e", "bash"]'
+  remove_codex_prefix_allow_rule '["/usr/bin/zsh", "-lc"]'
 }
 
 remove_codex_unsafe_system_mutator_rules() {
@@ -238,6 +257,13 @@ remove_codex_unsafe_system_mutator_rules() {
   for pattern in \
     '["git"]' \
     '["sudo"]' \
+    '["uv"]' \
+    '["python3"]' \
+    '["timeout"]' \
+    '["curl", "-fL"]' \
+    '["curl", "-sS", "-D", "-"]' \
+    '["git", "-C"]' \
+    '["git", "commit"]' \
     '["git", "diff"]' \
     '["git", "log"]' \
     '["git", "show"]' \
@@ -285,6 +311,31 @@ remove_codex_unsafe_system_mutator_rules() {
   do
     remove_codex_prefix_allow_rule "$pattern" 1
   done
+}
+
+remove_codex_credential_bearing_rules() {
+  if [[ ! -f "$codex_default_rules" ]]; then
+    return
+  fi
+
+  local before
+  before="$(cat "$codex_default_rules")"
+  perl -0pi -e '
+    s{(?:^|\R)(prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*)}{
+      my $rule = $1;
+      $rule =~ /pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])/s &&
+      $rule =~ /decision\s*=\s*"allow"/s ? "\n" : $&;
+    }egms;
+    s/\R{3,}/\n\n/g;
+    s/\A\s+//;
+    s/\s+\z/\n/;
+  ' "$codex_default_rules"
+
+  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
+    write_skip "Credential-bearing Codex rules absent"
+  else
+    write_ok "Removed credential-bearing Codex rules"
+  fi
 }
 
 remove_codex_mismatched_git_gc_prune_rule() {
@@ -741,6 +792,7 @@ fi
 
 remove_codex_unsafe_shell_wrapper_rules
 remove_codex_unsafe_system_mutator_rules
+remove_codex_credential_bearing_rules
 remove_codex_mismatched_git_gc_prune_rule
 
 ensure_codex_git_allow_rule '["git", "status"]' \
@@ -815,6 +867,12 @@ ensure_codex_prefix_rule '["just"]' 'prefix_rule(
     pattern = ["just"],
     decision = "allow",
     justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
+)'
+ensure_codex_prefix_rule '["make"]' 'prefix_rule(
+    pattern = ["make"],
+    decision = "allow",
+    justification = "Allow Makefile workflows in trusted workspaces without repeated prompts",
+    match = ["make test"],
 )'
 ensure_codex_prefix_rule '["uv", "run"]' 'prefix_rule(
     pattern = ["uv", "run"],
@@ -925,6 +983,48 @@ ensure_codex_prefix_rule '["npm", "run", "lint"]' 'prefix_rule(
     justification = "Allow trusted npm run lint scripts without repeated prompts",
     match = ["npm run lint"],
 )'
+ensure_codex_prefix_rule '["west", "build"]' 'prefix_rule(
+    pattern = ["west", "build"],
+    decision = "allow",
+    justification = "Allow trusted Zephyr workspace builds without repeated prompts",
+    match = ["west build -b mik32_evb"],
+)'
+ensure_codex_prefix_rule '["west", "flash"]' 'prefix_rule(
+    pattern = ["west", "flash"],
+    decision = "allow",
+    justification = "Allow explicitly requested Zephyr hardware flashing without repeated prompts",
+    match = ["west flash -d build"],
+)'
+ensure_codex_prefix_rule '[".venv/bin/west", "build"]' 'prefix_rule(
+    pattern = [".venv/bin/west", "build"],
+    decision = "allow",
+    justification = "Allow virtualenv Zephyr workspace builds without repeated prompts",
+    match = [".venv/bin/west build -b mik32_evb"],
+)'
+ensure_codex_prefix_rule '[".venv/bin/west", "flash"]' 'prefix_rule(
+    pattern = [".venv/bin/west", "flash"],
+    decision = "allow",
+    justification = "Allow explicitly requested virtualenv Zephyr flashing without repeated prompts",
+    match = [".venv/bin/west flash -d build"],
+)'
+ensure_codex_prefix_rule '["dmesg"]' 'prefix_rule(
+    pattern = ["dmesg"],
+    decision = "allow",
+    justification = "Allow read-only kernel diagnostics outside sandbox",
+    match = ["dmesg --level=err,warn"],
+)'
+ensure_codex_prefix_rule '["lsusb"]' 'prefix_rule(
+    pattern = ["lsusb"],
+    decision = "allow",
+    justification = "Allow read-only USB device inspection outside sandbox",
+    match = ["lsusb -t"],
+)'
+ensure_codex_prefix_rule '["usbreset"]' 'prefix_rule(
+    pattern = ["usbreset"],
+    decision = "allow",
+    justification = "Allow explicitly requested USB device resets during hardware workflows",
+    match = ["usbreset 1d50:6018"],
+)'
 
 ensure_codex_prefix_rule '["git", "push"]' 'prefix_rule(
     pattern = ["git", "push"],
@@ -968,11 +1068,11 @@ ensure_codex_prefix_rule '["git", "rebase"]' 'prefix_rule(
     justification = "Prompt before rewriting local history",
     match = ["git rebase main"],
 )'
-ensure_codex_prefix_rule '["git", "commit", "--amend"]' 'prefix_rule(
-    pattern = ["git", "commit", "--amend"],
+ensure_codex_prefix_rule '["git", "commit"]' 'prefix_rule(
+    pattern = ["git", "commit"],
     decision = "prompt",
-    justification = "Prompt before amending commits and rewriting history",
-    match = ["git commit --amend"],
+    justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
+    match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
 )'
 ensure_codex_prefix_rule '["git", "branch", "-D"]' 'prefix_rule(
     pattern = ["git", "branch", "-D"],
@@ -1289,7 +1389,8 @@ if array_contains memory "${desired_mcp_servers[@]}"; then
 fi
 if array_contains fetch "${desired_mcp_servers[@]}"; then
   if command_exists uvx; then
-    add_codex_mcp_if_missing fetch codex mcp add fetch -- uvx mcp-server-fetch
+    remove_codex_incompatible_fetch_mcp
+    add_codex_mcp_if_missing fetch codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch
   else
     write_warn "uvx not available. Run python module first to enable fetch MCP."
   fi
@@ -1314,6 +1415,7 @@ fi
 upsert_codex_mcp_setting context7 startup_timeout_sec 30
 upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30
 upsert_codex_mcp_setting microsoft-learn startup_timeout_sec 30
+upsert_codex_mcp_setting fetch startup_timeout_sec 30
 upsert_codex_mcp_setting fetch default_tools_approval_mode "\"$CODEX_FETCH_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting microsoft-learn default_tools_approval_mode "\"$CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting github default_tools_approval_mode "\"$CODEX_GITHUB_MCP_APPROVAL_MODE\""

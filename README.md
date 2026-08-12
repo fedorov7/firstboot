@@ -126,14 +126,14 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_service_tier` | `default` | Preserve the account default service tier unless overridden |
 | `codex_apps_default_tools_approval_mode` | `writes` | Allow read-only app tools while prompting for write-capable tools |
 | `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
-| Codex trusted tool rules | safe Git listing/revision queries + `git add`, rg/fd/bat/eza/delta/difft/difftastic/just/uv run + CMake/CTest/Ninja/Meson/Cargo/Pytest/npm build-test runners | Allow common local workspace inspection, staging, compilation, and test commands without repeated prompts |
+| Codex trusted tool rules | safe Git listing/revision queries + `git add`, rg/fd/bat/eza/delta/difft/difftastic/just/uv run/make + CMake/CTest/Ninja/Meson/Cargo/Pytest/npm/west workflows + hardware diagnostics | Allow common local workspace inspection, staging, compilation, tests, Zephyr flashing, and device diagnostics without repeated prompts |
 | Codex privileged prompt rules | git push/reset/clean/restore/rebase/amend/branch-tag delete/reflog-gc prune, sudo/winget/brew/cargo install/uv tool/npm global/pip install/system settings | Keep destructive, remote, history-rewriting, and system-changing commands available through explicit approval instead of broad shell trust |
 | Windows Codex PowerShell read rules | Get-Content/Select-String/Get-ChildItem/Test-Path/etc. | Allow read-only workspace inspection and output formatting cmdlets without repeated prompts |
 | Windows Codex build env rules | Set-Item Env:\VCPKG_ROOT/PROTOC | Allow process-local build environment overrides before trusted build/test commands; prefer this over inline `$env:...; cmake ...` shell wrappers |
 | `codex_apps_enabled` | `false` | Enables Codex built-in ChatGPT Apps MCP; disabled by default to avoid startup warnings on restricted networks |
 | `codex_github_mcp_enabled` | `false` | Enables the official remote GitHub MCP server using `codex_github_token_env_var`, without storing a PAT in config |
 | `codex_github_token_env_var` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
-| `codex_fetch_mcp_approval_mode` | `prompt` | Keep broad web fetch MCP interactive by default |
+| `codex_fetch_mcp_approval_mode` | `prompt` | Keep broad web fetch MCP interactive; provisioning constrains its Python MCP SDK to `<2` until `mcp-server-fetch` supports the 2.x API |
 | `codex_microsoft_learn_mcp_approval_mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
 | `codex_github_mcp_approval_mode` | `writes` | Let GitHub MCP reads run while prompting for write-capable tools |
 | `codex_serena_mcp_approval_mode` | `writes` | Let Serena read/navigation tools run while prompting for write-capable tools |

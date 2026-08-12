@@ -54,6 +54,9 @@ foreach ($pattern in @(
         throw "Windows Codex module must allow safe git workflow: $pattern"
     }
 }
+if (-not $source.Contains('Prompt for commits because Git permits history-rewriting flags in any argument position')) {
+    throw 'Windows Codex module must prompt for all git commit forms because --amend can be reordered'
+}
 
 foreach ($pattern in @(
     '["git", "diff"]',
@@ -73,6 +76,22 @@ foreach ($pattern in @(
 foreach ($pattern in @('rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
     if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
         throw "Windows Codex module must allow trusted workspace tool: $pattern"
+    }
+}
+
+foreach ($pattern in @('make')) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
+        throw "Windows Codex module must allow recurring build/hardware command: $pattern"
+    }
+}
+foreach ($pattern in @('dmesg', 'lsusb', 'usbreset')) {
+    if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
+        throw "Windows Codex module must not trust Linux-only hardware command: $pattern"
+    }
+}
+foreach ($pattern in @('["west", "build"]', '["west", "flash"]')) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
+        throw "Windows Codex module must allow recurring west workflow: $pattern"
     }
 }
 if (-not $source.Contains('Add-CodexPrefixRuleIfMissing ''["uv", "run"]''')) {

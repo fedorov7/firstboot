@@ -20,6 +20,11 @@ if ($source -notmatch "Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode'
     throw 'fetch MCP approval mode must be configurable and default to prompt'
 }
 
+if ($source -notmatch 'Remove-CodexIncompatibleFetchMcp' -or
+    -not $source.Contains("codex mcp add fetch -- uvx --with 'mcp<2' mcp-server-fetch")) {
+    throw 'fetch MCP must constrain and migrate away from incompatible MCP 2.x resolution'
+}
+
 if ($source -notmatch "Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode'.*CodexMicrosoftLearnMcpApprovalMode") {
     throw 'Microsoft Learn MCP approval mode must be configurable and default to writes'
 }
