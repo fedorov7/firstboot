@@ -43,7 +43,7 @@ foreach ($expected in @(
 foreach ($expected in @(
     '[bool]$CodexAgentTeamworkSkillEnabled = $true',
     '[bool]$CodexGlobalAgentsGuidanceEnabled = $true',
-    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher"'
+    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator"'
 )) {
     if (-not $windowsBootstrapSource.Contains($expected)) {
         throw "Windows bootstrap must expose agent teamwork default: $expected"
@@ -77,8 +77,7 @@ foreach ($expected in @(
     'codex_global_agents_guidance_enabled: true',
     '- tester-terra',
     '- architect-deep',
-    '- knowledge-curator',
-    '- improvement-researcher'
+    '- knowledge-curator'
 )) {
     if (-not $linuxDefaultsSource.Contains($expected)) {
         throw "Linux defaults must expose agent teamwork default: $expected"
@@ -107,7 +106,7 @@ foreach ($expected in @(
 foreach ($expected in @(
     'CODEX_AGENT_TEAMWORK_SKILL_ENABLED="${CODEX_AGENT_TEAMWORK_SKILL_ENABLED:-1}"',
     'CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED="${CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED:-1}"',
-    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher}"'
+    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {
         throw "macOS bootstrap must expose agent teamwork default: $expected"
@@ -141,7 +140,8 @@ foreach ($expected in @(
     'knowledge-curator',
     'improvement-researcher',
     'knowledge capture',
-    'improvement research',
+    'improvement-researcher` is a read-only opt-in role',
+    'add researcher explicitly only when needed',
     'global AGENTS.md',
     'scope and completion',
     'acceptance criteria'

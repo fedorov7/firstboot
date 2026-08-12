@@ -44,10 +44,16 @@ require_contains windows/modules/codex.ps1 'model = "gpt-5.6-terra"' \
 require_contains group_vars/all.yml 'codex_mcp_default_disabled_servers:' \
   'Linux must expose the default-disabled MCP allowlist.'
 
-for server in memory fetch sequential-thinking; do
+for server in context7 memory fetch sequential-thinking; do
   require_contains roles/codex/tasks/main.yml "name: $server" \
     "Linux must manage the $server MCP state."
 done
+require_contains group_vars/all.yml '  - context7' \
+  'Linux must keep Context7 disabled by default.'
+require_contains macos/bootstrap.sh 'CODEX_MCP_DEFAULT_DISABLED_SERVERS="${CODEX_MCP_DEFAULT_DISABLED_SERVERS:-context7,memory,fetch,sequential-thinking}"' \
+  'macOS must keep Context7 disabled by default.'
+require_contains windows/bootstrap.ps1 '[string]$CodexMcpDefaultDisabledServers = "context7,memory,fetch,sequential-thinking"' \
+  'Windows must keep Context7 disabled by default.'
 require_contains roles/codex/tasks/main.yml '[mcp_servers.{{ mcp_server }}]' \
   'Linux deep profile must enable optional MCP servers.'
 require_contains roles/codex/tasks/main.yml 'intersect(codex_mcp_allowlist | default([]))' \

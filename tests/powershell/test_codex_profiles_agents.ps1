@@ -16,7 +16,7 @@ foreach ($expected in @(
     '[string]$CodexDeepProfileReasoningEffort = "high"',
     '[string]$CodexDeepProfileVerbosity = "medium"',
     '[bool]$CodexCustomAgentsEnabled = $true',
-    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher"',
+    '[string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator"',
     '[bool]$CodexPruneDisabledOptionalMcp = $true'
 )) {
     if (-not $windowsBootstrapSource.Contains($expected)) {
@@ -65,7 +65,6 @@ foreach ($expected in @(
     '- tester-terra',
     '- architect-deep',
     '- knowledge-curator',
-    '- improvement-researcher',
     'codex_prune_disabled_optional_mcp: true'
 )) {
     if (-not $linuxRoleSource.Contains($expected) -and -not (Get-Content -LiteralPath (Join-Path $repoRoot 'group_vars\all.yml') -Raw).Contains($expected)) {
@@ -104,7 +103,7 @@ foreach ($expected in @(
     'CODEX_DEEP_PROFILE_REASONING_EFFORT="${CODEX_DEEP_PROFILE_REASONING_EFFORT:-high}"',
     'CODEX_DEEP_PROFILE_VERBOSITY="${CODEX_DEEP_PROFILE_VERBOSITY:-medium}"',
     'CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"',
-    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher}"',
+    'CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator}"',
     'CODEX_PRUNE_DISABLED_OPTIONAL_MCP="${CODEX_PRUNE_DISABLED_OPTIONAL_MCP:-1}"'
 )) {
     if (-not $macosBootstrapSource.Contains($expected)) {

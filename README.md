@@ -120,7 +120,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `embedded_access_groups` | `uucp`, `lock` | Groups added to the user for serial device access |
 | `embedded_probe_access_group` | `plugdev` | Group granted debug-probe USB access by udev rules |
 | `codex_mcp_allowlist` | context/OpenAI/Microsoft docs/memory defaults | MCP servers managed by the Codex role |
-| `codex_mcp_default_disabled_servers` | memory/fetch/sequential-thinking | Keep optional MCP configured but disabled unless `--profile deep` is used |
+| `codex_mcp_default_disabled_servers` | context7/memory/fetch/sequential-thinking | Keep optional MCP configured but disabled unless `--profile deep` is used |
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
@@ -153,8 +153,8 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_deep_profile_model` | `gpt-5.6-sol` | Frontier model reserved for explicit deep work and deep agents |
 | `codex_deep_profile_reasoning_effort` | `high` | High reasoning reserved for explicit deep work and deep agents |
 | `codex_deep_profile_verbosity` | `medium` | More detail for explicit deep work |
-| `codex_custom_agents_enabled` | `true` | Create curated custom agents for exploration, verification, review, architecture, docs lookup, improvement research, and knowledge capture |
-| `codex_custom_agents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~/.codex/agents` |
+| `codex_custom_agents_enabled` | `true` | Create curated custom agents for exploration, verification, review, architecture, docs lookup, and knowledge capture |
+| `codex_custom_agents` | explorer/reviewer/docs/tester/architect/curator defaults | Custom agent allowlist written to `~/.codex/agents`; add researcher explicitly only when needed |
 | `codex_agent_teamwork_skill_enabled` | `true` | Install the repo-managed `codex-agent-teamwork` skill into `~/.codex/skills` |
 | `codex_global_agents_guidance_enabled` | `true` | Write a managed global AGENTS.md block that invokes the teamwork skill for non-trivial work |
 | `codex_serena_enabled` | `false` | Enables Serena MCP via `uvx` for semantic code navigation/refactoring |
@@ -474,7 +474,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-WindowsSudoMode` | `forceNewWindow` | Sudo mode: `forceNewWindow`, `disableInput`, or `normal` |
 | `-GithubToken` | (empty) | Legacy compatibility input; GitHub MCP tokens are not written to config, use `GITHUB_PERSONAL_ACCESS_TOKEN` at runtime |
 | `-CodexMcpAllowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
-| `-CodexMcpDefaultDisabledServers` | memory/fetch/sequential-thinking | Keep optional MCP configured but enable it only in the deep profile |
+| `-CodexMcpDefaultDisabledServers` | context7/memory/fetch/sequential-thinking | Keep optional MCP configured but enable it only in the deep profile |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
@@ -505,7 +505,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexDeepProfileReasoningEffort` | `high` | High reasoning reserved for explicit deep work |
 | `-CodexDeepProfileVerbosity` | `medium` | More detail for explicit deep work |
 | `-CodexCustomAgentsEnabled` | `$true` | Create curated Codex custom agents |
-| `-CodexCustomAgents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~\.codex\agents` |
+| `-CodexCustomAgents` | explorer/reviewer/docs/tester/architect/curator defaults | Custom agent allowlist written to `~\.codex\agents`; add researcher explicitly only when needed |
 | `-CodexAgentTeamworkSkillEnabled` | `$true` | Install the repo-managed `codex-agent-teamwork` skill |
 | `-CodexGlobalAgentsGuidanceEnabled` | `$true` | Write the managed global AGENTS.md teamwork hint |
 | `-CodexUpdateEnabled` | off | Update the global Codex CLI package during the Codex module run |

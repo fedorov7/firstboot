@@ -1171,7 +1171,7 @@
       open_world_enabled = false
       approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
 
-      {% for mcp_server in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking'])) | intersect(codex_mcp_allowlist | default([])) %}
+      {% for mcp_server in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking'])) | intersect(codex_mcp_allowlist | default([])) %}
       {% if mcp_server != 'fetch' or uv_available.rc == 0 %}
       [mcp_servers.{{ mcp_server }}]
       enabled = true
@@ -1677,6 +1677,9 @@
     - name: context7
       key: startup_timeout_sec
       value: "30"
+    - name: context7
+      key: enabled
+      value: "{{ ('context7' not in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: openaiDeveloperDocs
       key: startup_timeout_sec
       value: "30"
@@ -1685,19 +1688,19 @@
       value: "30"
     - name: memory
       key: enabled
-      value: "{{ ('memory' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
+      value: "{{ ('memory' not in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: fetch
       key: startup_timeout_sec
       value: "30"
     - name: fetch
       key: enabled
-      value: "{{ ('fetch' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
+      value: "{{ ('fetch' not in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: fetch
       key: default_tools_approval_mode
       value: '"{{ codex_fetch_mcp_approval_mode | default(''prompt'') }}"'
     - name: sequential-thinking
       key: enabled
-      value: "{{ ('sequential-thinking' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
+      value: "{{ ('sequential-thinking' not in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: microsoft-learn
       key: default_tools_approval_mode
       value: '"{{ codex_microsoft_learn_mcp_approval_mode | default(''writes'') }}"'

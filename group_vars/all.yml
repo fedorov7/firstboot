@@ -44,6 +44,7 @@ codex_mcp_allowlist:
   - fetch
   - sequential-thinking
 codex_mcp_default_disabled_servers:
+  - context7
   - memory
   - fetch
   - sequential-thinking
@@ -81,7 +82,6 @@ codex_custom_agents:
   - tester-terra
   - architect-deep
   - knowledge-curator
-  - improvement-researcher
 codex_agent_teamwork_skill_enabled: true
 codex_global_agents_guidance_enabled: true
 codex_update_enabled: false
