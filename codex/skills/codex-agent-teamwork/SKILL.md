@@ -74,9 +74,22 @@ Draft Guidance: 3-6 lines of reusable instruction
 
 The curator is advisory. The main thread decides whether to write or update a skill, and must verify the proposed guidance before saving it.
 
+## Task Contract
+
+For non-trivial development, debugging, multi-platform, or deployment work, state a compact task contract before acting:
+
+- Deliverable and acceptance checks.
+- In-scope files or platforms, plus explicitly excluded adjacent work.
+- The smallest diagnostic path needed to establish a cause or blocker.
+- Stop when the acceptance checks pass; report unrelated findings separately and do not fix them.
+
+Do not require a task contract for direct questions, simple one-file edits, or mechanical fixes.
+
 ## Prompt Contract
 
 Give each subagent a self-contained prompt with scope, files or commands to inspect, constraints, and required output. Tell agents to return concise evidence, not raw logs.
+
+For read-only investigation, include: `Do not broaden into adjacent features. Return evidence, affected files, the smallest viable next step, and separate out-of-scope observations. Stop once the question is answered.`
 
 Keep subagents read-only unless their job is testing or an explicitly independent implementation. Avoid parallel source edits to the same files.
 

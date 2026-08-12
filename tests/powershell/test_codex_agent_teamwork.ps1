@@ -29,7 +29,11 @@ foreach ($expected in @(
     'Recommended Target: skill, AGENTS.md, README, or no action',
     'Suggested Next Step: adopt, test, document, defer, or reject',
     'Do not delegate simple tasks',
-    'Start with at most one subagent.'
+    'Start with at most one subagent.',
+    '## Task Contract',
+    'explicitly excluded adjacent work',
+    'Stop when the acceptance checks pass',
+    'Do not broaden into adjacent features'
 )) {
     if (-not $skillSource.Contains($expected)) {
         throw "codex-agent-teamwork skill must document: $expected"
@@ -60,7 +64,8 @@ foreach ($expected in @(
     'Finding: short title',
     'Suggested Next Step: adopt, test, document, defer, or reject',
     'workspace-write',
-    'Use $codex-agent-teamwork for non-trivial development'
+    'Use $codex-agent-teamwork for non-trivial development',
+    'Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria.'
 )) {
     if (-not $windowsCodexSource.Contains($expected)) {
         throw "Windows Codex module must manage agent teamwork: $expected"
@@ -91,7 +96,8 @@ foreach ($expected in @(
     'Finding: short title',
     'Suggested Next Step: adopt, test, document, defer, or reject',
     'sandbox_mode = "{{ item.sandbox_mode }}"',
-    'Use $codex-agent-teamwork for non-trivial development'
+    'Use $codex-agent-teamwork for non-trivial development',
+    'Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria.'
 )) {
     if (-not $linuxRoleSource.Contains($expected)) {
         throw "Linux Codex role must manage agent teamwork: $expected"
@@ -120,7 +126,8 @@ foreach ($expected in @(
     'Finding: short title',
     'Suggested Next Step: adopt, test, document, defer, or reject',
     'sandbox_mode = "$sandbox_mode"',
-    'Use $codex-agent-teamwork for non-trivial development'
+    'Use $codex-agent-teamwork for non-trivial development',
+    'Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria.'
 )) {
     if (-not $macosCodexSource.Contains($expected)) {
         throw "macOS Codex module must manage agent teamwork: $expected"
@@ -135,7 +142,9 @@ foreach ($expected in @(
     'improvement-researcher',
     'knowledge capture',
     'improvement research',
-    'global AGENTS.md'
+    'global AGENTS.md',
+    'scope and completion',
+    'acceptance criteria'
 )) {
     if (-not $readmeSource.Contains($expected)) {
         throw "README must document agent teamwork: $expected"

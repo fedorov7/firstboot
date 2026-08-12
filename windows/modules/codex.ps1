@@ -384,6 +384,36 @@ function Add-CodexPrefixRuleIfMissing {
     Write-Ok "Codex rule added: $Pattern"
 }
 
+function Initialize-CodexDefaultRules {
+    $managedHeader = '# Managed by firstboot. Previous interactive default.rules files are backed up under rules/backups.'
+
+    if (-not (Test-Path $script:CodexDefaultRules)) {
+        Set-Content -LiteralPath $script:CodexDefaultRules -Value ($managedHeader + [Environment]::NewLine) -NoNewline -Encoding utf8
+        Write-Ok 'Codex default rules initialized'
+        return
+    }
+
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ($source.StartsWith($managedHeader)) {
+        Write-Skip 'Codex default rules already firstboot-managed'
+        return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($source)) {
+        $backupDir = Join-Path (Split-Path -Parent $script:CodexDefaultRules) 'backups'
+        if (-not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        }
+        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $backupPath = Join-Path $backupDir "default.rules.$timestamp.bak"
+        Move-Item -LiteralPath $script:CodexDefaultRules -Destination $backupPath -Force
+        Write-Ok "Backed up previous Codex default rules to $backupPath"
+    }
+
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value ($managedHeader + [Environment]::NewLine) -NoNewline -Encoding utf8
+    Write-Ok 'Codex default rules recreated from firstboot baseline'
+}
+
 function Remove-CodexPrefixAllowRulesByPattern {
     param(
         [Parameter(Mandatory)][string]$Pattern,
@@ -417,6 +447,39 @@ function Remove-CodexPrefixAllowRulesByPattern {
     Write-Ok "Removed Codex allow rule: $Pattern"
 }
 
+function Remove-CodexPrefixRulesByPattern {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [switch]$Quiet
+    )
+
+    if (-not (Test-Path $script:CodexDefaultRules)) {
+        return
+    }
+
+    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
+    if ([string]::IsNullOrWhiteSpace($source)) {
+        return
+    }
+
+    $escapedPattern = [regex]::Escape($Pattern)
+    $ruleRegex = [regex]::new(
+        "(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$escapedPattern(?:(?!^\s*prefix_rule\().)*?\)\s*"
+    )
+    $updated = $ruleRegex.Replace($source, [Environment]::NewLine)
+    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
+
+    if ($updated -eq $source) {
+        if (-not $Quiet) {
+            Write-Skip "Codex rule absent: $Pattern"
+        }
+        return
+    }
+
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
+    Write-Ok "Removed Codex rule: $Pattern"
+}
+
 function Set-CodexPrefixRule {
     param(
         [Parameter(Mandatory)][string]$Pattern,
@@ -435,7 +498,7 @@ function Set-CodexPrefixRule {
         return
     }
 
-    Remove-CodexPrefixAllowRulesByPattern -Pattern $Pattern -Quiet
+    Remove-CodexPrefixRulesByPattern -Pattern $Pattern -Quiet
     Add-CodexPrefixRuleIfMissing -Pattern $Pattern -Rule $Rule
 }
 
@@ -446,13 +509,34 @@ function Add-CodexGitAllowRule {
         [Parameter(Mandatory)][string]$Example
     )
 
-    Add-CodexPrefixRuleIfMissing $Pattern @"
+    Set-CodexPrefixRule $Pattern @"
 prefix_rule(
     pattern = $Pattern,
     decision = "allow",
     justification = "$Justification",
     match = ["$Example"],
 )
+"@
+}
+
+function Set-CodexAllowRule {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [Parameter(Mandatory)][string]$Justification,
+        [string]$Example = ''
+    )
+
+    $matchLine = ''
+    if (-not [string]::IsNullOrWhiteSpace($Example)) {
+        $matchLine = "    match = [`"$Example`"],`n"
+    }
+
+    Set-CodexPrefixRule $Pattern @"
+prefix_rule(
+    pattern = $Pattern,
+    decision = "allow",
+    justification = "$Justification",
+$matchLine)
 "@
 }
 
@@ -470,7 +554,6 @@ function Remove-CodexUnsafeShellWrapperRules {
 
 function Remove-CodexUnsafeSystemMutatorRules {
     foreach ($pattern in @(
-        '["winget"]',
         '["git"]',
         '["uv"]',
         '["python"]',
@@ -479,16 +562,6 @@ function Remove-CodexUnsafeSystemMutatorRules {
         '["timeout"]',
         '["curl", "-fL"]',
         '["git", "-C"]',
-        '["git", "commit"]',
-        '["git", "diff"]',
-        '["git", "log"]',
-        '["git", "show"]',
-        '["git", "grep"]',
-        '["git", "blame"]',
-        '["git", "config", "--get"]',
-        '["git", "config", "--global", "--get"]',
-        '["git", "config", "--list"]',
-        '["git", "push"]',
         '["git", "reset", "--hard"]',
         '["git", "reset"]',
         '["git", "clean"]',
@@ -508,33 +581,6 @@ function Remove-CodexUnsafeSystemMutatorRules {
         '["git", "reflog", "expire"]',
         '["git", "gc", "--prune"]',
         '["git", "gc", "--prune=now"]',
-        '["scoop"]',
-        '["choco"]',
-        '["rustup"]',
-        '["cargo", "install"]',
-        '["uv", "tool", "install"]',
-        '["uv", "tool", "upgrade"]',
-        '["npm", "install", "-g"]',
-        '["npm", "install", "--global"]',
-        '["python", "-m", "pip", "install"]',
-        '["py", "-m", "pip", "install"]',
-        '["wsl", "--update"]',
-        '["wsl", "--install"]',
-        '["wsl", "--shutdown"]',
-        '["Set-ExecutionPolicy"]',
-        '["Set-ItemProperty"]',
-        '["New-ItemProperty"]',
-        '["Remove-ItemProperty"]',
-        '["reg"]',
-        '["netsh"]',
-        '["sc"]',
-        '["Start-Process"]',
-        '["Set-Service"]',
-        '["New-Service"]',
-        '["Remove-Service"]',
-        '["Enable-WindowsOptionalFeature"]',
-        '["Disable-WindowsOptionalFeature"]',
-        '["dism"]',
         '["bcdedit"]'
     )) {
         Remove-CodexPrefixAllowRulesByPattern -Pattern $pattern -Quiet
@@ -962,6 +1008,12 @@ Use reviewer-deep and architect-deep only when high reasoning materially improve
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
 Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
+
+## Scope and completion
+
+For answer, review, diagnose, or plan requests, inspect only the minimum relevant files, logs, and docs; report evidence and do not edit unless asked.
+For change, build, or fix requests, make only the requested in-scope local change and run the smallest relevant non-destructive validation.
+Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. If a needed action materially broadens scope, affects another platform, writes externally, is destructive, or incurs cost, stop and ask. Stop when the acceptance criteria and required validation pass.
 '@
     $managedBlock = "$begin`n$block`n$end"
     $source = if (Test-Path $path) { Get-Content -LiteralPath $path -Raw } else { '' }
@@ -1188,6 +1240,7 @@ $script:CodexSkillsDir = Join-Path $codexDir 'skills'
 if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
 }
+Initialize-CodexDefaultRules
 if (-not (Test-Path $script:CodexAgentsDir)) {
     New-Item -ItemType Directory -Path $script:CodexAgentsDir -Force | Out-Null
 }
@@ -1259,14 +1312,42 @@ Add-CodexGitAllowRule '["git", "describe"]' `
 Add-CodexGitAllowRule '["git", "add"]' `
     'Allow staging workspace changes without deleting files or rewriting history' `
     'git add README.md'
-Add-CodexPrefixRuleIfMissing '["git", "push"]' @'
-prefix_rule(
-    pattern = ["git", "push"],
-    decision = "prompt",
-    justification = "Prompt before publishing commits to a remote repository",
-    match = ["git push"],
-)
-'@
+Add-CodexGitAllowRule '["git", "diff"]' `
+    'Allow Git diff inspection without repeated prompts' `
+    'git diff -- README.md'
+Add-CodexGitAllowRule '["git", "log"]' `
+    'Allow Git history inspection without repeated prompts' `
+    'git log --oneline -5'
+Add-CodexGitAllowRule '["git", "show"]' `
+    'Allow Git object inspection without repeated prompts' `
+    'git show --stat HEAD'
+Add-CodexGitAllowRule '["git", "grep"]' `
+    'Allow Git-backed source searches without repeated prompts' `
+    'git grep TODO'
+Add-CodexGitAllowRule '["git", "blame"]' `
+    'Allow Git blame inspection without repeated prompts' `
+    'git blame README.md'
+Add-CodexGitAllowRule '["git", "config", "--get"]' `
+    'Allow Git configuration reads without repeated prompts' `
+    'git config --get user.email'
+Add-CodexGitAllowRule '["git", "config", "--global", "--get"]' `
+    'Allow global Git configuration reads without repeated prompts' `
+    'git config --global --get user.email'
+Add-CodexGitAllowRule '["git", "config", "--list"]' `
+    'Allow Git configuration listing without repeated prompts' `
+    'git config --list'
+Add-CodexGitAllowRule '["git", "fetch"]' `
+    'Allow fetching remote Git metadata without repeated prompts' `
+    'git fetch --all --prune'
+Add-CodexGitAllowRule '["git", "pull"]' `
+    'Allow fast-forward Git pulls in trusted workspaces without repeated prompts' `
+    'git pull --ff-only'
+Add-CodexGitAllowRule '["git", "commit"]' `
+    'Allow creating local Git commits without repeated prompts' `
+    'git commit -m update'
+Add-CodexGitAllowRule '["git", "push"]' `
+    'Allow publishing explicitly prepared Git commits without repeated prompts' `
+    'git push'
 Add-CodexPrefixRuleIfMissing '["git", "reset", "--hard"]' @'
 prefix_rule(
     pattern = ["git", "reset", "--hard"],
@@ -1315,12 +1396,12 @@ prefix_rule(
     match = ["git reset --hard HEAD"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["git", "commit"]' @'
+Add-CodexPrefixRuleIfMissing '["git", "commit", "--amend"]' @'
 prefix_rule(
-    pattern = ["git", "commit"],
+    pattern = ["git", "commit", "--amend"],
     decision = "prompt",
-    justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
-    match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
+    justification = "Prompt before amending commits and rewriting history",
+    match = ["git commit --amend"],
 )
 '@
 Add-CodexPrefixRuleIfMissing '["git", "branch", "-D"]' @'
@@ -1628,6 +1709,141 @@ prefix_rule(
     match = ["npm run lint"],
 )
 '@
+Set-CodexAllowRule '["cmake"]' `
+    'Allow trusted CMake configure/build workflows without repeated prompts' `
+    'cmake --preset=dev-win64'
+Set-CodexAllowRule '["cargo", "audit"]' `
+    'Allow trusted Cargo security audits without repeated prompts' `
+    'cargo audit'
+Set-CodexAllowRule '["cargo", "deny"]' `
+    'Allow trusted Cargo policy checks without repeated prompts' `
+    'cargo deny check'
+Set-CodexAllowRule '["uv", "sync"]' `
+    'Allow uv dependency synchronization in trusted workspaces without repeated prompts' `
+    'uv sync'
+Set-CodexAllowRule '["uv", "pip", "install"]' `
+    'Allow uv pip installs in trusted workspaces without repeated prompts' `
+    'uv pip install -r requirements.txt'
+Set-CodexAllowRule '["uv", "tool", "run"]' `
+    'Allow uv tool run workflows without repeated prompts' `
+    'uv tool run ruff check .'
+Set-CodexAllowRule '["uvx"]' `
+    'Allow ephemeral uvx tool execution for trusted development workflows without repeated prompts' `
+    'uvx ruff check .'
+Set-CodexAllowRule '["npm", "install"]' `
+    'Allow npm dependency installs in trusted workspaces without repeated prompts' `
+    'npm install'
+Set-CodexAllowRule '["npm", "ci"]' `
+    'Allow npm clean dependency installs in trusted workspaces without repeated prompts' `
+    'npm ci'
+Set-CodexAllowRule '["npm", "--prefix"]' `
+    'Allow npm --prefix workspace workflows without repeated prompts' `
+    'npm --prefix apps/windows-desktop run test'
+Set-CodexAllowRule '["npm", "run", "tauri"]' `
+    'Allow Tauri npm workflows without repeated prompts' `
+    'npm run tauri build'
+Set-CodexAllowRule '["pnpm", "install"]' `
+    'Allow pnpm dependency installs in trusted workspaces without repeated prompts' `
+    'pnpm install'
+Set-CodexAllowRule '["pnpm", "test"]' `
+    'Allow pnpm tests in trusted workspaces without repeated prompts' `
+    'pnpm test'
+Set-CodexAllowRule '["pnpm", "run"]' `
+    'Allow pnpm run scripts in trusted workspaces without repeated prompts' `
+    'pnpm run build'
+Set-CodexAllowRule '["pnpm", "exec"]' `
+    'Allow pnpm exec tools in trusted workspaces without repeated prompts' `
+    'pnpm exec tsc --noEmit'
+Set-CodexAllowRule '["yarn", "install"]' `
+    'Allow Yarn dependency installs in trusted workspaces without repeated prompts' `
+    'yarn install'
+Set-CodexAllowRule '["yarn", "test"]' `
+    'Allow Yarn tests in trusted workspaces without repeated prompts' `
+    'yarn test'
+Set-CodexAllowRule '["yarn", "run"]' `
+    'Allow Yarn run scripts in trusted workspaces without repeated prompts' `
+    'yarn run build'
+Set-CodexAllowRule '["bun", "install"]' `
+    'Allow Bun dependency installs in trusted workspaces without repeated prompts' `
+    'bun install'
+Set-CodexAllowRule '["bun", "test"]' `
+    'Allow Bun tests in trusted workspaces without repeated prompts' `
+    'bun test'
+Set-CodexAllowRule '["bun", "run"]' `
+    'Allow Bun run scripts in trusted workspaces without repeated prompts' `
+    'bun run build'
+Set-CodexAllowRule '["dotnet", "restore"]' `
+    'Allow .NET restore in trusted workspaces without repeated prompts' `
+    'dotnet restore'
+Set-CodexAllowRule '["dotnet", "build"]' `
+    'Allow .NET builds in trusted workspaces without repeated prompts' `
+    'dotnet build'
+Set-CodexAllowRule '["dotnet", "test"]' `
+    'Allow .NET tests in trusted workspaces without repeated prompts' `
+    'dotnet test'
+Set-CodexAllowRule '["dotnet", "run"]' `
+    'Allow .NET run workflows in trusted workspaces without repeated prompts' `
+    'dotnet run --project app.csproj'
+Set-CodexAllowRule '["go", "test"]' `
+    'Allow Go tests in trusted workspaces without repeated prompts' `
+    'go test ./...'
+Set-CodexAllowRule '["go", "build"]' `
+    'Allow Go builds in trusted workspaces without repeated prompts' `
+    'go build ./...'
+Set-CodexAllowRule '["go", "run"]' `
+    'Allow Go run workflows in trusted workspaces without repeated prompts' `
+    'go run ./cmd/app'
+Set-CodexAllowRule '["ruff"]' `
+    'Allow Ruff checks and formatting in trusted workspaces without repeated prompts' `
+    'ruff check .'
+Set-CodexAllowRule '["python", "-m", "ruff"]' `
+    'Allow Ruff via Python module in trusted workspaces without repeated prompts' `
+    'python -m ruff check .'
+Set-CodexAllowRule '["py", "-m", "ruff"]' `
+    'Allow Ruff via Windows Python launcher in trusted workspaces without repeated prompts' `
+    'py -m ruff check .'
+Set-CodexAllowRule '["mypy"]' `
+    'Allow mypy type checks in trusted workspaces without repeated prompts' `
+    'mypy .'
+Set-CodexAllowRule '["python", "-m", "mypy"]' `
+    'Allow mypy via Python module in trusted workspaces without repeated prompts' `
+    'python -m mypy .'
+Set-CodexAllowRule '["py", "-m", "mypy"]' `
+    'Allow mypy via Windows Python launcher in trusted workspaces without repeated prompts' `
+    'py -m mypy .'
+Set-CodexAllowRule '["pyright"]' `
+    'Allow Pyright type checks in trusted workspaces without repeated prompts' `
+    'pyright'
+Set-CodexAllowRule '["tox"]' `
+    'Allow tox verification in trusted workspaces without repeated prompts' `
+    'tox'
+Set-CodexAllowRule '["nox"]' `
+    'Allow nox verification in trusted workspaces without repeated prompts' `
+    'nox'
+Set-CodexAllowRule '["pre-commit"]' `
+    'Allow pre-commit hooks in trusted workspaces without repeated prompts' `
+    'pre-commit run --all-files'
+Set-CodexAllowRule '["gitleaks"]' `
+    'Allow local secret scans in trusted workspaces without repeated prompts' `
+    'gitleaks git --source . --redact'
+Set-CodexAllowRule '["trivy"]' `
+    'Allow local vulnerability scans in trusted workspaces without repeated prompts' `
+    'trivy fs .'
+Set-CodexAllowRule '["ansible-playbook"]' `
+    'Allow Ansible provisioning and dry-run workflows without repeated prompts' `
+    'ansible-playbook site.yml --syntax-check'
+Set-CodexAllowRule '["lua"]' `
+    'Allow Lua scripts in trusted development workflows without repeated prompts' `
+    'lua tests/run.lua'
+Set-CodexAllowRule '["luajit"]' `
+    'Allow LuaJIT scripts in trusted development workflows without repeated prompts' `
+    'luajit tests/run.lua'
+Set-CodexAllowRule '["busted"]' `
+    'Allow Lua busted tests in trusted workspaces without repeated prompts' `
+    'busted'
+Set-CodexAllowRule '["stylua"]' `
+    'Allow Lua formatting in trusted workspaces without repeated prompts' `
+    'stylua .'
 Add-CodexPrefixRuleIfMissing '["west", "build"]' @'
 prefix_rule(
     pattern = ["west", "build"],
@@ -1672,6 +1888,40 @@ prefix_rule(
     justification = "Allow explicit process-local PROTOC overrides before trusted build commands",
 )
 '@
+$algotraderDevBuildPattern = '["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-NoProfile", "-Command", "$env:VCPKG_ROOT=''D:/trading/algotrader/vcpkg''; cmake --build --preset=dev-win64"]'
+Set-CodexPrefixRule $algotraderDevBuildPattern @"
+prefix_rule(
+    pattern = $algotraderDevBuildPattern,
+    decision = "allow",
+    justification = "Allow known algotrader VCPKG_ROOT PowerShell build wrapper without repeated prompts",
+)
+"@
+$algotraderDevBuildAndTestPattern = '["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-NoProfile", "-Command", "$env:VCPKG_ROOT=''D:/trading/algotrader/vcpkg''; cmake --build --preset=dev-win64; if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }; ctest --preset=dev-win64 --output-on-failure; exit $LASTEXITCODE"]'
+Set-CodexPrefixRule $algotraderDevBuildAndTestPattern @"
+prefix_rule(
+    pattern = $algotraderDevBuildAndTestPattern,
+    decision = "allow",
+    justification = "Allow known algotrader VCPKG_ROOT PowerShell build and CTest wrapper without repeated prompts",
+)
+"@
+$algotraderConfigureAndBuildPattern = '["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-Command", "$env:VCPKG_ROOT=''D:/trading/algotrader/vcpkg''; cmake --preset=dev-win64; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cmake --build --preset=dev-win64 --target algotrader_test algotrader_exe format-check"]'
+Set-CodexPrefixRule $algotraderConfigureAndBuildPattern @"
+prefix_rule(
+    pattern = $algotraderConfigureAndBuildPattern,
+    decision = "allow",
+    justification = "Allow known algotrader VCPKG_ROOT PowerShell configure and build wrapper without repeated prompts",
+)
+"@
+$algotraderReleaseTargetPattern = '["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-NoProfile", "-Command", "$env:VCPKG_ROOT=''D:/trading/algotrader/vcpkg''; cmake --build build/windows-release --config Release --target quik_cpp_plugin_lua_host_test -j 4"]'
+Set-CodexPrefixRule $algotraderReleaseTargetPattern @"
+prefix_rule(
+    pattern = $algotraderReleaseTargetPattern,
+    decision = "allow",
+    justification = "Allow known algotrader VCPKG_ROOT PowerShell release target wrapper without repeated prompts",
+)
+"@
+Set-CodexAllowRule '["D:\\trading\\algotrader\\run.ps1"]' `
+    'Allow the algotrader project runner in trusted local development without repeated prompts'
 Add-CodexPrefixRuleIfMissing '["Get-Content"]' @'
 prefix_rule(
     pattern = ["Get-Content"],
@@ -1779,228 +2029,259 @@ prefix_rule(
     justification = "Allow PowerShell output string conversion without repeated prompts",
 )
 '@
+Set-CodexAllowRule '["Get-Process"]' `
+    'Allow PowerShell process inspection without repeated prompts' `
+    'Get-Process'
+Set-CodexAllowRule '["Get-Service"]' `
+    'Allow PowerShell service inspection without repeated prompts' `
+    'Get-Service'
+Set-CodexAllowRule '["Get-PSDrive"]' `
+    'Allow PowerShell drive inspection without repeated prompts' `
+    'Get-PSDrive'
+Set-CodexAllowRule '["Get-ComputerInfo"]' `
+    'Allow PowerShell computer information inspection without repeated prompts' `
+    'Get-ComputerInfo'
+Set-CodexAllowRule '["Get-CimInstance"]' `
+    'Allow CIM system inspection without repeated prompts' `
+    'Get-CimInstance Win32_OperatingSystem'
+Set-CodexAllowRule '["Get-WmiObject"]' `
+    'Allow WMI system inspection without repeated prompts' `
+    'Get-WmiObject Win32_OperatingSystem'
+Set-CodexAllowRule '["Get-Module"]' `
+    'Allow PowerShell module inspection without repeated prompts' `
+    'Get-Module -ListAvailable'
+Set-CodexAllowRule '["Get-PSRepository"]' `
+    'Allow PowerShell repository inspection without repeated prompts' `
+    'Get-PSRepository'
+Set-CodexAllowRule '["Find-Module"]' `
+    'Allow PowerShell module discovery without repeated prompts' `
+    'Find-Module PSReadLine'
+Set-CodexAllowRule '["Get-Package"]' `
+    'Allow PowerShell package inspection without repeated prompts' `
+    'Get-Package'
+Set-CodexAllowRule '["Get-AppxPackage"]' `
+    'Allow AppX package inspection without repeated prompts' `
+    'Get-AppxPackage'
+Set-CodexAllowRule '["Get-AppxProvisionedPackage"]' `
+    'Allow provisioned AppX package inspection without repeated prompts' `
+    'Get-AppxProvisionedPackage -Online'
 
-Add-CodexPrefixRuleIfMissing '["winget"]' @'
+Set-CodexPrefixRule '["winget"]' @'
 prefix_rule(
     pattern = ["winget"],
-    decision = "prompt",
-    justification = "Prompt before package installs, upgrades, or source changes with winget",
+    decision = "allow",
+    justification = "Allow winget installs and upgrades for trusted workstation provisioning without repeated prompts",
     match = ["winget install Microsoft.PowerShell"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["scoop"]' @'
+Set-CodexPrefixRule '["scoop"]' @'
 prefix_rule(
     pattern = ["scoop"],
-    decision = "prompt",
-    justification = "Prompt before package installs, upgrades, or bucket changes with Scoop",
+    decision = "allow",
+    justification = "Allow Scoop installs and upgrades for trusted workstation provisioning without repeated prompts",
     match = ["scoop install ripgrep"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["choco"]' @'
+Set-CodexPrefixRule '["choco"]' @'
 prefix_rule(
     pattern = ["choco"],
-    decision = "prompt",
-    justification = "Prompt before package installs or upgrades with Chocolatey",
+    decision = "allow",
+    justification = "Allow Chocolatey installs and upgrades for trusted workstation provisioning without repeated prompts",
     match = ["choco install git"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["rustup"]' @'
+Set-CodexPrefixRule '["rustup"]' @'
 prefix_rule(
     pattern = ["rustup"],
-    decision = "prompt",
-    justification = "Prompt before modifying Rust toolchains or global components",
+    decision = "allow",
+    justification = "Allow Rust toolchain updates for trusted development setup without repeated prompts",
     match = ["rustup update stable"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["cargo", "install"]' @'
+Set-CodexPrefixRule '["cargo", "install"]' @'
 prefix_rule(
     pattern = ["cargo", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global Cargo binaries",
+    decision = "allow",
+    justification = "Allow global Cargo tool installs for trusted development setup without repeated prompts",
     match = ["cargo install cargo-nextest"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["uv", "tool", "install"]' @'
+Set-CodexPrefixRule '["uv", "tool", "install"]' @'
 prefix_rule(
     pattern = ["uv", "tool", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing global uv tools",
+    decision = "allow",
+    justification = "Allow global uv tool installs for trusted development setup without repeated prompts",
     match = ["uv tool install ruff"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["uv", "tool", "upgrade"]' @'
+Set-CodexPrefixRule '["uv", "tool", "upgrade"]' @'
 prefix_rule(
     pattern = ["uv", "tool", "upgrade"],
-    decision = "prompt",
-    justification = "Prompt before upgrading global uv tools",
+    decision = "allow",
+    justification = "Allow global uv tool upgrades for trusted development setup without repeated prompts",
     match = ["uv tool upgrade ruff"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["npm", "install", "-g"]' @'
+Set-CodexPrefixRule '["npm", "install", "-g"]' @'
 prefix_rule(
     pattern = ["npm", "install", "-g"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global npm packages",
+    decision = "allow",
+    justification = "Allow global npm installs for trusted development setup without repeated prompts",
     match = ["npm install -g @openai/codex"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["npm", "install", "--global"]' @'
+Set-CodexPrefixRule '["npm", "install", "--global"]' @'
 prefix_rule(
     pattern = ["npm", "install", "--global"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global npm packages",
+    decision = "allow",
+    justification = "Allow global npm installs for trusted development setup without repeated prompts",
     match = ["npm install --global @openai/codex"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["python", "-m", "pip", "install"]' @'
+Set-CodexPrefixRule '["python", "-m", "pip", "install"]' @'
 prefix_rule(
     pattern = ["python", "-m", "pip", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing packages into the active Python environment",
+    decision = "allow",
+    justification = "Allow Python package installs in trusted development environments without repeated prompts",
     match = ["python -m pip install pytest"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["py", "-m", "pip", "install"]' @'
+Set-CodexPrefixRule '["py", "-m", "pip", "install"]' @'
 prefix_rule(
     pattern = ["py", "-m", "pip", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing packages into the active Python environment",
+    decision = "allow",
+    justification = "Allow Windows Python launcher package installs in trusted development environments without repeated prompts",
     match = ["py -m pip install pytest"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["wsl", "--update"]' @'
+Set-CodexPrefixRule '["wsl", "--update"]' @'
 prefix_rule(
     pattern = ["wsl", "--update"],
-    decision = "prompt",
-    justification = "Prompt before updating WSL system components",
+    decision = "allow",
+    justification = "Allow WSL platform updates for trusted workstation maintenance without repeated prompts",
     match = ["wsl --update"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["wsl", "--install"]' @'
+Set-CodexPrefixRule '["wsl", "--install"]' @'
 prefix_rule(
     pattern = ["wsl", "--install"],
-    decision = "prompt",
-    justification = "Prompt before installing WSL distributions or platform components",
+    decision = "allow",
+    justification = "Allow WSL distribution and platform installs for trusted workstation setup without repeated prompts",
     match = ["wsl --install -d Ubuntu"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["wsl", "--shutdown"]' @'
+Set-CodexPrefixRule '["wsl", "--shutdown"]' @'
 prefix_rule(
     pattern = ["wsl", "--shutdown"],
-    decision = "prompt",
-    justification = "Prompt before stopping all WSL distributions",
+    decision = "allow",
+    justification = "Allow WSL shutdown during trusted workstation maintenance without repeated prompts",
     match = ["wsl --shutdown"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Set-ExecutionPolicy"]' @'
+Set-CodexPrefixRule '["Set-ExecutionPolicy"]' @'
 prefix_rule(
     pattern = ["Set-ExecutionPolicy"],
-    decision = "prompt",
-    justification = "Prompt before changing PowerShell execution policy",
+    decision = "allow",
+    justification = "Allow PowerShell execution policy changes during trusted provisioning without repeated prompts",
     match = ["Set-ExecutionPolicy RemoteSigned -Scope CurrentUser"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Set-ItemProperty"]' @'
+Set-CodexPrefixRule '["Set-ItemProperty"]' @'
 prefix_rule(
     pattern = ["Set-ItemProperty"],
-    decision = "prompt",
-    justification = "Prompt before changing registry or provider-backed settings",
-    match = ["Set-ItemProperty HKCU:\\Software\\Example Name Value"],
+    decision = "allow",
+    justification = "Allow registry and provider-backed setting changes during trusted provisioning without repeated prompts",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["New-ItemProperty"]' @'
+Set-CodexPrefixRule '["New-ItemProperty"]' @'
 prefix_rule(
     pattern = ["New-ItemProperty"],
-    decision = "prompt",
-    justification = "Prompt before creating registry or provider-backed settings",
-    match = ["New-ItemProperty HKCU:\\Software\\Example Name Value"],
+    decision = "allow",
+    justification = "Allow registry and provider-backed setting creation during trusted provisioning without repeated prompts",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Remove-ItemProperty"]' @'
+Set-CodexPrefixRule '["Remove-ItemProperty"]' @'
 prefix_rule(
     pattern = ["Remove-ItemProperty"],
-    decision = "prompt",
-    justification = "Prompt before deleting registry or provider-backed settings",
-    match = ["Remove-ItemProperty HKCU:\\Software\\Example Name"],
+    decision = "allow",
+    justification = "Allow registry and provider-backed setting removal during trusted provisioning without repeated prompts",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["reg"]' @'
+Set-CodexPrefixRule '["reg"]' @'
 prefix_rule(
     pattern = ["reg"],
-    decision = "prompt",
-    justification = "Prompt before direct registry changes with reg.exe",
-    match = ["reg add HKCU\\Software\\Example /v Name /t REG_SZ /d Value"],
+    decision = "allow",
+    justification = "Allow direct registry operations during trusted provisioning without repeated prompts",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["netsh"]' @'
+Set-CodexPrefixRule '["netsh"]' @'
 prefix_rule(
     pattern = ["netsh"],
-    decision = "prompt",
-    justification = "Prompt before changing Windows network configuration",
+    decision = "allow",
+    justification = "Allow Windows network configuration during trusted provisioning without repeated prompts",
     match = ["netsh interface show interface"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["sc"]' @'
+Set-CodexPrefixRule '["sc"]' @'
 prefix_rule(
     pattern = ["sc"],
-    decision = "prompt",
-    justification = "Prompt before changing Windows services with sc.exe",
+    decision = "allow",
+    justification = "Allow Windows service operations with sc.exe during trusted provisioning without repeated prompts",
     match = ["sc query ssh-agent"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Start-Process"]' @'
+Set-CodexPrefixRule '["Start-Process"]' @'
 prefix_rule(
     pattern = ["Start-Process"],
-    decision = "prompt",
-    justification = "Prompt before launching external programs outside the current tool sandbox",
+    decision = "allow",
+    justification = "Allow launching external programs during trusted provisioning without repeated prompts",
     match = ["Start-Process notepad"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Set-Service"]' @'
+Set-CodexPrefixRule '["Set-Service"]' @'
 prefix_rule(
     pattern = ["Set-Service"],
-    decision = "prompt",
-    justification = "Prompt before changing Windows service configuration",
+    decision = "allow",
+    justification = "Allow Windows service configuration during trusted provisioning without repeated prompts",
     match = ["Set-Service ssh-agent -StartupType Automatic"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["New-Service"]' @'
+Set-CodexPrefixRule '["New-Service"]' @'
 prefix_rule(
     pattern = ["New-Service"],
-    decision = "prompt",
-    justification = "Prompt before creating Windows services",
-    match = ["New-Service example C:\\example.exe"],
+    decision = "allow",
+    justification = "Allow Windows service creation during trusted provisioning without repeated prompts",
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Remove-Service"]' @'
+Set-CodexPrefixRule '["Remove-Service"]' @'
 prefix_rule(
     pattern = ["Remove-Service"],
-    decision = "prompt",
-    justification = "Prompt before removing Windows services",
+    decision = "allow",
+    justification = "Allow Windows service removal during trusted provisioning without repeated prompts",
     match = ["Remove-Service example"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Enable-WindowsOptionalFeature"]' @'
+Set-CodexPrefixRule '["Enable-WindowsOptionalFeature"]' @'
 prefix_rule(
     pattern = ["Enable-WindowsOptionalFeature"],
-    decision = "prompt",
-    justification = "Prompt before enabling Windows optional features",
+    decision = "allow",
+    justification = "Allow enabling Windows optional features during trusted provisioning without repeated prompts",
     match = ["Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["Disable-WindowsOptionalFeature"]' @'
+Set-CodexPrefixRule '["Disable-WindowsOptionalFeature"]' @'
 prefix_rule(
     pattern = ["Disable-WindowsOptionalFeature"],
-    decision = "prompt",
-    justification = "Prompt before disabling Windows optional features",
+    decision = "allow",
+    justification = "Allow disabling Windows optional features during trusted provisioning without repeated prompts",
     match = ["Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
 )
 '@
-Add-CodexPrefixRuleIfMissing '["dism"]' @'
+Set-CodexPrefixRule '["dism"]' @'
 prefix_rule(
     pattern = ["dism"],
-    decision = "prompt",
-    justification = "Prompt before changing Windows features or images with DISM",
+    decision = "allow",
+    justification = "Allow DISM feature and image operations during trusted provisioning without repeated prompts",
     match = ["dism /online /get-features"],
 )
 '@

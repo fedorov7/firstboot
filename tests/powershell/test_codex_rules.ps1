@@ -37,6 +37,17 @@ if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""git""]'")) {
     throw 'Windows Codex module must not broadly allow every git command'
 }
 
+if (-not $source.Contains('function Initialize-CodexDefaultRules') -or
+    -not $source.Contains('rules/backups') -or
+    -not $source.Contains('Move-Item -LiteralPath $script:CodexDefaultRules')) {
+    throw 'Windows Codex module must back up and recreate local default.rules before applying managed rules'
+}
+
+if (-not $source.Contains('function Remove-CodexPrefixRulesByPattern') -or
+    -not $source.Contains('Remove-CodexPrefixRulesByPattern -Pattern $Pattern -Quiet')) {
+    throw 'Codex prefix rule replacement must remove existing allow or prompt rules by pattern'
+}
+
 foreach ($pattern in @(
     '["git", "status"]',
     '["git", "ls-files"]',
@@ -48,17 +59,7 @@ foreach ($pattern in @(
     '["git", "branch", "--show-current"]',
     '["git", "tag", "--list"]',
     '["git", "describe"]',
-    '["git", "add"]'
-)) {
-    if (-not $source.Contains("Add-CodexGitAllowRule '$pattern'")) {
-        throw "Windows Codex module must allow safe git workflow: $pattern"
-    }
-}
-if (-not $source.Contains('Prompt for commits because Git permits history-rewriting flags in any argument position')) {
-    throw 'Windows Codex module must prompt for all git commit forms because --amend can be reordered'
-}
-
-foreach ($pattern in @(
+    '["git", "add"]',
     '["git", "diff"]',
     '["git", "log"]',
     '["git", "show"]',
@@ -66,10 +67,14 @@ foreach ($pattern in @(
     '["git", "blame"]',
     '["git", "config", "--get"]',
     '["git", "config", "--global", "--get"]',
-    '["git", "config", "--list"]'
+    '["git", "config", "--list"]',
+    '["git", "fetch"]',
+    '["git", "pull"]',
+    '["git", "commit"]',
+    '["git", "push"]'
 )) {
-    if ($source.Contains("Add-CodexGitAllowRule '$pattern'")) {
-        throw "Windows Codex module must not allow output-capable git command: $pattern"
+    if (-not $source.Contains("Add-CodexGitAllowRule '$pattern'")) {
+        throw "Windows Codex module must allow trusted git workflow: $pattern"
     }
 }
 
@@ -99,6 +104,7 @@ if (-not $source.Contains('Add-CodexPrefixRuleIfMissing ''["uv", "run"]''')) {
 }
 
 foreach ($pattern in @(
+    '["cmake"]',
     '["cmake", "--build"]',
     '["ctest"]',
     '["ninja"]',
@@ -115,9 +121,53 @@ foreach ($pattern in @(
     '["npm", "test"]',
     '["npm", "run", "test"]',
     '["npm", "run", "build"]',
-    '["npm", "run", "lint"]'
+    '["npm", "run", "lint"]',
+    '["cargo", "audit"]',
+    '["cargo", "deny"]',
+    '["uv", "sync"]',
+    '["uv", "pip", "install"]',
+    '["uv", "tool", "run"]',
+    '["uvx"]',
+    '["npm", "install"]',
+    '["npm", "ci"]',
+    '["npm", "--prefix"]',
+    '["npm", "run", "tauri"]',
+    '["pnpm", "install"]',
+    '["pnpm", "test"]',
+    '["pnpm", "run"]',
+    '["pnpm", "exec"]',
+    '["yarn", "install"]',
+    '["yarn", "test"]',
+    '["yarn", "run"]',
+    '["bun", "install"]',
+    '["bun", "test"]',
+    '["bun", "run"]',
+    '["dotnet", "restore"]',
+    '["dotnet", "build"]',
+    '["dotnet", "test"]',
+    '["dotnet", "run"]',
+    '["go", "test"]',
+    '["go", "build"]',
+    '["go", "run"]',
+    '["ruff"]',
+    '["python", "-m", "ruff"]',
+    '["py", "-m", "ruff"]',
+    '["mypy"]',
+    '["python", "-m", "mypy"]',
+    '["py", "-m", "mypy"]',
+    '["pyright"]',
+    '["tox"]',
+    '["nox"]',
+    '["pre-commit"]',
+    '["gitleaks"]',
+    '["trivy"]',
+    '["ansible-playbook"]',
+    '["lua"]',
+    '["luajit"]',
+    '["busted"]',
+    '["stylua"]'
 )) {
-    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
+    if (-not ($source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'") -or $source.Contains("Set-CodexAllowRule '$pattern'"))) {
         throw "Windows Codex module must allow trusted build/test command: $pattern"
     }
 }
@@ -133,13 +183,23 @@ foreach ($pattern in @(
     }
 }
 
-if ($source -match 'match = \["Set-Item .*Env:') {
-    throw 'Windows Codex build environment rules must not use path-heavy match examples that break execpolicy parsing'
+if ($source -match 'match = \["[^"]*\\\\') {
+    throw 'Windows Codex rules must not use path-heavy match examples that break execpolicy parsing'
+}
+
+foreach ($expected in @(
+    '$algotraderDevBuildPattern',
+    '$algotraderDevBuildAndTestPattern',
+    '$algotraderConfigureAndBuildPattern',
+    '$algotraderReleaseTargetPattern',
+    '["D:\\trading\\algotrader\\run.ps1"]'
+)) {
+    if (-not $source.Contains($expected)) {
+        throw "Windows Codex module must preserve recurring local algotrader rule after default.rules reset: $expected"
+    }
 }
 
 foreach ($pattern in @(
-    '["winget"]',
-    '["git", "push"]',
     '["git", "reset", "--hard"]',
     '["git", "clean"]',
     '["git", "restore"]',
@@ -158,7 +218,15 @@ foreach ($pattern in @(
     '["git", "stash", "clear"]',
     '["git", "reflog", "expire"]',
     '["git", "gc", "--prune"]',
-    '["git", "gc", "--prune=now"]',
+    '["git", "gc", "--prune=now"]'
+)) {
+    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
+        throw "Windows Codex module must prompt for destructive git command: $pattern"
+    }
+}
+
+foreach ($pattern in @(
+    '["winget"]',
     '["scoop"]',
     '["choco"]',
     '["rustup"]',
@@ -170,16 +238,30 @@ foreach ($pattern in @(
     '["python", "-m", "pip", "install"]',
     '["py", "-m", "pip", "install"]',
     '["wsl", "--update"]',
+    '["wsl", "--install"]',
+    '["wsl", "--shutdown"]',
     '["Set-ExecutionPolicy"]',
     '["Set-ItemProperty"]',
     '["New-ItemProperty"]',
+    '["Remove-ItemProperty"]',
     '["reg"]',
     '["netsh"]',
-    '["sc"]'
+    '["sc"]',
+    '["Start-Process"]',
+    '["Set-Service"]',
+    '["New-Service"]',
+    '["Remove-Service"]',
+    '["Enable-WindowsOptionalFeature"]',
+    '["Disable-WindowsOptionalFeature"]',
+    '["dism"]'
 )) {
-    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '$pattern'")) {
-        throw "Windows Codex module must prompt for privileged/system tool: $pattern"
+    if (-not $source.Contains("Set-CodexPrefixRule '$pattern'")) {
+        throw "Windows Codex module must allow trusted setup/system tool without prompting: $pattern"
     }
+}
+
+if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""bcdedit""]'")) {
+    throw 'Windows Codex module must still prompt before changing boot configuration with bcdedit'
 }
 
 if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""pwsh""]'")) {
@@ -239,9 +321,21 @@ foreach ($pattern in @(
     'Compare-Object',
     'Format-Table',
     'Format-List',
-    'Out-String'
+    'Out-String',
+    'Get-Process',
+    'Get-Service',
+    'Get-PSDrive',
+    'Get-ComputerInfo',
+    'Get-CimInstance',
+    'Get-WmiObject',
+    'Get-Module',
+    'Get-PSRepository',
+    'Find-Module',
+    'Get-Package',
+    'Get-AppxPackage',
+    'Get-AppxProvisionedPackage'
 )) {
-    if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'")) {
+    if (-not ($source.Contains("Add-CodexPrefixRuleIfMissing '[""$pattern""]'") -or $source.Contains("Set-CodexAllowRule '[""$pattern""]'"))) {
         throw "Windows Codex module must allow trusted PowerShell read/output command: $pattern"
     }
 }

@@ -231,6 +231,10 @@ cheap read-heavy work, `tester-terra` for build/test verification, and
 `reviewer-deep` or `architect-deep` only when high reasoning materially improves
 correctness. Source-editing remains coordinated by the main thread unless the
 user explicitly asks for parallel implementation.
+The managed global `AGENTS.md` also defines scope and completion boundaries:
+diagnosis and review remain read-only unless implementation is requested; changes
+stay within the stated acceptance criteria; unrelated improvements are reported,
+not applied; and work stops after the required validation passes.
 `improvement-researcher` is a read-only opt-in role for external improvement
 research across tools, skills, MCP servers, configuration recipes, and agent
 workflow practices. It differs from `docs-researcher`, which answers targeted

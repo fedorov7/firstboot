@@ -738,6 +738,12 @@ Use reviewer-deep and architect-deep only when high reasoning materially improve
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
 Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
+
+## Scope and completion
+
+For answer, review, diagnose, or plan requests, inspect only the minimum relevant files, logs, and docs; report evidence and do not edit unless asked.
+For change, build, or fix requests, make only the requested in-scope local change and run the smallest relevant non-destructive validation.
+Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. If a needed action materially broadens scope, affects another platform, writes externally, is destructive, or incurs cost, stop and ask. Stop when the acceptance criteria and required validation pass.
 EOF
 )"
 
@@ -1088,6 +1094,12 @@ ensure_codex_prefix_rule '["git", "rebase"]' 'prefix_rule(
     decision = "prompt",
     justification = "Prompt before rewriting local history",
     match = ["git rebase main"],
+)'
+ensure_codex_prefix_rule '["git", "commit", "--amend"]' 'prefix_rule(
+    pattern = ["git", "commit", "--amend"],
+    decision = "prompt",
+    justification = "Prompt before amending commits and rewriting history",
+    match = ["git commit --amend"],
 )'
 ensure_codex_prefix_rule '["git", "commit"]' 'prefix_rule(
     pattern = ["git", "commit"],
