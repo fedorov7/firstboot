@@ -27,7 +27,7 @@ detect_astronvim_repo() {
 USER_EMAIL="${USER_EMAIL:-$(detect_git_user_email)}"
 GIT_USER_NAME="${GIT_USER_NAME:-$(detect_git_user_name)}"
 NODE_VERSION="${NODE_VERSION:-lts/*}"
-NVM_VERSION="${NVM_VERSION:-v0.39.7}"
+NVM_VERSION="${NVM_VERSION:-v0.40.4}"
 ASTRONVIM_REPO="${ASTRONVIM_REPO:-$(detect_astronvim_repo)}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-0}"
@@ -310,7 +310,7 @@ Options:
   --user-email <email>                  Git/SSH email identity.
   --git-user-name <name>                Git user.name.
   --node-version <value>                Node.js version target for nvm (default: lts/*).
-  --nvm-version <tag>                   nvm installer version (default: v0.39.7).
+  --nvm-version <tag>                   nvm installer version (default: v0.40.4).
   --astronvim-repo <url>                Neovim config repository URL.
   --github-token <token>                Legacy input; MCP tokens are not written to config.
   --force-neovim-cleanup                Remove Neovim config/data before clone/update.

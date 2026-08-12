@@ -13,7 +13,7 @@ neovim_cleanup_paths:
   - "{{ user_home }}/.local/state/nvim"
   - "{{ user_home }}/.cache/nvim"
 
-nvm_version: "v0.39.7"
+nvm_version: "v0.40.4"
 node_version: "--lts"
 
 # Legacy input kept for compatibility. Claude/Codex GitHub MCP recipes do not

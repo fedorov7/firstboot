@@ -30,7 +30,12 @@ Automated provisioning for **Arch Linux** (Ansible), **macOS** (Bash + Homebrew)
 
 ```bash
 sudo pacman -S ansible
+ansible-galaxy collection install -r collections/requirements.yml
 ```
+
+The required external collections are version-constrained in
+`collections/requirements.yml`, so the same playbook dependencies can be
+installed on a fresh control node or in CI.
 
 ## Quick start
 
@@ -105,7 +110,7 @@ All tuneable variables live in `group_vars/all.yml`:
 | `neovim_force_cleanup` | `false` | Remove Neovim config/data/state/cache before cloning only when explicitly enabled |
 | `neovim_cleanup_stale` | `true` | Remove stale non-git Neovim config/data/state/cache before cloning AstroNvim |
 | `neovim_cleanup_paths` | Neovim XDG config/data/state/cache paths | Directories removed only when cleanup is explicitly forced or stale state is detected |
-| `nvm_version` | `v0.39.7` | nvm installer version |
+| `nvm_version` | `v0.40.4` | nvm installer version |
 | `node_version` | `--lts` | Node.js version to install via nvm |
 | `workstation_profile_embedded_enabled` | `false` | Include embedded tooling in an untagged full run |
 | `workstation_profile_uefi_enabled` | `false` | Include UEFI tooling in an untagged full run |
@@ -163,7 +168,7 @@ All tuneable variables live in `group_vars/all.yml`:
 Override at runtime:
 
 ```bash
-ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version=22"
+ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.4 node_version=22"
 ```
 
 The Codex role keeps skills allowlist-driven to avoid accidental growth from

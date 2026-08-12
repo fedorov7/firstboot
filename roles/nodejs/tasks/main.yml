@@ -1,18 +1,20 @@
 ---
 - name: Check if nvm is installed
-  stat:
+  ansible.builtin.stat:
     path: "{{ user_home }}/.nvm/nvm.sh"
   register: nvm_check
 
 - name: Install nvm
-  shell: >
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh | bash
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh | bash
   args:
+    executable: /bin/bash
     creates: "{{ user_home }}/.nvm/nvm.sh"
   when: not nvm_check.stat.exists
 
 - name: Check if Node.js is installed via nvm
-  shell: |
+  ansible.builtin.shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
     nvm ls {{ node_version }} 2>/dev/null
@@ -23,7 +25,7 @@
   failed_when: false
 
 - name: Remove npm prefix setting incompatible with nvm
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ user_home }}/.npmrc"
     regexp: '^\s*prefix\s*='
     state: absent
@@ -31,7 +33,7 @@
     backup: true
 
 - name: Remove npm globalconfig setting incompatible with nvm
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "{{ user_home }}/.npmrc"
     regexp: '^\s*globalconfig\s*='
     state: absent
@@ -39,7 +41,7 @@
     backup: true
 
 - name: Install Node.js LTS via nvm
-  shell: |
+  ansible.builtin.shell: |
     export NVM_DIR="{{ user_home }}/.nvm"
     . "$NVM_DIR/nvm.sh"
     nvm install {{ node_version }}
@@ -48,13 +50,13 @@
   when: node_installed.rc != 0
 
 - name: Check if Node.js is installed via pacman (conflict)
-  command: pacman -Qq nodejs
+  ansible.builtin.command: pacman -Qq nodejs
   register: system_node
   changed_when: false
   failed_when: false
 
 - name: Warn about system Node.js conflicting with nvm
-  debug:
+  ansible.builtin.debug:
     msg: >
       WARNING: nodejs is installed via pacman alongside nvm.
       Consider removing it: sudo pacman -R nodejs npm

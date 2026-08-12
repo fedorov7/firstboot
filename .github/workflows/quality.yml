@@ -24,10 +24,14 @@ jobs:
       - name: Install Ansible
         run: python -m pip install ansible-core
 
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
       - name: Run shell policy tests
         run: |
           bash tests/shell/test_macos_bootstrap_syntax.sh
           bash tests/shell/test_policy_hardening.sh
+          bash tests/shell/test_nvm_version_sync.sh
 
       - name: Run PowerShell policy tests
         shell: pwsh
