@@ -11,7 +11,7 @@ Do not delegate simple tasks. Handle one-file edits, direct questions, tiny conf
 
 For non-trivial development, delegate read-heavy or independently verifiable work to specialized agents, then keep the main thread responsible for decisions, edits, integration, and final verification.
 
-Use no more than three subagents by default. Spawn more only when the user explicitly asks or the work has clearly independent domains.
+Start with at most one subagent. Add a second only when independent verification or research materially reduces risk, and a third only for high-risk work with a separate domain. Spawn more only when the user explicitly asks.
 
 ## Routing Matrix
 
@@ -33,11 +33,11 @@ Use `knowledge-curator` near the end of non-trivial work when the session discov
 
 For medium implementation tasks, start one `explorer-terra` only when context is unclear. The main thread implements after reading the summary.
 
-For debugging, spawn `explorer-terra` to map code and logs, and `tester-terra` to reproduce or characterize failures. Add `docs-researcher` only when external behavior or current tool docs matter.
+For debugging, choose either `explorer-terra` to map unclear code and logs or `tester-terra` to reproduce failures. Add the other only when those tasks are independent; add `docs-researcher` only when external behavior or current tool docs materially affect the fix.
 
 For improvement research, spawn `improvement-researcher` only when the user asks to improve processes, tooling, skills, MCP, Codex configuration, or developer experience using current external information. Do not use it for direct API lookup; use `docs-researcher` instead.
 
-For code review, spawn `reviewer-deep`; add `tester-terra` when test selection or failures are unclear. Ask for findings first, sorted by severity.
+For code review, spawn `reviewer-deep`; add `tester-terra` only when test selection or failures are independently unclear. Ask for findings first, sorted by severity.
 
 For architecture, spawn `architect-deep` and optionally `explorer-terra` for codebase constraints. Do not edit until the main thread selects the approach.
 

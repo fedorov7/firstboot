@@ -34,6 +34,7 @@ FORCE_NEOVIM_CLEANUP="${FORCE_NEOVIM_CLEANUP:-0}"
 MODULES_CSV="${MODULES_CSV:-}"
 
 CODEX_MCP_ALLOWLIST="${CODEX_MCP_ALLOWLIST:-context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking}"
+CODEX_MCP_DEFAULT_DISABLED_SERVERS="${CODEX_MCP_DEFAULT_DISABLED_SERVERS:-memory,fetch,sequential-thinking}"
 CODEX_MCP_PRUNE_UNMANAGED="${CODEX_MCP_PRUNE_UNMANAGED:-0}"
 CODEX_GITHUB_MCP_ENABLED="${CODEX_GITHUB_MCP_ENABLED:-0}"
 CODEX_GITHUB_TOKEN_ENV_VAR="${CODEX_GITHUB_TOKEN_ENV_VAR:-GITHUB_PERSONAL_ACCESS_TOKEN}"
@@ -43,8 +44,9 @@ CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-user}"
 CODEX_CHECK_FOR_UPDATE_ON_STARTUP="${CODEX_CHECK_FOR_UPDATE_ON_STARTUP:-1}"
-CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"
-CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-terra}"
+CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-medium}"
+CODEX_MODEL_VERBOSITY="${CODEX_MODEL_VERBOSITY:-low}"
 CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"
 CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"
 CODEX_APPS_DESTRUCTIVE_ENABLED="${CODEX_APPS_DESTRUCTIVE_ENABLED:-0}"
@@ -58,15 +60,19 @@ CODEX_PRUNE_DISABLED_OPTIONAL_MCP="${CODEX_PRUNE_DISABLED_OPTIONAL_MCP:-1}"
 CODEX_PROFILES_ENABLED="${CODEX_PROFILES_ENABLED:-1}"
 CODEX_LEAN_PROFILE_MODEL="${CODEX_LEAN_PROFILE_MODEL:-gpt-5.6-terra}"
 CODEX_LEAN_PROFILE_REASONING_EFFORT="${CODEX_LEAN_PROFILE_REASONING_EFFORT:-medium}"
+CODEX_LEAN_PROFILE_VERBOSITY="${CODEX_LEAN_PROFILE_VERBOSITY:-low}"
+CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-5.6-sol}"
+CODEX_DEEP_PROFILE_REASONING_EFFORT="${CODEX_DEEP_PROFILE_REASONING_EFFORT:-high}"
+CODEX_DEEP_PROFILE_VERBOSITY="${CODEX_DEEP_PROFILE_VERBOSITY:-medium}"
 CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"
 CODEX_CUSTOM_AGENTS="${CODEX_CUSTOM_AGENTS:-explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher}"
 CODEX_AGENT_TEAMWORK_SKILL_ENABLED="${CODEX_AGENT_TEAMWORK_SKILL_ENABLED:-1}"
 CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED="${CODEX_GLOBAL_AGENTS_GUIDANCE_ENABLED:-1}"
 CODEX_UPDATE_ENABLED="${CODEX_UPDATE_ENABLED:-0}"
 CODEX_CURATED_SKILLS="${CODEX_CURATED_SKILLS:-cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app}"
-CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents}"
+CODEX_SUPERPOWERS_SKILLS="${CODEX_SUPERPOWERS_SKILLS:-systematic-debugging,verification-before-completion,test-driven-development,receiving-code-review,requesting-code-review,writing-skills}"
 CODEX_KARPATHY_SKILLS="${CODEX_KARPATHY_SKILLS:-karpathy-guidelines}"
-CODEX_CLAUDE_SKILLS="${CODEX_CLAUDE_SKILLS:-code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool}"
+CODEX_CLAUDE_SKILLS="${CODEX_CLAUDE_SKILLS:-cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,api-designer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner}"
 CODEX_TIMESFM_SKILL_ENABLED="${CODEX_TIMESFM_SKILL_ENABLED:-0}"
 CODEX_TIMESFM_SKILL_REPO="${CODEX_TIMESFM_SKILL_REPO:-https://github.com/google-research/timesfm.git}"
 CODEX_TIMESFM_SKILL_PATH="${CODEX_TIMESFM_SKILL_PATH:-timesfm-forecasting}"
@@ -310,6 +316,7 @@ Options:
   --force-neovim-cleanup                Remove Neovim config/data before clone/update.
   --preserve-neovim-state               Preserve Neovim state unless stale non-git config blocks cloning.
   --codex-mcp-allowlist <csv>           Codex MCP allowlist.
+  --codex-mcp-default-disabled-servers <csv> MCP servers enabled only by the deep profile.
   --codex-mcp-prune-unmanaged           Remove Codex MCP entries not in allowlist.
   --codex-github-mcp-enabled            Enable official GitHub MCP server for Codex.
   --codex-github-token-env-var <name>   Env var name used by Codex GitHub MCP.
@@ -317,8 +324,9 @@ Options:
   --codex-playwright-mcp-enabled        Enable Playwright MCP browser automation.
   --codex-sandbox-mode <mode>           Codex sandbox mode (default: workspace-write).
   --codex-approval-policy <policy>      Codex approval policy (default: on-request).
-  --codex-model <model>                 Codex model (default: gpt-5.6-sol).
-  --codex-model-reasoning-effort <effort> Codex reasoning effort (default: high).
+  --codex-model <model>                 Codex model (default: gpt-5.6-terra).
+  --codex-model-reasoning-effort <effort> Codex reasoning effort (default: medium).
+  --codex-model-verbosity <level>       Codex response verbosity (default: low).
   --codex-service-tier <tier>           Codex service tier (default: default).
   --codex-apps-default-tools-approval-mode <mode> App tool approval mode (default: writes).
   --codex-microsoft-learn-mcp-approval-mode <mode> Microsoft Learn MCP approval mode (default: writes).
@@ -329,6 +337,10 @@ Options:
   --codex-profiles-disabled           Remove managed lean/deep Codex CLI profile files.
   --codex-lean-profile-model <model>  Model for the lean Codex profile.
   --codex-lean-profile-reasoning-effort <effort> Reasoning effort for the lean Codex profile.
+  --codex-lean-profile-verbosity <level> Response verbosity for the lean profile.
+  --codex-deep-profile-model <model>  Model for the deep Codex profile.
+  --codex-deep-profile-reasoning-effort <effort> Reasoning effort for the deep profile.
+  --codex-deep-profile-verbosity <level> Response verbosity for the deep profile.
   --codex-custom-agents-enabled       Create curated Codex custom agents (default).
   --codex-custom-agents-disabled      Remove curated Codex custom agents.
   --codex-custom-agents <csv>         Curated Codex custom agent allowlist.
@@ -370,6 +382,7 @@ while [[ $# -gt 0 ]]; do
     --force-neovim-cleanup) FORCE_NEOVIM_CLEANUP=1; shift ;;
     --preserve-neovim-state) FORCE_NEOVIM_CLEANUP=0; shift ;;
     --codex-mcp-allowlist) CODEX_MCP_ALLOWLIST="$2"; shift 2 ;;
+    --codex-mcp-default-disabled-servers) CODEX_MCP_DEFAULT_DISABLED_SERVERS="$2"; shift 2 ;;
     --codex-mcp-prune-unmanaged) CODEX_MCP_PRUNE_UNMANAGED=1; shift ;;
     --codex-github-mcp-enabled) CODEX_GITHUB_MCP_ENABLED=1; shift ;;
     --codex-github-token-env-var) CODEX_GITHUB_TOKEN_ENV_VAR="$2"; shift 2 ;;
@@ -379,6 +392,7 @@ while [[ $# -gt 0 ]]; do
     --codex-approval-policy) CODEX_APPROVAL_POLICY="$2"; shift 2 ;;
     --codex-model) CODEX_MODEL="$2"; shift 2 ;;
     --codex-model-reasoning-effort) CODEX_MODEL_REASONING_EFFORT="$2"; shift 2 ;;
+    --codex-model-verbosity) CODEX_MODEL_VERBOSITY="$2"; shift 2 ;;
     --codex-service-tier) CODEX_SERVICE_TIER="$2"; shift 2 ;;
     --codex-apps-default-tools-approval-mode) CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="$2"; shift 2 ;;
     --codex-microsoft-learn-mcp-approval-mode) CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="$2"; shift 2 ;;
@@ -389,6 +403,10 @@ while [[ $# -gt 0 ]]; do
     --codex-profiles-disabled) CODEX_PROFILES_ENABLED=0; shift ;;
     --codex-lean-profile-model) CODEX_LEAN_PROFILE_MODEL="$2"; shift 2 ;;
     --codex-lean-profile-reasoning-effort) CODEX_LEAN_PROFILE_REASONING_EFFORT="$2"; shift 2 ;;
+    --codex-lean-profile-verbosity) CODEX_LEAN_PROFILE_VERBOSITY="$2"; shift 2 ;;
+    --codex-deep-profile-model) CODEX_DEEP_PROFILE_MODEL="$2"; shift 2 ;;
+    --codex-deep-profile-reasoning-effort) CODEX_DEEP_PROFILE_REASONING_EFFORT="$2"; shift 2 ;;
+    --codex-deep-profile-verbosity) CODEX_DEEP_PROFILE_VERBOSITY="$2"; shift 2 ;;
     --codex-custom-agents-enabled) CODEX_CUSTOM_AGENTS_ENABLED=1; shift ;;
     --codex-custom-agents-disabled) CODEX_CUSTOM_AGENTS_ENABLED=0; shift ;;
     --codex-custom-agents) CODEX_CUSTOM_AGENTS="$2"; shift 2 ;;

@@ -288,8 +288,9 @@ if ($bootstrapSource -notmatch '\[bool\]\$CodexCheckForUpdateOnStartup = \$true'
 }
 
 foreach ($expected in @(
-    '[string]$CodexModel = "gpt-5.6-sol"',
-    '[string]$CodexModelReasoningEffort = "high"',
+    '[string]$CodexModel = "gpt-5.6-terra"',
+    '[string]$CodexModelReasoningEffort = "medium"',
+    '[string]$CodexModelVerbosity = "low"',
     '[string]$CodexServiceTier = "default"',
     '[string]$CodexAppsDefaultToolsApprovalMode = "writes"',
     '[string]$CodexMicrosoftLearnMcpApprovalMode = "writes"',
@@ -316,7 +317,7 @@ foreach ($expectedSkill in @(
     'playwright',
     'security-best-practices',
     'winui-app',
-    'dispatching-parallel-agents',
+    'writing-skills',
     'database-optimizer',
     'sql-pro',
     'mcp-developer'
@@ -589,8 +590,9 @@ if ($macosBootstrapSource -notmatch 'CODEX_UPDATE_ENABLED="\$\{CODEX_UPDATE_ENAB
 }
 
 foreach ($expected in @(
-    'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-sol}"',
-    'CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"',
+    'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-terra}"',
+    'CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-medium}"',
+    'CODEX_MODEL_VERBOSITY="${CODEX_MODEL_VERBOSITY:-low}"',
     'CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"',
     'CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE="${CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE:-writes}"',
     'CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE="${CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE:-writes}"',

@@ -115,14 +115,16 @@ All tuneable variables live in `group_vars/all.yml`:
 | `embedded_access_groups` | `uucp`, `lock` | Groups added to the user for serial device access |
 | `embedded_probe_access_group` | `plugdev` | Group granted debug-probe USB access by udev rules |
 | `codex_mcp_allowlist` | context/OpenAI/Microsoft docs/memory defaults | MCP servers managed by the Codex role |
+| `codex_mcp_default_disabled_servers` | memory/fetch/sequential-thinking | Keep optional MCP configured but disabled unless `--profile deep` is used |
 | `codex_mcp_prune_unmanaged` | `false` | Remove MCP servers outside `codex_mcp_allowlist` when you want an authoritative config |
 | `codex_context7_remove_inline_api_key` | `true` | Recreate legacy context7 MCP entries that store an API key directly in `config.toml` |
 | `codex_sandbox_mode` | `workspace-write` | Allow Codex file/shell work inside the active workspace without full-system access |
 | `codex_approval_policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; ask before approved out-of-workspace operations |
 | `codex_approvals_reviewer` | `user` | Send eligible approval prompts to the user instead of automatic review |
 | `codex_check_for_update_on_startup` | `true` | Let Codex check for CLI updates on startup |
-| `codex_model` | `gpt-5.6-sol` | Default Codex model for demanding local development work |
-| `codex_model_reasoning_effort` | `high` | Strong default reasoning without using the highest-cost/limit-heavy effort by default |
+| `codex_model` | `gpt-5.6-terra` | Balanced default model for routine development work |
+| `codex_model_reasoning_effort` | `medium` | Balanced default reasoning; use the deep profile for difficult work |
+| `codex_model_verbosity` | `low` | Keep routine responses concise without reducing reasoning effort |
 | `codex_service_tier` | `default` | Preserve the account default service tier unless overridden |
 | `codex_apps_default_tools_approval_mode` | `writes` | Allow read-only app tools while prompting for write-capable tools |
 | `codex_update_enabled` | `false` | Reinstall/update the Codex CLI during provisioning when explicitly enabled |
@@ -142,6 +144,10 @@ All tuneable variables live in `group_vars/all.yml`:
 | `codex_profiles_enabled` | `true` | Create `lean.config.toml` and `deep.config.toml` for `codex --profile ...` |
 | `codex_lean_profile_model` | `gpt-5.6-terra` | Faster model used by the lean profile and exploration agents |
 | `codex_lean_profile_reasoning_effort` | `medium` | Balanced reasoning for token-conscious scans and docs research |
+| `codex_lean_profile_verbosity` | `low` | Concise output for the lean profile |
+| `codex_deep_profile_model` | `gpt-5.6-sol` | Frontier model reserved for explicit deep work and deep agents |
+| `codex_deep_profile_reasoning_effort` | `high` | High reasoning reserved for explicit deep work and deep agents |
+| `codex_deep_profile_verbosity` | `medium` | More detail for explicit deep work |
 | `codex_custom_agents_enabled` | `true` | Create curated custom agents for exploration, verification, review, architecture, docs lookup, improvement research, and knowledge capture |
 | `codex_custom_agents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `codex_agent_teamwork_skill_enabled` | `true` | Install the repo-managed `codex-agent-teamwork` skill into `~/.codex/skills` |
@@ -161,14 +167,13 @@ ansible-playbook site.yml --ask-become-pass -e "nvm_version=v0.40.1 node_version
 ```
 
 The Codex role keeps skills allowlist-driven to avoid accidental growth from
-large skill packs. The default Windows profile targets C++/Rust/Lua/Python
-application development and Python data/ML work: code review, debugging,
-testing, C++/Rust/Python specialists, pandas, ML pipelines, fine-tuning,
-SQL/database tuning, MCP development, documentation, API design, DevOps, legacy
-analysis, security review, and critical reasoning. Curated OpenAI skills add
-CLI creation, Jupyter notebooks, Playwright CLI workflows, security best
-practices, WinUI app work, and PDF handling. Embedded-specific tooling remains
-opt-in. The Google
+large skill packs. The default profile keeps language, data/ML, database, MCP,
+documentation, API, DevOps, migration, and security specialists. Custom agents
+cover exploration, testing, review, architecture, and targeted research without
+duplicating those broad workflow skills in every startup context. Curated
+OpenAI skills add CLI creation, Jupyter notebooks, Playwright CLI workflows,
+security best practices, WinUI app work, and PDF handling. Embedded-specific
+tooling remains opt-in. The Google
 TimesFM forecasting skill is also opt-in because it is narrow and resource-aware
 for time-series forecasting workflows. Re-running the role removes stale managed
 entries from `~/.agents/skills/superpowers`,
@@ -184,9 +189,10 @@ registry/service changes, WSL updates, and destructive or remote Git operations
 remain possible but require confirmation.
 
 The Codex MCP configuration is also allowlist-driven. The default profile keeps
-documentation and reasoning tools enabled while leaving broader access tools
-disabled. Microsoft Learn MCP is included by default for Windows, PowerShell,
-WinUI, .NET, and Microsoft C++ documentation lookups. The built-in ChatGPT Apps
+documentation MCP servers enabled while memory, fetch, and sequential-thinking
+remain configured but disabled. The `deep` profile re-enables them. Microsoft
+Learn MCP is included by default for Windows, PowerShell, WinUI, .NET, and
+Microsoft C++ documentation lookups. The built-in ChatGPT Apps
 MCP is disabled by default because it starts a remote `chatgpt.com` handshake on
 Codex startup. Codex and Claude GitHub MCP entries do not store PATs in their
 config files. To enable GitHub MCP, export a token in the configured
@@ -210,7 +216,7 @@ The role also writes lightweight Codex profiles, a global AGENTS.md teamwork
 hint, and custom agents:
 
 ```bash
-codex --profile lean  # faster scans, docs lookup, small edits
+codex --profile lean  # cached web search for scans, docs lookup, and small edits
 codex --profile deep  # strong reasoning for complex implementation/review
 ```
 
@@ -348,13 +354,15 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--preserve-neovim-state` | off | Preserve existing Neovim config/data/state/cache unless stale non-git config blocks cloning |
 | `--modules` | core module set | Comma-separated module selection |
 | `--codex-mcp-allowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
+| `--codex-mcp-default-disabled-servers` | memory/fetch/sequential-thinking | Keep optional MCP configured but enable it only in the deep profile |
 | `--codex-mcp-prune-unmanaged` | off | Remove Codex MCP servers outside the allowlist |
 | `--codex-github-mcp-enabled` | off | Enable official GitHub MCP in Codex |
 | `--codex-playwright-mcp-enabled` | off | Enable Playwright MCP browser automation |
 | `--codex-sandbox-mode` | `workspace-write` | Allow Codex workspace file/shell operations without full-system access |
 | `--codex-approval-policy` | `on-request` | Do not prompt for ordinary sandboxed workspace commands; allow explicit escalation prompts |
-| `--codex-model` | `gpt-5.6-sol` | Default Codex model for demanding local development |
-| `--codex-model-reasoning-effort` | `high` | Strong reasoning default without using max/ultra by default |
+| `--codex-model` | `gpt-5.6-terra` | Balanced default model for routine development |
+| `--codex-model-reasoning-effort` | `medium` | Balanced default reasoning; use the deep profile for difficult work |
+| `--codex-model-verbosity` | `low` | Keep routine responses concise |
 | `--codex-service-tier` | `default` | Preserve account default service tier unless overridden |
 | `--codex-apps-default-tools-approval-mode` | `writes` | Allow read-only app tools while prompting for writes |
 | `--codex-microsoft-learn-mcp-approval-mode` | `writes` | Allow read-only Microsoft Learn MCP lookups while prompting for non-read-only tools |
@@ -364,6 +372,10 @@ Optional modules are: `dev_drive`, `wsl`, `sudo`, `claude`.
 | `--codex-profiles-enabled` | on | Create `lean` and `deep` Codex CLI profile files |
 | `--codex-profiles-disabled` | off | Remove managed `lean` and `deep` profile files |
 | `--codex-lean-profile-model` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
+| `--codex-lean-profile-verbosity` | `low` | Concise output for the lean profile |
+| `--codex-deep-profile-model` | `gpt-5.6-sol` | Frontier model reserved for explicit deep work |
+| `--codex-deep-profile-reasoning-effort` | `high` | High reasoning reserved for explicit deep work |
+| `--codex-deep-profile-verbosity` | `medium` | More detail for explicit deep work |
 | `--codex-custom-agents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~/.codex/agents` |
 | `--codex-agent-teamwork-skill-enabled` | on | Install the repo-managed `codex-agent-teamwork` skill |
 | `--codex-global-agents-guidance-enabled` | on | Write the managed global AGENTS.md teamwork hint |
@@ -453,6 +465,7 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-WindowsSudoMode` | `forceNewWindow` | Sudo mode: `forceNewWindow`, `disableInput`, or `normal` |
 | `-GithubToken` | (empty) | Legacy compatibility input; GitHub MCP tokens are not written to config, use `GITHUB_PERSONAL_ACCESS_TOKEN` at runtime |
 | `-CodexMcpAllowlist` | context/OpenAI/Microsoft docs/memory defaults | Comma-separated Codex MCP allowlist |
+| `-CodexMcpDefaultDisabledServers` | memory/fetch/sequential-thinking | Keep optional MCP configured but enable it only in the deep profile |
 | `-CodexMcpPruneUnmanaged` | off | Remove MCP servers outside the Windows Codex allowlist |
 | `-CodexGithubMcpEnabled` | off | Enable official remote GitHub MCP without storing a PAT in Codex config |
 | `-CodexGithubTokenEnvVar` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Environment variable Codex uses as the GitHub MCP bearer token |
@@ -464,8 +477,9 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexWindowsSandbox` | `elevated` | Use the stronger native Windows Codex sandbox mode |
 | `-CodexWindowsSandboxPrivateDesktop` | `$true` | Keep native Windows sandboxed processes on a private desktop |
 | `-CodexCheckForUpdateOnStartup` | `$true` | Let Codex check for CLI updates on startup |
-| `-CodexModel` | `gpt-5.6-sol` | Default Codex model for demanding local development |
-| `-CodexModelReasoningEffort` | `high` | Strong reasoning default without using max/ultra by default |
+| `-CodexModel` | `gpt-5.6-terra` | Balanced default model for routine development |
+| `-CodexModelReasoningEffort` | `medium` | Balanced default reasoning; use the deep profile for difficult work |
+| `-CodexModelVerbosity` | `low` | Keep routine responses concise |
 | `-CodexServiceTier` | `default` | Preserve account default service tier unless overridden |
 | `-CodexAppsDefaultToolsApprovalMode` | `writes` | Allow read-only app tools while prompting for writes |
 | `-CodexFetchMcpApprovalMode` | `prompt` | Keep broad fetch MCP tools interactive |
@@ -477,6 +491,10 @@ git clone <repo-url> ~\firstboot; cd ~\firstboot\windows
 | `-CodexProfilesEnabled` | `$true` | Create `lean` and `deep` Codex CLI profile files |
 | `-CodexLeanProfileModel` | `gpt-5.6-terra` | Faster model for token-conscious Codex work |
 | `-CodexLeanProfileReasoningEffort` | `medium` | Balanced reasoning for the lean profile and docs/explorer agents |
+| `-CodexLeanProfileVerbosity` | `low` | Concise output for the lean profile |
+| `-CodexDeepProfileModel` | `gpt-5.6-sol` | Frontier model reserved for explicit deep work |
+| `-CodexDeepProfileReasoningEffort` | `high` | High reasoning reserved for explicit deep work |
+| `-CodexDeepProfileVerbosity` | `medium` | More detail for explicit deep work |
 | `-CodexCustomAgentsEnabled` | `$true` | Create curated Codex custom agents |
 | `-CodexCustomAgents` | explorer/reviewer/docs/tester/architect/curator/researcher defaults | Custom agent allowlist written to `~\.codex\agents` |
 | `-CodexAgentTeamworkSkillEnabled` | `$true` | Install the repo-managed `codex-agent-teamwork` skill |

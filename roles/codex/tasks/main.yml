@@ -11,8 +11,8 @@
     msg: "nvm is not installed. Run the nodejs role first: ansible-playbook site.yml --tags nodejs"
   when: not nvm_available.stat.exists
 
-- name: Check if uv is available (needed for fetch MCP)
-  command: which uv
+- name: Check if uvx is available (needed for fetch MCP)
+  command: which uvx
   register: uv_available
   changed_when: false
   failed_when: false
@@ -107,9 +107,11 @@
   changed_when: "'OK:' in codex_top_level_defaults.stdout"
   loop:
     - key: model
-      value: '"{{ codex_model | default(''gpt-5.6-sol'') }}"'
+      value: '"{{ codex_model | default(''gpt-5.6-terra'') }}"'
     - key: model_reasoning_effort
-      value: '"{{ codex_model_reasoning_effort | default(''high'') }}"'
+      value: '"{{ codex_model_reasoning_effort | default(''medium'') }}"'
+    - key: model_verbosity
+      value: '"{{ codex_model_verbosity | default(''low'') }}"'
     - key: service_tier
       value: '"{{ codex_service_tier | default(''default'') }}"'
     - key: sandbox_mode
@@ -1107,8 +1109,9 @@
     mode: "0644"
     content: |
       # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-      model = "gpt-5.6-sol"
-      model_reasoning_effort = "high"
+      model = "gpt-5.6-terra"
+      model_reasoning_effort = "medium"
+      model_verbosity = "low"
       service_tier = "default"
       sandbox_mode = "workspace-write"
       approval_policy = "on-request"
@@ -1135,6 +1138,7 @@
       # Managed by firstboot. Use with: codex --profile {{ item.name }}
       model = "{{ item.model }}"
       model_reasoning_effort = "{{ item.reasoning_effort }}"
+      model_verbosity = "{{ item.verbosity }}"
       service_tier = "{{ codex_service_tier | default('default') }}"
       sandbox_mode = "{{ codex_sandbox_mode | default('workspace-write') }}"
       approval_policy = "{{ codex_approval_policy | default('on-request') }}"
@@ -1150,14 +1154,24 @@
       destructive_enabled = false
       open_world_enabled = false
       approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
+
+      {% for mcp_server in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking'])) | intersect(codex_mcp_allowlist | default([])) %}
+      {% if mcp_server != 'fetch' or uv_available.rc == 0 %}
+      [mcp_servers.{{ mcp_server }}]
+      enabled = true
+
+      {% endif %}
+      {% endfor %}
       {% endif %}
   loop:
     - name: lean
       model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
       reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
+      verbosity: "{{ codex_lean_profile_verbosity | default('low') }}"
     - name: deep
-      model: "{{ codex_deep_profile_model | default(codex_model | default('gpt-5.6-sol')) }}"
-      reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default(codex_model_reasoning_effort | default('high')) }}"
+      model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+      reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
+      verbosity: "{{ codex_deep_profile_verbosity | default('medium') }}"
   loop_control:
     label: "{{ item.name }}"
   when: codex_profiles_enabled | default(true) | bool
@@ -1190,8 +1204,8 @@
           You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
       - name: reviewer-deep
         description: High-reasoning code review focused on bugs, regressions, security risks, and test gaps.
-        model: "{{ codex_model | default('gpt-5.6-sol') }}"
-        reasoning_effort: "{{ codex_model_reasoning_effort | default('high') }}"
+        model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+        reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
         sandbox_mode: read-only
         nicknames: '"Reviewer", "Auditor", "Skeptic"'
         instructions: |
@@ -1214,8 +1228,8 @@
           You are a verification agent. Run focused build, lint, typecheck, and test commands requested by the parent thread. You may create normal build/test artifacts in the workspace, but do not edit source files. Return commands, exit codes, concise failure summaries, and likely next investigation targets.
       - name: architect-deep
         description: High-reasoning architecture and migration analyst for ambiguous cross-module design decisions.
-        model: "{{ codex_model | default('gpt-5.6-sol') }}"
-        reasoning_effort: "{{ codex_model_reasoning_effort | default('high') }}"
+        model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+        reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
         sandbox_mode: read-only
         nicknames: '"Architect", "Planner", "Strategist"'
         instructions: |
@@ -1311,7 +1325,7 @@
       Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
       Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
       Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
-      Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+      Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
   when: codex_global_agents_guidance_enabled | default(true) | bool
 
 - name: Remove Codex global AGENTS.md teamwork guidance when disabled
@@ -1647,12 +1661,21 @@
     - name: microsoft-learn
       key: startup_timeout_sec
       value: "30"
+    - name: memory
+      key: enabled
+      value: "{{ ('memory' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: fetch
       key: startup_timeout_sec
       value: "30"
     - name: fetch
+      key: enabled
+      value: "{{ ('fetch' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
+    - name: fetch
       key: default_tools_approval_mode
       value: '"{{ codex_fetch_mcp_approval_mode | default(''prompt'') }}"'
+    - name: sequential-thinking
+      key: enabled
+      value: "{{ ('sequential-thinking' not in (codex_mcp_default_disabled_servers | default(['memory', 'fetch', 'sequential-thinking']))) | ternary('true', 'false') }}"
     - name: microsoft-learn
       key: default_tools_approval_mode
       value: '"{{ codex_microsoft_learn_mcp_approval_mode | default(''writes'') }}"'

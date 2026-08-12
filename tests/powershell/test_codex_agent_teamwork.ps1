@@ -29,7 +29,7 @@ foreach ($expected in @(
     'Recommended Target: skill, AGENTS.md, README, or no action',
     'Suggested Next Step: adopt, test, document, defer, or reject',
     'Do not delegate simple tasks',
-    'Use no more than three subagents by default'
+    'Start with at most one subagent.'
 )) {
     if (-not $skillSource.Contains($expected)) {
         throw "codex-agent-teamwork skill must document: $expected"

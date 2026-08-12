@@ -599,8 +599,9 @@ function Remove-CodexMismatchedGitGcPruneRule {
 function Set-CodexPermissionsExample {
     $content = @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+model_verbosity = "low"
 service_tier = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
@@ -721,6 +722,7 @@ function Set-CodexProfileFiles {
 # Managed by firstboot. Use with: codex --profile lean
 model = "$CodexLeanProfileModel"
 model_reasoning_effort = "$CodexLeanProfileReasoningEffort"
+model_verbosity = "$CodexLeanProfileVerbosity"
 service_tier = "$CodexServiceTier"
 sandbox_mode = "$CodexSandboxMode"
 approval_policy = "$CodexApprovalPolicy"
@@ -728,10 +730,18 @@ approvals_reviewer = "$CodexApprovalsReviewer"
 web_search = "cached"
 "@
 
+    $profileMcpServers = ConvertTo-NameList $CodexMcpAllowlist
+    $deepMcpOverrides = @((ConvertTo-NameList $CodexMcpDefaultDisabledServers) | Where-Object {
+        $_ -in $profileMcpServers -and ($_ -ne 'fetch' -or (Test-CommandExists uvx))
+    } | ForEach-Object {
+        "[mcp_servers.$_]`nenabled = true"
+    }) -join "`n`n"
+
     $deepProfile = @"
 # Managed by firstboot. Use with: codex --profile deep
-model = "$CodexModel"
-model_reasoning_effort = "$CodexModelReasoningEffort"
+model = "$CodexDeepProfileModel"
+model_reasoning_effort = "$CodexDeepProfileReasoningEffort"
+model_verbosity = "$CodexDeepProfileVerbosity"
 service_tier = "$CodexServiceTier"
 sandbox_mode = "$CodexSandboxMode"
 approval_policy = "$CodexApprovalPolicy"
@@ -742,6 +752,8 @@ default_tools_approval_mode = "$CodexAppsDefaultToolsApprovalMode"
 destructive_enabled = false
 open_world_enabled = false
 approvals_reviewer = "$CodexApprovalsReviewer"
+
+$deepMcpOverrides
 "@
 
     Set-CodexManagedFile -Path (Join-Path $codexDir 'lean.config.toml') -Content $leanProfile -Description 'Codex lean profile'
@@ -808,8 +820,8 @@ You are a read-only exploration agent. Inspect files, logs, docs, and command ou
                 $content = New-CodexCustomAgentContent `
                     -Name 'reviewer-deep' `
                     -Description 'High-reasoning code review focused on bugs, regressions, security risks, and test gaps.' `
-                    -Model $CodexModel `
-                    -ReasoningEffort $CodexModelReasoningEffort `
+                    -Model $CodexDeepProfileModel `
+                    -ReasoningEffort $CodexDeepProfileReasoningEffort `
                     -SandboxMode 'read-only' `
                     -Nicknames '"Reviewer", "Auditor", "Skeptic"' `
                     -Instructions @'
@@ -847,8 +859,8 @@ You are a verification agent. Run focused build, lint, typecheck, and test comma
                 $content = New-CodexCustomAgentContent `
                     -Name 'architect-deep' `
                     -Description 'High-reasoning architecture and migration analyst for ambiguous cross-module design decisions.' `
-                    -Model $CodexModel `
-                    -ReasoningEffort $CodexModelReasoningEffort `
+                    -Model $CodexDeepProfileModel `
+                    -ReasoningEffort $CodexDeepProfileReasoningEffort `
                     -SandboxMode 'read-only' `
                     -Nicknames '"Architect", "Planner", "Strategist"' `
                     -Instructions @'
@@ -949,7 +961,7 @@ Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verif
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
-Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
 '@
     $managedBlock = "$begin`n$block`n$end"
     $source = if (Test-Path $path) { Get-Content -LiteralPath $path -Raw } else { '' }
@@ -1191,6 +1203,7 @@ $codexAppsDestructiveEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsDestruct
 $codexAppsOpenWorldEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsOpenWorldEnabled
 Set-CodexTopLevelSetting 'model' "`"$CodexModel`""
 Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`""
+Set-CodexTopLevelSetting 'model_verbosity' "`"$CodexModelVerbosity`""
 Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
 Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
 Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartupToml
@@ -2173,6 +2186,9 @@ Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'microsoft-learn' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'fetch' 'startup_timeout_sec' '30'
 Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`""
+foreach ($server in (ConvertTo-NameList $CodexMcpDefaultDisabledServers)) {
+    Set-CodexMcpSetting $server 'enabled' 'false'
+}
 Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode' "`"$CodexMicrosoftLearnMcpApprovalMode`""
 Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`""
 Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' "`"$CodexSerenaMcpApprovalMode`""

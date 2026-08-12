@@ -52,6 +52,8 @@
     Sudo for Windows mode: forceNewWindow, disableInput, or normal.
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
+.PARAMETER CodexMcpDefaultDisabledServers
+    Configured MCP servers kept disabled until the deep profile is selected.
 .PARAMETER CodexSandboxMode
     Codex sandbox mode for shell/file operations (default: workspace-write).
 .PARAMETER CodexApprovalPolicy
@@ -65,9 +67,11 @@
 .PARAMETER CodexCheckForUpdateOnStartup
     Let Codex check for CLI updates at startup.
 .PARAMETER CodexModel
-    Codex model used by default for new work (default: gpt-5.6-sol).
+    Codex model used by default for new work (default: gpt-5.6-terra).
 .PARAMETER CodexModelReasoningEffort
-    Codex reasoning effort (default: high; reserve max for explicit hard tasks).
+    Codex reasoning effort (default: medium).
+.PARAMETER CodexModelVerbosity
+    Codex response verbosity (default: low).
 .PARAMETER CodexServiceTier
     Codex service tier (default: default).
 .PARAMETER CodexAppsDefaultToolsApprovalMode
@@ -96,6 +100,14 @@
     Model used by the lean Codex profile and fast exploration agents.
 .PARAMETER CodexLeanProfileReasoningEffort
     Reasoning effort used by the lean Codex profile and fast exploration agents.
+.PARAMETER CodexLeanProfileVerbosity
+    Response verbosity used by the lean Codex profile.
+.PARAMETER CodexDeepProfileModel
+    Model used by the deep Codex profile and deep review agents.
+.PARAMETER CodexDeepProfileReasoningEffort
+    Reasoning effort used by the deep Codex profile and deep review agents.
+.PARAMETER CodexDeepProfileVerbosity
+    Response verbosity used by the deep Codex profile.
 .PARAMETER CodexCustomAgentsEnabled
     Create curated Codex custom agents for exploration, review, and docs research.
 .PARAMETER CodexCustomAgents
@@ -147,6 +159,7 @@ param(
     [switch]$WindowsSudoEnabled,
     [string]$WindowsSudoMode = "forceNewWindow",
     [string]$CodexMcpAllowlist = "context7,openaiDeveloperDocs,microsoft-learn,memory,fetch,sequential-thinking",
+    [string]$CodexMcpDefaultDisabledServers = "memory,fetch,sequential-thinking",
     [switch]$CodexMcpPruneUnmanaged,
     [switch]$CodexGithubMcpEnabled,
     [string]$CodexGithubTokenEnvVar = "GITHUB_PERSONAL_ACCESS_TOKEN",
@@ -158,8 +171,9 @@ param(
     [string]$CodexWindowsSandbox = "elevated",
     [bool]$CodexWindowsSandboxPrivateDesktop = $true,
     [bool]$CodexCheckForUpdateOnStartup = $true,
-    [string]$CodexModel = "gpt-5.6-sol",
-    [string]$CodexModelReasoningEffort = "high",
+    [string]$CodexModel = "gpt-5.6-terra",
+    [string]$CodexModelReasoningEffort = "medium",
+    [string]$CodexModelVerbosity = "low",
     [string]$CodexServiceTier = "default",
     [string]$CodexAppsDefaultToolsApprovalMode = "writes",
     [bool]$CodexAppsDestructiveEnabled = $false,
@@ -173,15 +187,19 @@ param(
     [bool]$CodexProfilesEnabled = $true,
     [string]$CodexLeanProfileModel = "gpt-5.6-terra",
     [string]$CodexLeanProfileReasoningEffort = "medium",
+    [string]$CodexLeanProfileVerbosity = "low",
+    [string]$CodexDeepProfileModel = "gpt-5.6-sol",
+    [string]$CodexDeepProfileReasoningEffort = "high",
+    [string]$CodexDeepProfileVerbosity = "medium",
     [bool]$CodexCustomAgentsEnabled = $true,
     [string]$CodexCustomAgents = "explorer-terra,reviewer-deep,docs-researcher,tester-terra,architect-deep,knowledge-curator,improvement-researcher",
     [bool]$CodexAgentTeamworkSkillEnabled = $true,
     [bool]$CodexGlobalAgentsGuidanceEnabled = $true,
     [switch]$CodexUpdateEnabled,
     [string]$CodexCuratedSkills = "cli-creator,jupyter-notebook,pdf,playwright,security-best-practices,winui-app",
-    [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,using-superpowers,test-driven-development,writing-plans,executing-plans,receiving-code-review,requesting-code-review,brainstorming,writing-skills,dispatching-parallel-agents",
+    [string]$CodexSuperpowersSkills = "systematic-debugging,verification-before-completion,test-driven-development,receiving-code-review,requesting-code-review,writing-skills",
     [string]$CodexKarpathySkills = "karpathy-guidelines",
-    [string]$CodexClaudeSkills = "code-reviewer,cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,debugging-wizard,test-master,api-designer,architecture-designer,cli-developer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner,the-fool",
+    [string]$CodexClaudeSkills = "cpp-pro,rust-engineer,python-pro,pandas-pro,ml-pipeline,fine-tuning-expert,database-optimizer,sql-pro,mcp-developer,api-designer,code-documenter,devops-engineer,legacy-modernizer,secure-code-guardian,security-reviewer,spec-miner",
     [switch]$CodexTimesFmSkillEnabled,
     [string]$CodexTimesFmSkillRepo = "https://github.com/google-research/timesfm.git",
     [string]$CodexTimesFmSkillPath = "timesfm-forecasting",

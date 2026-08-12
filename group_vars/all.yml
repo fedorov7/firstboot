@@ -43,14 +43,19 @@ codex_mcp_allowlist:
   - memory
   - fetch
   - sequential-thinking
+codex_mcp_default_disabled_servers:
+  - memory
+  - fetch
+  - sequential-thinking
 codex_mcp_prune_unmanaged: false
 codex_context7_remove_inline_api_key: true
 codex_sandbox_mode: workspace-write
 codex_approval_policy: on-request
 codex_approvals_reviewer: user
 codex_check_for_update_on_startup: true
-codex_model: gpt-5.6-sol
-codex_model_reasoning_effort: high
+codex_model: gpt-5.6-terra
+codex_model_reasoning_effort: medium
+codex_model_verbosity: low
 codex_service_tier: default
 codex_apps_default_tools_approval_mode: writes
 codex_apps_destructive_enabled: false
@@ -64,6 +69,10 @@ codex_prune_disabled_optional_mcp: true
 codex_profiles_enabled: true
 codex_lean_profile_model: gpt-5.6-terra
 codex_lean_profile_reasoning_effort: medium
+codex_lean_profile_verbosity: low
+codex_deep_profile_model: gpt-5.6-sol
+codex_deep_profile_reasoning_effort: high
+codex_deep_profile_verbosity: medium
 codex_custom_agents_enabled: true
 codex_custom_agents:
   - explorer-terra
@@ -95,15 +104,10 @@ codex_curated_skills:
 codex_superpowers_skills:
   - systematic-debugging
   - verification-before-completion
-  - using-superpowers          # Broad trigger; useful only if you want skills enforced every turn.
   - test-driven-development    # Enable for strict TDD workflows.
-  - writing-plans              # Enable for large planned implementations.
-  - executing-plans            # Enable when executing saved plans across sessions.
   - receiving-code-review      # Enable when iterating on external review feedback.
   - requesting-code-review     # Enable when you want formal review checkpoints.
-  - brainstorming               # Broad creative workflow gate.
   - writing-skills
-  - dispatching-parallel-agents  # Parallel research/development workflow.
   # - subagent-driven-development  # Multi-agent implementation workflow.
   # - using-git-worktrees          # Isolated feature branch workflow.
   # - finishing-a-development-branch
@@ -112,7 +116,6 @@ codex_karpathy_skills:
   - karpathy-guidelines
 
 codex_claude_skills:
-  - code-reviewer
   - cpp-pro
   - rust-engineer
   - python-pro
@@ -122,18 +125,13 @@ codex_claude_skills:
   - database-optimizer
   - sql-pro
   - mcp-developer
-  - debugging-wizard
-  - test-master
   - api-designer               # API/backend work.
-  - architecture-designer      # Enable for ADRs and high-level system architecture.
-  - cli-developer              # Enable when building command-line tools.
   - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
   - devops-engineer            # CI/CD and infrastructure.
   - legacy-modernizer          # Enable for large migrations of older codebases.
   - secure-code-guardian       # Enable for auth/input-validation implementation work.
   - security-reviewer
   - spec-miner                 # Legacy/undocumented system discovery.
-  - the-fool                   # Enable for explicit red-team / devil's advocate review.
   # - csharp-developer             # .NET/C# work.
   # - dotnet-core-expert           # .NET runtime/framework work.
   # - embedded-systems             # MCU/UEFI/hardware workflows.

@@ -430,8 +430,9 @@ ensure_codex_permissions_example() {
   local desired
 desired="$(cat <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+model_verbosity = "low"
 service_tier = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
@@ -504,6 +505,7 @@ ensure_codex_profile_files() {
 # Managed by firstboot. Use with: codex --profile lean
 model = "$CODEX_LEAN_PROFILE_MODEL"
 model_reasoning_effort = "$CODEX_LEAN_PROFILE_REASONING_EFFORT"
+model_verbosity = "$CODEX_LEAN_PROFILE_VERBOSITY"
 service_tier = "$CODEX_SERVICE_TIER"
 sandbox_mode = "$CODEX_SANDBOX_MODE"
 approval_policy = "$CODEX_APPROVAL_POLICY"
@@ -512,11 +514,28 @@ web_search = "cached"
 EOF
 )"
 
+  local deep_mcp_overrides=""
+  local mcp_server
+  local profile_mcp_servers=()
+  while IFS= read -r mcp_server; do
+    profile_mcp_servers+=("$mcp_server")
+  done < <(split_csv "$CODEX_MCP_ALLOWLIST")
+  while IFS= read -r mcp_server; do
+    if ! array_contains "$mcp_server" "${profile_mcp_servers[@]}"; then
+      continue
+    fi
+    if [[ "$mcp_server" == "fetch" ]] && ! command_exists uvx; then
+      continue
+    fi
+    deep_mcp_overrides+=$'\n[mcp_servers.'"$mcp_server"$']\nenabled = true\n'
+  done < <(split_csv "$CODEX_MCP_DEFAULT_DISABLED_SERVERS")
+
   local deep_profile
   deep_profile="$(cat <<EOF
 # Managed by firstboot. Use with: codex --profile deep
-model = "$CODEX_MODEL"
-model_reasoning_effort = "$CODEX_MODEL_REASONING_EFFORT"
+model = "$CODEX_DEEP_PROFILE_MODEL"
+model_reasoning_effort = "$CODEX_DEEP_PROFILE_REASONING_EFFORT"
+model_verbosity = "$CODEX_DEEP_PROFILE_VERBOSITY"
 service_tier = "$CODEX_SERVICE_TIER"
 sandbox_mode = "$CODEX_SANDBOX_MODE"
 approval_policy = "$CODEX_APPROVAL_POLICY"
@@ -527,6 +546,7 @@ default_tools_approval_mode = "$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE"
 destructive_enabled = false
 open_world_enabled = false
 approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
+$deep_mcp_overrides
 EOF
 )"
 
@@ -595,8 +615,8 @@ ensure_codex_custom_agent_files() {
         content="$(new_codex_custom_agent_content \
           "reviewer-deep" \
           "High-reasoning code review focused on bugs, regressions, security risks, and test gaps." \
-          "$CODEX_MODEL" \
-          "$CODEX_MODEL_REASONING_EFFORT" \
+          "$CODEX_DEEP_PROFILE_MODEL" \
+          "$CODEX_DEEP_PROFILE_REASONING_EFFORT" \
           "read-only" \
           '"Reviewer", "Auditor", "Skeptic"' \
           "You are a read-only review agent. Prioritize concrete bugs, behavioral regressions, security risks, and missing tests. Cite exact files and lines when possible. Avoid style-only findings unless they block maintainability or correctness.")"
@@ -625,8 +645,8 @@ ensure_codex_custom_agent_files() {
         content="$(new_codex_custom_agent_content \
           "architect-deep" \
           "High-reasoning architecture and migration analyst for ambiguous cross-module design decisions." \
-          "$CODEX_MODEL" \
-          "$CODEX_MODEL_REASONING_EFFORT" \
+          "$CODEX_DEEP_PROFILE_MODEL" \
+          "$CODEX_DEEP_PROFILE_REASONING_EFFORT" \
           "read-only" \
           '"Architect", "Planner", "Strategist"' \
           "You are a read-only architecture agent. Analyze constraints, coupling, data flow, rollout risk, and tradeoffs. Do not edit files. Return a concise recommendation, alternatives rejected, and concrete files or interfaces that constrain the design.")"
@@ -717,7 +737,7 @@ Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verif
 Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
 Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
 Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
-Use no more than three subagents by default, keep max_depth = 1, and wait for all subagents before integrating results.
+Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
 EOF
 )"
 
@@ -775,6 +795,7 @@ upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
 upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
 upsert_codex_top_level_setting model "\"$CODEX_MODEL\""
 upsert_codex_top_level_setting model_reasoning_effort "\"$CODEX_MODEL_REASONING_EFFORT\""
+upsert_codex_top_level_setting model_verbosity "\"$CODEX_MODEL_VERBOSITY\""
 upsert_codex_top_level_setting service_tier "\"$CODEX_SERVICE_TIER\""
 upsert_codex_top_level_setting approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
 upsert_codex_top_level_setting check_for_update_on_startup "$(toml_bool "$CODEX_CHECK_FOR_UPDATE_ON_STARTUP")"
@@ -1417,6 +1438,9 @@ upsert_codex_mcp_setting openaiDeveloperDocs startup_timeout_sec 30
 upsert_codex_mcp_setting microsoft-learn startup_timeout_sec 30
 upsert_codex_mcp_setting fetch startup_timeout_sec 30
 upsert_codex_mcp_setting fetch default_tools_approval_mode "\"$CODEX_FETCH_MCP_APPROVAL_MODE\""
+while IFS= read -r server_name; do
+  upsert_codex_mcp_setting "$server_name" enabled false
+done < <(split_csv "$CODEX_MCP_DEFAULT_DISABLED_SERVERS")
 upsert_codex_mcp_setting microsoft-learn default_tools_approval_mode "\"$CODEX_MICROSOFT_LEARN_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting github default_tools_approval_mode "\"$CODEX_GITHUB_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting serena default_tools_approval_mode "\"$CODEX_SERENA_MCP_APPROVAL_MODE\""
