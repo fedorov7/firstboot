@@ -38,8 +38,8 @@ if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""git""]'")) {
 }
 
 if (-not $source.Contains('function Initialize-CodexDefaultRules') -or
-    -not $source.Contains('rules/backups') -or
-    -not $source.Contains('Move-Item -LiteralPath $script:CodexDefaultRules')) {
+    -not $source.Contains('Copy-Item -LiteralPath $script:CodexRulesDestination') -or
+    -not $source.Contains('function Complete-CodexDefaultRules')) {
     throw 'Windows Codex module must back up and recreate local default.rules before applying managed rules'
 }
 
@@ -238,29 +238,24 @@ foreach ($pattern in @(
     '["python", "-m", "pip", "install"]',
     '["py", "-m", "pip", "install"]',
     '["wsl", "--update"]',
-    '["wsl", "--install"]',
     '["wsl", "--shutdown"]',
     '["Set-ExecutionPolicy"]',
     '["Set-ItemProperty"]',
     '["New-ItemProperty"]',
-    '["Remove-ItemProperty"]',
     '["reg"]',
     '["netsh"]',
     '["sc"]',
     '["Start-Process"]',
     '["Set-Service"]',
     '["New-Service"]',
-    '["Remove-Service"]',
-    '["Enable-WindowsOptionalFeature"]',
-    '["Disable-WindowsOptionalFeature"]',
-    '["dism"]'
+    '["Enable-WindowsOptionalFeature"]'
 )) {
     if (-not $source.Contains("Set-CodexPrefixRule '$pattern'")) {
         throw "Windows Codex module must allow trusted setup/system tool without prompting: $pattern"
     }
 }
 
-if (-not $source.Contains("Add-CodexPrefixRuleIfMissing '[""bcdedit""]'")) {
+if (-not $source.Contains('[["bcdedit", "bcdedit.exe"], ["/set", "/delete"')) {
     throw 'Windows Codex module must still prompt before changing boot configuration with bcdedit'
 }
 
@@ -268,15 +263,15 @@ if ($source.Contains("Add-CodexPrefixRuleIfMissing '[""pwsh""]'")) {
     throw 'Windows Codex module must not broadly allow pwsh shell wrappers'
 }
 
-if (-not $source.Contains('Remove-CodexUnsafeShellWrapperRules')) {
-    throw 'Windows Codex module must remove legacy unsafe shell wrapper rules'
+if ($source.Contains('Remove-CodexUnsafeShellWrapperRules')) {
+    throw 'Windows must rebuild rules rather than migrate old wrapper rules'
 }
 
-if (-not $source.Contains('Remove-CodexMismatchedGitGcPruneRule')) {
-    throw 'Windows Codex module must migrate legacy mismatched git gc --prune rules'
+if (-not $source.Contains('& codex execpolicy check --rules $script:CodexDefaultRules')) {
+    throw 'Windows must validate fresh rules before replacing the old file'
 }
 
-foreach ($codexSource in @($source, $linuxRoleSource, $macosCodexSource)) {
+foreach ($codexSource in @($source, $macosCodexSource)) {
     if (-not $codexSource.Contains('match = ["git gc --prune"]')) {
         throw 'Codex git gc --prune prompt example must match its prefix tokens'
     }
@@ -519,8 +514,8 @@ if ($linuxRoleSource -notmatch 'codex_approval_policy \| default\(''on-request''
     throw 'Linux Codex role must default approval_policy to on-request'
 }
 
-if (-not $linuxRoleSource.Contains("codex_approvals_reviewer | default(''user'')")) {
-    throw 'Linux Codex role must default approvals_reviewer to user'
+if (-not $linuxRoleSource.Contains("codex_approvals_reviewer | default(''auto_review'')")) {
+    throw 'Linux Codex role must default approvals_reviewer to auto_review'
 }
 
 if (-not $linuxRoleSource.Contains('codex_check_for_update_on_startup | default(true)')) {
@@ -543,116 +538,10 @@ if (-not $linuxRoleSource.Contains('codex mcp add playwright -- npx -y @playwrig
     throw 'Linux Codex role must configure opt-in Playwright MCP'
 }
 
-if ($linuxRoleSource.Contains('pattern = ["pwsh"]')) {
-    throw 'Linux Codex role must not broadly allow pwsh shell wrappers'
-}
-
-if ($linuxRoleSource.Contains('pattern = ["git"],')) {
-    throw 'Linux Codex role must not broadly allow every git command'
-}
-
-foreach ($pattern in @(
-    'pattern = ["git", "status"]',
-    'pattern = ["git", "ls-files"]',
-    'pattern = ["git", "ls-tree"]',
-    'pattern = ["git", "rev-parse"]',
-    'pattern = ["git", "merge-base"]',
-    'pattern = ["git", "remote", "get-url"]',
-    'pattern = ["git", "branch", "--list"]',
-    'pattern = ["git", "branch", "--show-current"]',
-    'pattern = ["git", "tag", "--list"]',
-    'pattern = ["git", "describe"]',
-    'pattern = ["git", "add"]'
-)) {
-    if (-not $linuxRoleSource.Contains($pattern)) {
-        throw "Linux Codex role must allow safe git workflow: $pattern"
-    }
-}
-
-foreach ($pattern in @(
-    'pattern = ["git", "diff"]',
-    'pattern = ["git", "log"]',
-    'pattern = ["git", "show"]',
-    'pattern = ["git", "grep"]',
-    'pattern = ["git", "blame"]',
-    'pattern = ["git", "config", "--get"]',
-    'pattern = ["git", "config", "--global", "--get"]',
-    'pattern = ["git", "config", "--list"]'
-)) {
-    if ($linuxRoleSource.Contains($pattern)) {
-        throw "Linux Codex role must not allow output-capable git command: $pattern"
-    }
-}
-
-foreach ($pattern in @('rg', 'fd', 'bat', 'eza', 'delta', 'difft', 'difftastic', 'just')) {
-    if (-not $linuxRoleSource.Contains("pattern = [""$pattern""]")) {
-        throw "Linux Codex role must allow trusted workspace tool: $pattern"
-    }
-}
-if (-not $linuxRoleSource.Contains('pattern = ["uv", "run"]')) {
-    throw 'Linux Codex role must allow trusted workspace tool: uv run'
-}
-
-foreach ($pattern in @(
-    'pattern = ["cmake", "--build"]',
-    'pattern = ["ctest"]',
-    'pattern = ["ninja"]',
-    'pattern = ["meson", "compile"]',
-    'pattern = ["meson", "test"]',
-    'pattern = ["cargo", "build"]',
-    'pattern = ["cargo", "check"]',
-    'pattern = ["cargo", "test"]',
-    'pattern = ["cargo", "clippy"]',
-    'pattern = ["cargo", "nextest"]',
-    'pattern = ["python", "-m", "pytest"]',
-    'pattern = ["python3", "-m", "pytest"]',
-    'pattern = ["pytest"]',
-    'pattern = ["npm", "test"]',
-    'pattern = ["npm", "run", "test"]',
-    'pattern = ["npm", "run", "build"]',
-    'pattern = ["npm", "run", "lint"]'
-)) {
-    if (-not $linuxRoleSource.Contains($pattern)) {
-        throw "Linux Codex role must allow trusted build/test command: $pattern"
-    }
-}
-
-foreach ($pattern in @(
-    'pattern = ["sudo"]',
-    'pattern = ["git", "push"]',
-    'pattern = ["git", "reset", "--hard"]',
-    'pattern = ["git", "reset"]',
-    'pattern = ["git", "clean"]',
-    'pattern = ["git", "restore"]',
-    'pattern = ["git", "checkout", "--"]',
-    'pattern = ["git", "rebase"]',
-    'pattern = ["git", "commit", "--amend"]',
-    'pattern = ["git", "branch", "-D"]',
-    'pattern = ["git", "branch", "-d"]',
-    'pattern = ["git", "tag", "-d"]',
-    'pattern = ["git", "checkout", "-f"]',
-    'pattern = ["git", "switch", "-C"]',
-    'pattern = ["git", "switch", "--discard-changes"]',
-    'pattern = ["git", "rm"]',
-    'pattern = ["git", "stash", "drop"]',
-    'pattern = ["git", "stash", "clear"]',
-    'pattern = ["git", "reflog", "expire"]',
-    'pattern = ["git", "gc", "--prune"]',
-    'pattern = ["git", "gc", "--prune=now"]',
-    'pattern = ["apt"]',
-    'pattern = ["apt-get"]',
-    'pattern = ["pacman"]',
-    'pattern = ["dnf"]',
-    'pattern = ["yay"]',
-    'pattern = ["brew", "install"]',
-    'pattern = ["brew", "upgrade"]',
-    'pattern = ["cargo", "install"]',
-    'pattern = ["uv", "tool", "install"]',
-    'pattern = ["npm", "install", "-g"]'
-)) {
-    if (-not $linuxRoleSource.Contains($pattern)) {
-        throw "Linux Codex role must prompt for privileged/system tool: $pattern"
-    }
+# Linux rules moved into a dedicated baseline; behavioral assertions live in
+# tests/shell/test_codex_rules.sh and test_codex_platform_rules.py.
+if (-not $linuxRoleSource.Contains('src: default.rules')) {
+    throw 'Linux Codex role must install the dedicated rules baseline'
 }
 
 if ($macosBootstrapSource -notmatch 'CODEX_SANDBOX_MODE="\$\{CODEX_SANDBOX_MODE:-workspace-write\}"') {
@@ -747,8 +636,9 @@ if (-not $macosCodexSource.Contains('upsert_codex_top_level_setting check_for_up
     throw 'macOS Codex module must apply check_for_update_on_startup to config.toml'
 }
 
-if (-not $macosCodexSource.Contains('remove_codex_unsafe_shell_wrapper_rules')) {
-    throw 'macOS Codex module must remove legacy unsafe shell wrapper rules'
+if (-not $macosCodexSource.Contains('initialize_codex_default_rules') -or
+    -not $macosCodexSource.Contains('complete_codex_default_rules')) {
+    throw 'macOS must back up and regenerate rules before replacement'
 }
 
 if ($macosCodexSource.Contains("ensure_codex_prefix_rule '[""pwsh""]'")) {
@@ -787,8 +677,8 @@ foreach ($pattern in @(
     '["git", "config", "--global", "--get"]',
     '["git", "config", "--list"]'
 )) {
-    if ($macosCodexSource.Contains("ensure_codex_git_allow_rule '$pattern'")) {
-        throw "macOS Codex module must not allow output-capable git command: $pattern"
+    if (-not $macosCodexSource.Contains("ensure_codex_git_allow_rule '$pattern'")) {
+        throw "macOS Codex module must allow trusted Git inspection: $pattern"
     }
 }
 
@@ -826,7 +716,7 @@ foreach ($pattern in @(
 }
 
 foreach ($pattern in @(
-    '["sudo"]',
+    '["sudo", "make", "install"]',
     '["git", "push"]',
     '["git", "reset", "--hard"]',
     '["git", "reset"]',
@@ -854,8 +744,22 @@ foreach ($pattern in @(
     '["npm", "install", "-g"]'
 )) {
     if (-not $macosCodexSource.Contains("ensure_codex_prefix_rule '$pattern'")) {
-        throw "macOS Codex module must prompt for privileged/system tool: $pattern"
+        throw "macOS Codex module must define the current workflow rule: $pattern"
     }
 }
 
+foreach ($tool in @('ssh', 'scp', 'gdb', 'lldb', 'cdb', 'wsl', 'wsl.exe', 'Copy-Item', 'Set-Content')) {
+    if (-not $source.Contains("Set-CodexAllowRule '[""$tool""]'")) {
+        throw "Missing trusted development allow: $tool"
+    }
+}
+foreach ($tool in @('Remove-ItemProperty', 'Remove-Service', 'Disable-WindowsOptionalFeature')) {
+    $pattern = [regex]::Escape('pattern = ["' + $tool + '"]')
+    if ($source -notmatch ($pattern + ',\s*decision = "prompt"')) {
+        throw "Destructive system tool must retain prompt: $tool"
+    }
+}
+if (-not $source.Contains('["--install", "--import", "--import-in-place", "--unregister"]')) {
+    throw 'WSL creation/import/removal must retain review'
+}
 Write-Host 'codex rules tests passed'

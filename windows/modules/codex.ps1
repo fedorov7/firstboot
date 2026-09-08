@@ -385,66 +385,28 @@ function Add-CodexPrefixRuleIfMissing {
 }
 
 function Initialize-CodexDefaultRules {
-    $managedHeader = '# Managed by firstboot. Previous interactive default.rules files are backed up under rules/backups.'
-
-    if (-not (Test-Path $script:CodexDefaultRules)) {
-        Set-Content -LiteralPath $script:CodexDefaultRules -Value ($managedHeader + [Environment]::NewLine) -NoNewline -Encoding utf8
-        Write-Ok 'Codex default rules initialized'
-        return
-    }
-
-    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ($source.StartsWith($managedHeader)) {
-        Write-Skip 'Codex default rules already firstboot-managed'
-        return
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($source)) {
-        $backupDir = Join-Path (Split-Path -Parent $script:CodexDefaultRules) 'backups'
-        if (-not (Test-Path $backupDir)) {
-            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        }
-        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        $backupPath = Join-Path $backupDir "default.rules.$timestamp.bak"
-        Move-Item -LiteralPath $script:CodexDefaultRules -Destination $backupPath -Force
+    $script:CodexRulesDestination = $script:CodexDefaultRules
+    $rulesDir = Split-Path -Parent $script:CodexRulesDestination
+    if (Test-Path -LiteralPath $script:CodexRulesDestination) {
+        $backupDir = Join-Path $rulesDir 'backups'
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        $backupPath = Join-Path $backupDir ("default.rules.{0}.bak" -f [guid]::NewGuid())
+        Copy-Item -LiteralPath $script:CodexRulesDestination -Destination $backupPath
         Write-Ok "Backed up previous Codex default rules to $backupPath"
     }
-
-    Set-Content -LiteralPath $script:CodexDefaultRules -Value ($managedHeader + [Environment]::NewLine) -NoNewline -Encoding utf8
-    Write-Ok 'Codex default rules recreated from firstboot baseline'
+    $script:CodexDefaultRules = Join-Path $rulesDir (".default.rules.{0}.tmp" -f [guid]::NewGuid())
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value '# Managed by firstboot. Rebuilt from the current rules on every run.' -Encoding utf8
 }
 
-function Remove-CodexPrefixAllowRulesByPattern {
-    param(
-        [Parameter(Mandatory)][string]$Pattern,
-        [switch]$Quiet
-    )
-
-    if (-not (Test-Path $script:CodexDefaultRules)) {
-        return
+function Complete-CodexDefaultRules {
+    & codex execpolicy check --rules $script:CodexDefaultRules -- git status | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item -LiteralPath $script:CodexDefaultRules -Force
+        $script:CodexDefaultRules = $script:CodexRulesDestination
+        throw 'Generated Codex rules are invalid; original file preserved'
     }
-
-    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ([string]::IsNullOrWhiteSpace($source)) {
-        return
-    }
-
-    $escapedPattern = [regex]::Escape($Pattern)
-    $ruleRegex = [regex]::new(
-        "(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$escapedPattern(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*""allow""(?:(?!^\s*prefix_rule\().)*?\)\s*"
-    )
-    $updated = $ruleRegex.Replace($source, [Environment]::NewLine)
-    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
-
-    if ($updated -eq $source) {
-        if (-not $Quiet) {
-            Write-Skip "Codex allow rule absent: $Pattern"
-        }
-        return
-    }
-
-    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
-    Write-Ok "Removed Codex allow rule: $Pattern"
+    Move-Item -LiteralPath $script:CodexDefaultRules -Destination $script:CodexRulesDestination -Force
+    $script:CodexDefaultRules = $script:CodexRulesDestination
 }
 
 function Remove-CodexPrefixRulesByPattern {
@@ -493,7 +455,9 @@ function Set-CodexPrefixRule {
     }
     $normalizedSource = $source -replace "`r`n", "`n"
     $normalizedRule = $Rule.Trim() -replace "`r`n", "`n"
-    if ($normalizedSource.Contains($normalizedRule)) {
+    $escapedPattern = [regex]::Escape($Pattern)
+    $matchingCount = [regex]::Matches($source, "pattern\s*=\s*$escapedPattern\s*,").Count
+    if ($matchingCount -eq 1 -and $normalizedSource.Contains($normalizedRule)) {
         Write-Skip "Codex rule already current: $Pattern"
         return
     }
@@ -538,108 +502,6 @@ prefix_rule(
     justification = "$Justification",
 $matchLine)
 "@
-}
-
-function Remove-CodexUnsafeShellWrapperRules {
-    foreach ($pattern in @(
-        '["pwsh"]',
-        '["powershell", "-Command"]',
-        '["cmd", "/c"]',
-        '["wsl", "bash", "-lc"]',
-        '["wsl", "-e", "bash"]'
-    )) {
-        Remove-CodexPrefixAllowRulesByPattern $pattern
-    }
-}
-
-function Remove-CodexUnsafeSystemMutatorRules {
-    foreach ($pattern in @(
-        '["git"]',
-        '["uv"]',
-        '["python"]',
-        '["python3"]',
-        '["py"]',
-        '["timeout"]',
-        '["curl", "-fL"]',
-        '["git", "-C"]',
-        '["git", "reset", "--hard"]',
-        '["git", "reset"]',
-        '["git", "clean"]',
-        '["git", "restore"]',
-        '["git", "checkout", "--"]',
-        '["git", "rebase"]',
-        '["git", "commit", "--amend"]',
-        '["git", "branch", "-D"]',
-        '["git", "branch", "-d"]',
-        '["git", "tag", "-d"]',
-        '["git", "checkout", "-f"]',
-        '["git", "switch", "-C"]',
-        '["git", "switch", "--discard-changes"]',
-        '["git", "rm"]',
-        '["git", "stash", "drop"]',
-        '["git", "stash", "clear"]',
-        '["git", "reflog", "expire"]',
-        '["git", "gc", "--prune"]',
-        '["git", "gc", "--prune=now"]',
-        '["bcdedit"]'
-    )) {
-        Remove-CodexPrefixAllowRulesByPattern -Pattern $pattern -Quiet
-    }
-}
-
-function Remove-CodexCredentialBearingRules {
-    if (-not (Test-Path $script:CodexDefaultRules)) {
-        return
-    }
-
-    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ([string]::IsNullOrWhiteSpace($source)) {
-        return
-    }
-
-    $ruleRegex = [regex]::new('(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*')
-    $updated = $ruleRegex.Replace($source, {
-        param($match)
-        $rule = $match.Value
-        if ($rule -match '(?ms)pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])' -and
-            $rule -match '(?ms)decision\s*=\s*"allow"') {
-            return [Environment]::NewLine
-        }
-        return $rule
-    })
-    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
-    if ($updated -eq $source) {
-        Write-Skip 'Credential-bearing Codex rules absent'
-        return
-    }
-
-    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
-    Write-Ok 'Removed credential-bearing Codex rules'
-}
-
-function Remove-CodexMismatchedGitGcPruneRule {
-    if (-not (Test-Path $script:CodexDefaultRules)) {
-        return
-    }
-
-    $source = Get-Content -LiteralPath $script:CodexDefaultRules -Raw
-    if ([string]::IsNullOrWhiteSpace($source)) {
-        return
-    }
-
-    $ruleRegex = [regex]::new(
-        '(?ms)(?:^|\r?\n)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*\["git",\s*"gc",\s*"--prune"\],(?:(?!^\s*prefix_rule\().)*?match\s*=\s*\["git gc --prune=now"\],(?:(?!^\s*prefix_rule\().)*?\)\s*'
-    )
-    $updated = $ruleRegex.Replace($source, [Environment]::NewLine)
-    $updated = [regex]::Replace($updated, "(\r?\n){3,}", [Environment]::NewLine + [Environment]::NewLine).Trim() + [Environment]::NewLine
-
-    if ($updated -eq $source) {
-        Write-Skip 'Mismatched Codex git gc --prune rule absent'
-        return
-    }
-
-    Set-Content -LiteralPath $script:CodexDefaultRules -Value $updated -NoNewline -Encoding utf8
-    Write-Ok 'Removed mismatched Codex git gc --prune rule'
 }
 
 function Set-CodexPermissionsExample {
@@ -1011,9 +873,12 @@ Start with at most one subagent. Add a second only for independent verification 
 
 ## Scope and completion
 
+Routine authorized development includes git add and ordinary commit, SSH diagnostics and file transfer, editing tracked files, compiling, installing utilities, and running debuggers/analysis tools. Use the configured allow rules without repeated confirmation; prefer workdir over git -C and direct tool commands over opaque shell wrappers.
+Review the complete action before execution: deletion, rebase/reset/clean, commit --amend anywhere in the arguments, forced push, rsync --delete, remote destructive SSH commands, disk formatting, and removal of system services or features need explicit scope/authorization. Prefix rules cannot inspect remote shell strings, later flags, hooks, debugger commands, or build scripts; do not use those forms to bypass review. WSL command execution is authorized; creation/import or deletion of distributions and virtual machines requires explicit authorization. Inspect the full WSL argument list because prefix rules do not cover every reordered option. SSH/WSL/PowerShell tools are trusted execution paths, not guarantees that all their operations are safe. Keep credentials out of rules and command lines.
+
 For answer, review, diagnose, or plan requests, inspect only the minimum relevant files, logs, and docs; report evidence and do not edit unless asked.
 For change, build, or fix requests, make only the requested in-scope local change and run the smallest relevant non-destructive validation.
-Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. If a needed action materially broadens scope, affects another platform, writes externally, is destructive, or incurs cost, stop and ask. Stop when the acceptance criteria and required validation pass.
+Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. Ask only when a concrete action exceeds the existing authorization, changes the target or side effects, is destructive outside the agreed scope, or incurs unapproved cost. Stop when the acceptance criteria and required validation pass.
 '@
     $managedBlock = "$begin`n$block`n$end"
     $source = if (Test-Path $path) { Get-Content -LiteralPath $path -Raw } else { '' }
@@ -1274,10 +1139,6 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Generated Codex config failed runtime validation; refusing to continue'
 }
 
-Remove-CodexUnsafeShellWrapperRules
-Remove-CodexUnsafeSystemMutatorRules
-Remove-CodexCredentialBearingRules
-Remove-CodexMismatchedGitGcPruneRule
 
 Add-CodexGitAllowRule '["git", "status"]' `
     'Allow read-only Git status checks without repeated prompts' `
@@ -2165,8 +2026,8 @@ prefix_rule(
 Set-CodexPrefixRule '["wsl", "--install"]' @'
 prefix_rule(
     pattern = ["wsl", "--install"],
-    decision = "allow",
-    justification = "Allow WSL distribution and platform installs for trusted workstation setup without repeated prompts",
+    decision = "prompt",
+    justification = "Review creation of a WSL distribution",
     match = ["wsl --install -d Ubuntu"],
 )
 '@
@@ -2203,8 +2064,8 @@ prefix_rule(
 Set-CodexPrefixRule '["Remove-ItemProperty"]' @'
 prefix_rule(
     pattern = ["Remove-ItemProperty"],
-    decision = "allow",
-    justification = "Allow registry and provider-backed setting removal during trusted provisioning without repeated prompts",
+    decision = "prompt",
+    justification = "Review destructive system removal before execution",
 )
 '@
 Set-CodexPrefixRule '["reg"]' @'
@@ -2256,8 +2117,8 @@ prefix_rule(
 Set-CodexPrefixRule '["Remove-Service"]' @'
 prefix_rule(
     pattern = ["Remove-Service"],
-    decision = "allow",
-    justification = "Allow Windows service removal during trusted provisioning without repeated prompts",
+    decision = "prompt",
+    justification = "Review destructive system removal before execution",
     match = ["Remove-Service example"],
 )
 '@
@@ -2272,25 +2133,9 @@ prefix_rule(
 Set-CodexPrefixRule '["Disable-WindowsOptionalFeature"]' @'
 prefix_rule(
     pattern = ["Disable-WindowsOptionalFeature"],
-    decision = "allow",
-    justification = "Allow disabling Windows optional features during trusted provisioning without repeated prompts",
-    match = ["Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
-)
-'@
-Set-CodexPrefixRule '["dism"]' @'
-prefix_rule(
-    pattern = ["dism"],
-    decision = "allow",
-    justification = "Allow DISM feature and image operations during trusted provisioning without repeated prompts",
-    match = ["dism /online /get-features"],
-)
-'@
-Add-CodexPrefixRuleIfMissing '["bcdedit"]' @'
-prefix_rule(
-    pattern = ["bcdedit"],
     decision = "prompt",
-    justification = "Prompt before changing Windows boot configuration",
-    match = ["bcdedit /enum"],
+    justification = "Review destructive system removal before execution",
+    match = ["Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux"],
 )
 '@
 
@@ -2350,6 +2195,272 @@ prefix_rule(
     justification = "Allow ST-Link debug server workflows outside sandbox",
 )
 '@
+
+# Trusted development, remote diagnostics, and ordinary file edits.
+Set-CodexAllowRule '["ssh"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["sshpass"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["scp"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["sftp"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["rsync"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["gdb"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["lldb"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["valgrind"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["objdump"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["llvm-objdump"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["nm"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["file"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["strings"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["xxd"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["cdb"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["windbg"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["dumpbin"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["llvm-readelf"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["cl"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["clang"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["clang++"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["clang-cl"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["link"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["lib"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["msbuild"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["MSBuild"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Copy-Item"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Move-Item"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Rename-Item"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["New-Item"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Set-Content"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Add-Content"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Out-File"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Set-Location"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Install-Module"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["Install-PSResource"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+Set-CodexAllowRule '["dotnet", "tool", "install"]' `
+    'Allow authorized development, diagnostics, and file editing without repeated prompts'
+
+# Dangerous removals override otherwise trusted setup tools.
+Set-CodexPrefixRule '["rm"]' @'
+prefix_rule(
+    pattern = ["rm"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["rmdir"]' @'
+prefix_rule(
+    pattern = ["rmdir"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["del"]' @'
+prefix_rule(
+    pattern = ["del"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["erase"]' @'
+prefix_rule(
+    pattern = ["erase"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["Remove-Item"]' @'
+prefix_rule(
+    pattern = ["Remove-Item"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["Clear-Disk"]' @'
+prefix_rule(
+    pattern = ["Clear-Disk"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["Initialize-Disk"]' @'
+prefix_rule(
+    pattern = ["Initialize-Disk"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["Format-Volume"]' @'
+prefix_rule(
+    pattern = ["Format-Volume"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["Remove-Partition"]' @'
+prefix_rule(
+    pattern = ["Remove-Partition"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["diskpart"]' @'
+prefix_rule(
+    pattern = ["diskpart"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["format"]' @'
+prefix_rule(
+    pattern = ["format"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["shutdown"]' @'
+prefix_rule(
+    pattern = ["shutdown"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["reg", "reg.exe"], "delete"]' @'
+prefix_rule(
+    pattern = [["reg", "reg.exe"], "delete"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["sc", "sc.exe"], "delete"]' @'
+prefix_rule(
+    pattern = [["sc", "sc.exe"], "delete"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["wsl", "--unregister"]' @'
+prefix_rule(
+    pattern = ["wsl", "--unregister"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["winget", "scoop", "choco"], "uninstall"]' @'
+prefix_rule(
+    pattern = [["winget", "scoop", "choco"], "uninstall"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["dism", "/online", "/disable-feature"]' @'
+prefix_rule(
+    pattern = ["dism", "/online", "/disable-feature"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["dism", "/Online", "/Disable-Feature"]' @'
+prefix_rule(
+    pattern = ["dism", "/Online", "/Disable-Feature"],
+    decision = "prompt",
+)
+'@
+# WSL command execution is an explicitly trusted development workflow.
+Set-CodexAllowRule '["wsl"]' `
+    'Allow commands, builds, diagnostics, and shell execution inside WSL'
+Set-CodexAllowRule '["wsl.exe"]' `
+    'Allow commands, builds, diagnostics, and shell execution inside WSL'
+Set-CodexPrefixRule '[["wsl", "wsl.exe"], ["--install", "--import", "--import-in-place", "--unregister"]]' @'
+prefix_rule(
+    pattern = [["wsl", "wsl.exe"], ["--install", "--import", "--import-in-place", "--unregister"]],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["New-VM", "Remove-VM"]]' @'
+prefix_rule(
+    pattern = [["New-VM", "Remove-VM"]],
+    decision = "prompt",
+)
+'@
+Set-CodexAllowRule '["ssh.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["scp.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["sftp.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["gdb.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["lldb.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["cdb.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["windbg.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["dumpbin.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["cl.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexAllowRule '["msbuild.exe"]' `
+    'Allow the explicit Windows executable name for trusted development tools'
+Set-CodexPrefixRule '["git", "push", ["--force", "-f", "--force-with-lease"]]' @'
+prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["rsync", "--delete"]' @'
+prefix_rule(
+    pattern = ["rsync", "--delete"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '["sshpass", "-p"]' @'
+prefix_rule(
+    pattern = ["sshpass", "-p"],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["bcdedit", "bcdedit.exe"], ["/enum", "/ENUM"]]' @'
+prefix_rule(
+    pattern = [["bcdedit", "bcdedit.exe"], ["/enum", "/ENUM"]],
+    decision = "allow",
+)
+'@
+Set-CodexPrefixRule '[["bcdedit", "bcdedit.exe"], ["/set", "/delete", "/deletevalue", "/import", "/create", "/createstore", "/default", "/bootsequence", "/displayorder"]]' @'
+prefix_rule(
+    pattern = [["bcdedit", "bcdedit.exe"], ["/set", "/delete", "/deletevalue", "/import", "/create", "/createstore", "/default", "/bootsequence", "/displayorder"]],
+    decision = "prompt",
+)
+'@
+Set-CodexPrefixRule '[["dism", "dism.exe"], ["/online", "/Online"], ["/get-features", "/Get-Features", "/get-packages", "/Get-Packages", "/get-capabilities", "/Get-Capabilities", "/enable-feature", "/Enable-Feature", "/add-capability", "/Add-Capability"]]' @'
+prefix_rule(
+    pattern = [["dism", "dism.exe"], ["/online", "/Online"], ["/get-features", "/Get-Features", "/get-packages", "/Get-Packages", "/get-capabilities", "/Get-Capabilities", "/enable-feature", "/Enable-Feature", "/add-capability", "/Add-Capability"]],
+    decision = "allow",
+)
+'@
+Set-CodexPrefixRule '[["dism", "dism.exe"], ["/apply-image", "/Apply-Image", "/apply-ffu", "/Apply-FFU", "/delete-image", "/Delete-Image"]]' @'
+prefix_rule(
+    pattern = [["dism", "dism.exe"], ["/apply-image", "/Apply-Image", "/apply-ffu", "/Apply-FFU", "/delete-image", "/Delete-Image"]],
+    decision = "prompt",
+)
+'@
+Complete-CodexDefaultRules
 Set-CodexPermissionsExample
 Set-CodexProfileFiles
 Set-CodexCustomAgentFiles

@@ -205,158 +205,42 @@ upsert_codex_top_level_setting() {
   write_ok "Codex $key = $value"
 }
 
+initialize_codex_default_rules() {
+  codex_rules_destination="$codex_default_rules"
+  if [[ -f "$codex_rules_destination" ]]; then
+    local backup_dir="$codex_rules_dir/backups"
+    local backup
+    mkdir -p "$backup_dir"
+    chmod 700 "$backup_dir"
+    backup="$(mktemp "$backup_dir/default.rules.XXXXXX")"
+    cp "$codex_rules_destination" "$backup"
+    chmod 600 "$backup"
+    write_ok "Backed up Codex rules to $backup"
+  fi
+  codex_default_rules="$(mktemp "$codex_rules_dir/.default.rules.XXXXXX")"
+  printf '# Managed by firstboot. Rebuilt from the current rules on every run.\n' >"$codex_default_rules"
+}
+
+complete_codex_default_rules() {
+  if ! codex execpolicy check --rules "$codex_default_rules" -- git status >/dev/null; then
+    rm -f "$codex_default_rules"
+    codex_default_rules="$codex_rules_destination"
+    write_warn "Generated Codex rules are invalid; original file preserved"
+    return 1
+  fi
+  chmod 600 "$codex_default_rules"
+  mv "$codex_default_rules" "$codex_rules_destination"
+  codex_default_rules="$codex_rules_destination"
+}
+
 ensure_codex_prefix_rule() {
   local pattern="$1"
   local rule="$2"
-  if [[ -f "$codex_default_rules" ]] && grep -qF "pattern = $pattern" "$codex_default_rules"; then
-    write_skip "Codex rule already present: $pattern"
+  # This file is newly generated; there are no historical rules to migrate.
+  if grep -qF "pattern = $pattern," "$codex_default_rules"; then
     return
   fi
-  if [[ -s "$codex_default_rules" ]]; then
-    printf '\n' >>"$codex_default_rules"
-  fi
-  printf '%s\n' "$rule" >>"$codex_default_rules"
-  write_ok "Codex rule added: $pattern"
-}
-
-remove_codex_prefix_allow_rule() {
-  local pattern="$1"
-  local quiet="${2:-0}"
-  if [[ ! -f "$codex_default_rules" ]]; then
-    return
-  fi
-
-  local before
-  before="$(cat "$codex_default_rules")"
-  PATTERN="$pattern" perl -0pi -e '
-    my $p = quotemeta($ENV{"PATTERN"});
-    s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$p(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*"allow"(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
-    s/\R{3,}/\n\n/g;
-    s/\A\s+//;
-    s/\s+\z/\n/;
-  ' "$codex_default_rules"
-
-  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
-    if [[ "$quiet" != "1" ]]; then
-      write_skip "Unsafe Codex allow rule absent: $pattern"
-    fi
-  else
-    write_ok "Removed unsafe Codex allow rule: $pattern"
-  fi
-}
-
-remove_codex_unsafe_shell_wrapper_rules() {
-  remove_codex_prefix_allow_rule '["pwsh"]'
-  remove_codex_prefix_allow_rule '["wsl", "bash", "-lc"]'
-  remove_codex_prefix_allow_rule '["wsl", "-e", "bash"]'
-  remove_codex_prefix_allow_rule '["/usr/bin/zsh", "-lc"]'
-}
-
-remove_codex_unsafe_system_mutator_rules() {
-  local pattern
-  for pattern in \
-    '["git"]' \
-    '["sudo"]' \
-    '["uv"]' \
-    '["python3"]' \
-    '["timeout"]' \
-    '["curl", "-fL"]' \
-    '["curl", "-sS", "-D", "-"]' \
-    '["git", "-C"]' \
-    '["git", "commit"]' \
-    '["git", "diff"]' \
-    '["git", "log"]' \
-    '["git", "show"]' \
-    '["git", "grep"]' \
-    '["git", "blame"]' \
-    '["git", "config", "--get"]' \
-    '["git", "config", "--global", "--get"]' \
-    '["git", "config", "--list"]' \
-    '["git", "push"]' \
-    '["git", "reset", "--hard"]' \
-    '["git", "reset"]' \
-    '["git", "clean"]' \
-    '["git", "restore"]' \
-    '["git", "checkout", "--"]' \
-    '["git", "rebase"]' \
-    '["git", "commit", "--amend"]' \
-    '["git", "branch", "-D"]' \
-    '["git", "branch", "-d"]' \
-    '["git", "tag", "-d"]' \
-    '["git", "checkout", "-f"]' \
-    '["git", "switch", "-C"]' \
-    '["git", "switch", "--discard-changes"]' \
-    '["git", "rm"]' \
-    '["git", "stash", "drop"]' \
-    '["git", "stash", "clear"]' \
-    '["git", "reflog", "expire"]' \
-    '["git", "gc", "--prune"]' \
-    '["git", "gc", "--prune=now"]' \
-    '["doas"]' \
-    '["su"]' \
-    '["brew", "install"]' \
-    '["brew", "upgrade"]' \
-    '["rustup"]' \
-    '["cargo", "install"]' \
-    '["uv", "tool", "install"]' \
-    '["uv", "tool", "upgrade"]' \
-    '["npm", "install", "-g"]' \
-    '["npm", "install", "--global"]' \
-    '["python", "-m", "pip", "install"]' \
-    '["python3", "-m", "pip", "install"]' \
-    '["pipx", "install"]' \
-    '["launchctl"]' \
-    '["mount"]' \
-    '["umount"]'
-  do
-    remove_codex_prefix_allow_rule "$pattern" 1
-  done
-}
-
-remove_codex_credential_bearing_rules() {
-  if [[ ! -f "$codex_default_rules" ]]; then
-    return
-  fi
-
-  local before
-  before="$(cat "$codex_default_rules")"
-  perl -0pi -e '
-    s{(?:^|\R)(prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*)}{
-      my $rule = $1;
-      $rule =~ /pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])/s &&
-      $rule =~ /decision\s*=\s*"allow"/s ? "\n" : $&;
-    }egms;
-    s/\R{3,}/\n\n/g;
-    s/\A\s+//;
-    s/\s+\z/\n/;
-  ' "$codex_default_rules"
-
-  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
-    write_skip "Credential-bearing Codex rules absent"
-  else
-    write_ok "Removed credential-bearing Codex rules"
-  fi
-}
-
-remove_codex_mismatched_git_gc_prune_rule() {
-  if [[ ! -f "$codex_default_rules" ]]; then
-    return
-  fi
-
-  local before
-  before="$(cat "$codex_default_rules")"
-  perl -0pi -e '
-    s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*\["git",\s*"gc",\s*"--prune"\],(?:(?!^\s*prefix_rule\().)*?match\s*=\s*\["git gc --prune=now"\],(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
-    s/\R{3,}/\n\n/g;
-    s/\A\s+//;
-    s/\s+\z/\n/;
-  ' "$codex_default_rules"
-
-  if [[ "$(cat "$codex_default_rules")" == "$before" ]]; then
-    write_skip "Mismatched Codex git gc --prune rule absent"
-  else
-    write_ok "Removed mismatched Codex git gc --prune rule"
-  fi
+  printf '\n%s\n' "$rule" >>"$codex_default_rules"
 }
 
 remove_codex_legacy_agents_table() {
@@ -741,9 +625,12 @@ Start with at most one subagent. Add a second only for independent verification 
 
 ## Scope and completion
 
+Routine authorized development includes git add and ordinary commit, SSH diagnostics and file transfer, editing tracked files, compiling, installing utilities, and running debuggers/analysis tools. Use the configured allow rules without repeated confirmation; prefer workdir over git -C and direct tool commands over opaque shell wrappers.
+Review the complete action before execution: deletion, rebase/reset/clean, commit --amend anywhere in the arguments, forced push, rsync --delete, remote destructive SSH commands, disk formatting, and removal of system services or features need explicit scope/authorization. Prefix rules cannot inspect remote shell strings, later flags, hooks, debugger commands, or build scripts; do not use those forms to bypass review. SSH/PowerShell tools are trusted execution paths, not guarantees that all their operations are safe. Keep credentials out of rules and command lines.
+
 For answer, review, diagnose, or plan requests, inspect only the minimum relevant files, logs, and docs; report evidence and do not edit unless asked.
 For change, build, or fix requests, make only the requested in-scope local change and run the smallest relevant non-destructive validation.
-Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. If a needed action materially broadens scope, affects another platform, writes externally, is destructive, or incurs cost, stop and ask. Stop when the acceptance criteria and required validation pass.
+Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. Ask only when a concrete action exceeds the existing authorization, changes the target or side effects, is destructive outside the agreed scope, or incurs unapproved cost. Stop when the acceptance criteria and required validation pass.
 EOF
 )"
 
@@ -817,10 +704,7 @@ if ! codex_config_validate_runtime; then
   return 1
 fi
 
-remove_codex_unsafe_shell_wrapper_rules
-remove_codex_unsafe_system_mutator_rules
-remove_codex_credential_bearing_rules
-remove_codex_mismatched_git_gc_prune_rule
+initialize_codex_default_rules
 
 ensure_codex_git_allow_rule '["git", "status"]' \
   "Allow read-only Git status checks without repeated prompts" \
@@ -1055,8 +939,8 @@ ensure_codex_prefix_rule '["usbreset"]' 'prefix_rule(
 
 ensure_codex_prefix_rule '["git", "push"]' 'prefix_rule(
     pattern = ["git", "push"],
-    decision = "prompt",
-    justification = "Prompt before publishing commits to a remote repository",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["git push"],
 )'
 ensure_codex_prefix_rule '["git", "reset", "--hard"]' 'prefix_rule(
@@ -1103,8 +987,8 @@ ensure_codex_prefix_rule '["git", "commit", "--amend"]' 'prefix_rule(
 )'
 ensure_codex_prefix_rule '["git", "commit"]' 'prefix_rule(
     pattern = ["git", "commit"],
-    decision = "prompt",
-    justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
 )'
 ensure_codex_prefix_rule '["git", "branch", "-D"]' 'prefix_rule(
@@ -1179,12 +1063,6 @@ ensure_codex_prefix_rule '["git", "gc", "--prune=now"]' 'prefix_rule(
     justification = "Prompt before pruning unreachable Git objects immediately",
     match = ["git gc --prune=now"],
 )'
-ensure_codex_prefix_rule '["sudo"]' 'prefix_rule(
-    pattern = ["sudo"],
-    decision = "prompt",
-    justification = "Prompt before running commands with elevated privileges",
-    match = ["sudo softwareupdate --install --all"],
-)'
 ensure_codex_prefix_rule '["doas"]' 'prefix_rule(
     pattern = ["doas"],
     decision = "prompt",
@@ -1199,68 +1077,68 @@ ensure_codex_prefix_rule '["su"]' 'prefix_rule(
 )'
 ensure_codex_prefix_rule '["brew", "install"]' 'prefix_rule(
     pattern = ["brew", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing Homebrew packages",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["brew install ripgrep"],
 )'
 ensure_codex_prefix_rule '["brew", "upgrade"]' 'prefix_rule(
     pattern = ["brew", "upgrade"],
-    decision = "prompt",
-    justification = "Prompt before upgrading Homebrew packages",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["brew upgrade"],
 )'
 ensure_codex_prefix_rule '["rustup"]' 'prefix_rule(
     pattern = ["rustup"],
-    decision = "prompt",
-    justification = "Prompt before modifying Rust toolchains or global components",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["rustup update stable"],
 )'
 ensure_codex_prefix_rule '["cargo", "install"]' 'prefix_rule(
     pattern = ["cargo", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global Cargo binaries",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["cargo install cargo-nextest"],
 )'
 ensure_codex_prefix_rule '["uv", "tool", "install"]' 'prefix_rule(
     pattern = ["uv", "tool", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing global uv tools",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["uv tool install ruff"],
 )'
 ensure_codex_prefix_rule '["uv", "tool", "upgrade"]' 'prefix_rule(
     pattern = ["uv", "tool", "upgrade"],
-    decision = "prompt",
-    justification = "Prompt before upgrading global uv tools",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["uv tool upgrade ruff"],
 )'
 ensure_codex_prefix_rule '["npm", "install", "-g"]' 'prefix_rule(
     pattern = ["npm", "install", "-g"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global npm packages",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["npm install -g @openai/codex"],
 )'
 ensure_codex_prefix_rule '["npm", "install", "--global"]' 'prefix_rule(
     pattern = ["npm", "install", "--global"],
-    decision = "prompt",
-    justification = "Prompt before installing or replacing global npm packages",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["npm install --global @openai/codex"],
 )'
 ensure_codex_prefix_rule '["python", "-m", "pip", "install"]' 'prefix_rule(
     pattern = ["python", "-m", "pip", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing packages into the active Python environment",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["python -m pip install pytest"],
 )'
 ensure_codex_prefix_rule '["python3", "-m", "pip", "install"]' 'prefix_rule(
     pattern = ["python3", "-m", "pip", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing packages into the active Python environment",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["python3 -m pip install pytest"],
 )'
 ensure_codex_prefix_rule '["pipx", "install"]' 'prefix_rule(
     pattern = ["pipx", "install"],
-    decision = "prompt",
-    justification = "Prompt before installing global pipx applications",
+    decision = "allow",
+    justification = "Allow authorized development and utility installation without repeated prompts",
     match = ["pipx install poetry"],
 )'
 ensure_codex_prefix_rule '["launchctl"]' 'prefix_rule(
@@ -1322,6 +1200,331 @@ ensure_codex_prefix_rule '["st-util"]' 'prefix_rule(
     decision = "allow",
     justification = "Allow ST-Link debug server workflows outside sandbox",
 )'
+ensure_codex_git_allow_rule '["git", "diff"]' \
+  "Allow trusted Git inspection without repeated prompts" \
+  "git diff"
+ensure_codex_git_allow_rule '["git", "log"]' \
+  "Allow trusted Git inspection without repeated prompts" \
+  "git log"
+ensure_codex_git_allow_rule '["git", "show"]' \
+  "Allow trusted Git inspection without repeated prompts" \
+  "git show"
+ensure_codex_git_allow_rule '["git", "grep"]' \
+  "Allow trusted Git inspection without repeated prompts" \
+  "git grep"
+ensure_codex_git_allow_rule '["git", "blame"]' \
+  "Allow trusted Git inspection without repeated prompts" \
+  "git blame"
+
+# Trusted development, diagnostics, file editing, and installation.
+ensure_codex_prefix_rule '["ssh"]' 'prefix_rule(
+    pattern = ["ssh"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sshpass"]' 'prefix_rule(
+    pattern = ["sshpass"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["scp"]' 'prefix_rule(
+    pattern = ["scp"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sftp"]' 'prefix_rule(
+    pattern = ["sftp"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["rsync"]' 'prefix_rule(
+    pattern = ["rsync"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["gdb"]' 'prefix_rule(
+    pattern = ["gdb"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["lldb"]' 'prefix_rule(
+    pattern = ["lldb"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["valgrind"]' 'prefix_rule(
+    pattern = ["valgrind"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["objdump"]' 'prefix_rule(
+    pattern = ["objdump"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["llvm-objdump"]' 'prefix_rule(
+    pattern = ["llvm-objdump"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["nm"]' 'prefix_rule(
+    pattern = ["nm"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["file"]' 'prefix_rule(
+    pattern = ["file"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["strings"]' 'prefix_rule(
+    pattern = ["strings"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["xxd"]' 'prefix_rule(
+    pattern = ["xxd"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["cmake"]' 'prefix_rule(
+    pattern = ["cmake"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["uv", "sync"]' 'prefix_rule(
+    pattern = ["uv", "sync"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["uv", "pip", "install"]' 'prefix_rule(
+    pattern = ["uv", "pip", "install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["uv", "tool", "run"]' 'prefix_rule(
+    pattern = ["uv", "tool", "run"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["uvx"]' 'prefix_rule(
+    pattern = ["uvx"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["npm", "install"]' 'prefix_rule(
+    pattern = ["npm", "install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["npm", "ci"]' 'prefix_rule(
+    pattern = ["npm", "ci"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["pnpm", "install"]' 'prefix_rule(
+    pattern = ["pnpm", "install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["pnpm", "run"]' 'prefix_rule(
+    pattern = ["pnpm", "run"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["yarn", "install"]' 'prefix_rule(
+    pattern = ["yarn", "install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["yarn", "run"]' 'prefix_rule(
+    pattern = ["yarn", "run"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["cc"]' 'prefix_rule(
+    pattern = ["cc"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["c++"]' 'prefix_rule(
+    pattern = ["c++"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["gcc"]' 'prefix_rule(
+    pattern = ["gcc"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["g++"]' 'prefix_rule(
+    pattern = ["g++"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["clang"]' 'prefix_rule(
+    pattern = ["clang"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["clang++"]' 'prefix_rule(
+    pattern = ["clang++"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["ar"]' 'prefix_rule(
+    pattern = ["ar"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["ld"]' 'prefix_rule(
+    pattern = ["ld"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["swift"]' 'prefix_rule(
+    pattern = ["swift"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["xcodebuild"]' 'prefix_rule(
+    pattern = ["xcodebuild"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["otool"]' 'prefix_rule(
+    pattern = ["otool"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["atos"]' 'prefix_rule(
+    pattern = ["atos"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sample"]' 'prefix_rule(
+    pattern = ["sample"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["vmmap"]' 'prefix_rule(
+    pattern = ["vmmap"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["leaks"]' 'prefix_rule(
+    pattern = ["leaks"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["lsof"]' 'prefix_rule(
+    pattern = ["lsof"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["ps"]' 'prefix_rule(
+    pattern = ["ps"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["cp"]' 'prefix_rule(
+    pattern = ["cp"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["mv"]' 'prefix_rule(
+    pattern = ["mv"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["mkdir"]' 'prefix_rule(
+    pattern = ["mkdir"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["touch"]' 'prefix_rule(
+    pattern = ["touch"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["tee"]' 'prefix_rule(
+    pattern = ["tee"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sed"]' 'prefix_rule(
+    pattern = ["sed"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["perl"]' 'prefix_rule(
+    pattern = ["perl"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["install"]' 'prefix_rule(
+    pattern = ["install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["apply_patch"]' 'prefix_rule(
+    pattern = ["apply_patch"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["chmod", "+x"]' 'prefix_rule(
+    pattern = ["chmod", "+x"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sudo", "make", "install"]' 'prefix_rule(
+    pattern = ["sudo", "make", "install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sudo", "cmake", "--install"]' 'prefix_rule(
+    pattern = ["sudo", "cmake", "--install"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["sudo", "installer", "-pkg"]' 'prefix_rule(
+    pattern = ["sudo", "installer", "-pkg"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["git", "fetch"]' 'prefix_rule(
+    pattern = ["git", "fetch"],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["git", "pull", "--ff-only"]' 'prefix_rule(
+    pattern = ["git", "pull", "--ff-only"],
+    decision = "allow",
+)'
+
+# Destructive operations retain review.
+ensure_codex_prefix_rule '["rm"]' 'prefix_rule(
+    pattern = ["rm"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["rmdir"]' 'prefix_rule(
+    pattern = ["rmdir"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["shred"]' 'prefix_rule(
+    pattern = ["shred"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["dd"]' 'prefix_rule(
+    pattern = ["dd"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["newfs_apfs"]' 'prefix_rule(
+    pattern = ["newfs_apfs"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["newfs_hfs"]' 'prefix_rule(
+    pattern = ["newfs_hfs"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["reboot"]' 'prefix_rule(
+    pattern = ["reboot"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["shutdown"]' 'prefix_rule(
+    pattern = ["shutdown"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["sudo", ["rm", "rmdir", "dd", "diskutil", "newfs_apfs", "newfs_hfs", "reboot", "shutdown", "launchctl", "sh", "bash", "zsh"]]' 'prefix_rule(
+    pattern = ["sudo", ["rm", "rmdir", "dd", "diskutil", "newfs_apfs", "newfs_hfs", "reboot", "shutdown", "launchctl", "sh", "bash", "zsh"]],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["brew", "uninstall"]' 'prefix_rule(
+    pattern = ["brew", "uninstall"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["rustup", "toolchain", "uninstall"]' 'prefix_rule(
+    pattern = ["rustup", "toolchain", "uninstall"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["diskutil", ["list", "info", "activity"]]' 'prefix_rule(
+    pattern = ["diskutil", ["list", "info", "activity"]],
+    decision = "allow",
+)'
+ensure_codex_prefix_rule '["diskutil", ["eraseDisk", "eraseVolume", "partitionDisk", "zeroDisk", "secureErase"]]' 'prefix_rule(
+    pattern = ["diskutil", ["eraseDisk", "eraseVolume", "partitionDisk", "zeroDisk", "secureErase"]],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["diskutil", "apfs", ["deleteContainer", "deleteVolume"]]' 'prefix_rule(
+    pattern = ["diskutil", "apfs", ["deleteContainer", "deleteVolume"]],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["git", "push", ["--force", "-f", "--force-with-lease"]]' 'prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]],
+    decision = "prompt",
+)'
+ensure_codex_git_allow_rule '["git", "config", "--get"]' \
+  "Allow Git configuration inspection" \
+  "git config --get user.name"
+ensure_codex_git_allow_rule '["git", "config", "--global", "--get"]' \
+  "Allow Git configuration inspection" \
+  "git config --global --get user.name"
+ensure_codex_git_allow_rule '["git", "config", "--list"]' \
+  "Allow Git configuration inspection" \
+  "git config --list"
+ensure_codex_prefix_rule '["rsync", "--delete"]' 'prefix_rule(
+    pattern = ["rsync", "--delete"],
+    decision = "prompt",
+)'
+ensure_codex_prefix_rule '["sshpass", "-p"]' 'prefix_rule(
+    pattern = ["sshpass", "-p"],
+    decision = "prompt",
+)'
+complete_codex_default_rules
 ensure_codex_permissions_example
 ensure_codex_profile_files
 ensure_codex_custom_agent_files
