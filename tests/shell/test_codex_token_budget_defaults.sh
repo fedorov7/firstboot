@@ -54,12 +54,8 @@ require_contains macos/bootstrap.sh 'CODEX_MCP_DEFAULT_DISABLED_SERVERS="${CODEX
   'macOS must keep Context7 disabled by default.'
 require_contains windows/bootstrap.ps1 '[string]$CodexMcpDefaultDisabledServers = "context7,memory,fetch,sequential-thinking"' \
   'Windows must keep Context7 disabled by default.'
-require_contains roles/codex/tasks/main.yml '[mcp_servers.{{ mcp_server }}]' \
-  'Linux deep profile must enable optional MCP servers.'
-require_contains roles/codex/tasks/main.yml 'intersect(codex_mcp_allowlist | default([]))' \
-  'Linux deep profile must not create MCP tables outside the allowlist.'
-require_contains roles/codex/tasks/main.yml "mcp_server != 'fetch' or uv_available.rc == 0" \
-  'Linux deep profile must not enable fetch without uvx.'
+require_not_contains roles/codex/tasks/main.yml '[mcp_servers.{{ mcp_server }}]' \
+  'Linux model profiles must not implicitly enable extra MCP servers.'
 require_contains roles/codex/tasks/main.yml 'key: enabled' \
   'Linux must write the base MCP enabled state.'
 require_contains macos/modules/codex.sh 'upsert_codex_mcp_setting "$server_name" enabled false' \

@@ -119,7 +119,7 @@
     - key: approval_policy
       value: '"{{ codex_approval_policy | default(''on-request'') }}"'
     - key: approvals_reviewer
-      value: '"{{ codex_approvals_reviewer | default(''user'') }}"'
+      value: '"{{ codex_approvals_reviewer | default(''auto_review'') }}"'
     - key: check_for_update_on_startup
       value: "{{ (codex_check_for_update_on_startup | default(true) | bool) | ternary('true', 'false') }}"
   loop_control:
@@ -141,13 +141,16 @@
         print
         next
       }
-      in_section && /^\[/ {
+      in_section && (/^\[/ || /^# BEGIN FIRSTBOOT CODEX SKILL SELECTION$/) {
         if (!setting_seen) {
           print key " = " value
           setting_seen = 1
         }
         in_section = 0
       }
+      # max_threads is the legacy alias of the new concurrency key.
+      in_section && key == "max_concurrent_threads_per_session" &&
+      $0 ~ /^[[:space:]]*max_threads[[:space:]]*=/ { next }
       in_section && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
         if (!setting_seen) {
           print key " = " value
@@ -192,15 +195,21 @@
       value: "{{ (codex_apps_open_world_enabled | default(false) | bool) | ternary('true', 'false') }}"
     - table: apps._default
       key: approvals_reviewer
-      value: '"{{ codex_approvals_reviewer | default(''user'') }}"'
+      value: '"user"'
+    - table: agents
+      key: max_concurrent_threads_per_session
+      value: '{{ codex_max_concurrent_subagents | default(2) }}'
+    - table: agents
+      key: max_depth
+      value: '1'
+    - table: agents
+      key: default_subagent_model
+      value: '"{{ codex_lean_profile_model | default(''gpt-5.6-terra'') }}"'
+    - table: agents
+      key: default_subagent_reasoning_effort
+      value: '"{{ codex_lean_profile_reasoning_effort | default(''medium'') }}"'
   loop_control:
     label: "{{ item.table }} {{ item.key }}"
-
-- name: Remove legacy Codex agent runtime settings
-  replace:
-    path: "{{ user_home }}/.codex/config.toml"
-    regexp: '(?m)^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*'
-    replace: ""
 
 - name: Remove misplaced Codex top-level settings from Codex-owned tables
   shell: |
@@ -244,16 +253,6 @@
       - "{{ user_home }}/.codex/config.toml"
   changed_when: false
 
-- name: Validate generated Codex configuration
-  shell: |
-    export NVM_DIR="{{ user_home }}/.nvm"
-    . "$NVM_DIR/nvm.sh"
-    nvm use {{ node_version }} >/dev/null || exit 1
-    codex mcp list >/dev/null
-  args:
-    executable: /bin/bash
-  changed_when: false
-
 - name: Read codex config.toml
   slurp:
     src: "{{ user_home }}/.codex/config.toml"
@@ -270,855 +269,16 @@
     state: directory
     mode: "0700"
 
-- name: Remove legacy managed Codex broad shell wrapper rules
-  blockinfile:
-    path: "{{ user_home }}/.codex/rules/default.rules"
-    create: true
-    marker: "# {mark} ANSIBLE MANAGED CODEX RULE {{ item }}"
-    state: absent
-    mode: "0644"
-  loop:
-    - git
-    - pwsh
-    - git-diff
-    - git-log
-    - git-show
-    - git-commit-amend
-    - git-grep
-    - git-blame
-    - git-config-get
-    - git-config-global-get
-    - git-config-list
+# This file is the managed baseline; provisioning resets interactive approvals.
+# Backups do not end in .rules and therefore are not loaded by Codex.
+- name: Install reviewed Codex rules baseline
+  copy:
+    src: default.rules
+    dest: "{{ user_home }}/.codex/rules/default.rules"
+    backup: true
+    mode: "0600"
 
-- name: Remove unsafe interactive Codex allow rules
-  shell: |
-    rules_file="{{ user_home }}/.codex/rules/default.rules"
-    [[ -f "$rules_file" ]] || exit 0
-    before_checksum="$(sha256sum "$rules_file" | awk '{ print $1 }')"
-    perl -0pi -e '
-      my @unsafe_patterns = (
-        q{["uv"]},
-        q{["python3"]},
-        q{["timeout"]},
-        q{["curl", "-fL"]},
-        q{["curl", "-sS", "-D", "-"]},
-        q{["/usr/bin/zsh", "-lc"]},
-        q{["git", "-C"]},
-        q{["git", "restore"]},
-        q{["git", "commit"]},
-      );
-      for my $pattern (@unsafe_patterns) {
-        my $escaped = quotemeta($pattern);
-        s/(?:^|\R)prefix_rule\((?:(?!^\s*prefix_rule\().)*?pattern\s*=\s*$escaped(?:(?!^\s*prefix_rule\().)*?decision\s*=\s*"allow"(?:(?!^\s*prefix_rule\().)*?\)\s*/\n/msg;
-      }
-      my @managed_one_line_patterns = (
-        q{["git", "add"]},
-        q{["make"]},
-        q{[".venv/bin/west", "build"]},
-        q{[".venv/bin/west", "flash"]},
-        q{["dmesg"]},
-        q{["lsusb"]},
-        q{["usbreset"]},
-        q{["openocd"]},
-      );
-      for my $pattern (@managed_one_line_patterns) {
-        my $escaped = quotemeta($pattern);
-        s/^prefix_rule\(pattern\s*=\s*$escaped,\s*decision\s*=\s*"allow"\)\s*\R?//mg;
-      }
-      s{(?:^|\R)(prefix_rule\((?:(?!^\s*prefix_rule\().)*?\)\s*)}{
-        my $rule = $1;
-        $rule =~ /pattern\s*=\s*\[\s*"sshpass"(?:\s*,|\s*\])/s &&
-        $rule =~ /decision\s*=\s*"allow"/s ? "\n" : $&;
-      }egms;
-      s/\R{3,}/\n\n/g;
-      s/\A\s+//;
-      s/\s+\z/\n/;
-    ' "$rules_file"
-    after_checksum="$(sha256sum "$rules_file" | awk '{ print $1 }')"
-    if [[ "$before_checksum" != "$after_checksum" ]]; then
-      echo "OK: removed unsafe interactive rules"
-    fi
-  args:
-    executable: /bin/bash
-  register: codex_unsafe_interactive_rules_cleanup
-  changed_when: "'OK:' in codex_unsafe_interactive_rules_cleanup.stdout"
-
-- name: Ensure Codex trusted utility prefix rules
-  blockinfile:
-    path: "{{ user_home }}/.codex/rules/default.rules"
-    create: true
-    marker: "# {mark} ANSIBLE MANAGED CODEX RULE {{ item.name }}"
-    block: "{{ item.rule }}"
-    mode: "0644"
-  loop:
-    - name: git-status
-      rule: |
-        prefix_rule(
-            pattern = ["git", "status"],
-            decision = "allow",
-            justification = "Allow read-only Git status checks without repeated prompts",
-            match = ["git status --short"],
-        )
-    - name: git-ls-files
-      rule: |
-        prefix_rule(
-            pattern = ["git", "ls-files"],
-            decision = "allow",
-            justification = "Allow read-only Git index listing without repeated prompts",
-            match = ["git ls-files"],
-        )
-    - name: git-ls-tree
-      rule: |
-        prefix_rule(
-            pattern = ["git", "ls-tree"],
-            decision = "allow",
-            justification = "Allow read-only Git tree inspection without repeated prompts",
-            match = ["git ls-tree -r HEAD"],
-        )
-    - name: git-rev-parse
-      rule: |
-        prefix_rule(
-            pattern = ["git", "rev-parse"],
-            decision = "allow",
-            justification = "Allow read-only Git revision parsing without repeated prompts",
-            match = ["git rev-parse --show-toplevel"],
-        )
-    - name: git-merge-base
-      rule: |
-        prefix_rule(
-            pattern = ["git", "merge-base"],
-            decision = "allow",
-            justification = "Allow read-only Git merge-base calculations without repeated prompts",
-            match = ["git merge-base HEAD main"],
-        )
-    - name: git-remote-get-url
-      rule: |
-        prefix_rule(
-            pattern = ["git", "remote", "get-url"],
-            decision = "allow",
-            justification = "Allow read-only Git remote URL lookup without repeated prompts",
-            match = ["git remote get-url origin"],
-        )
-    - name: git-branch-list
-      rule: |
-        prefix_rule(
-            pattern = ["git", "branch", "--list"],
-            decision = "allow",
-            justification = "Allow read-only Git branch listing without repeated prompts",
-            match = ["git branch --list"],
-        )
-    - name: git-branch-current
-      rule: |
-        prefix_rule(
-            pattern = ["git", "branch", "--show-current"],
-            decision = "allow",
-            justification = "Allow read-only current branch lookup without repeated prompts",
-            match = ["git branch --show-current"],
-        )
-    - name: git-tag-list
-      rule: |
-        prefix_rule(
-            pattern = ["git", "tag", "--list"],
-            decision = "allow",
-            justification = "Allow read-only Git tag listing without repeated prompts",
-            match = ["git tag --list"],
-        )
-    - name: git-describe
-      rule: |
-        prefix_rule(
-            pattern = ["git", "describe"],
-            decision = "allow",
-            justification = "Allow read-only Git describe lookups without repeated prompts",
-            match = ["git describe --tags --always"],
-        )
-    - name: git-add
-      rule: |
-        prefix_rule(
-            pattern = ["git", "add"],
-            decision = "allow",
-            justification = "Allow staging workspace changes without deleting files or rewriting history",
-            match = ["git add README.md"],
-        )
-    - name: rg
-      rule: |
-        prefix_rule(
-            pattern = ["rg"],
-            decision = "allow",
-            justification = "Allow ripgrep workspace searches without repeated prompts",
-        )
-    - name: fd
-      rule: |
-        prefix_rule(
-            pattern = ["fd"],
-            decision = "allow",
-            justification = "Allow fd workspace file discovery without repeated prompts",
-        )
-    - name: bat
-      rule: |
-        prefix_rule(
-            pattern = ["bat"],
-            decision = "allow",
-            justification = "Allow bat workspace file viewing without repeated prompts",
-        )
-    - name: eza
-      rule: |
-        prefix_rule(
-            pattern = ["eza"],
-            decision = "allow",
-            justification = "Allow eza workspace directory listing without repeated prompts",
-        )
-    - name: delta
-      rule: |
-        prefix_rule(
-            pattern = ["delta"],
-            decision = "allow",
-            justification = "Allow delta diff viewing without repeated prompts",
-        )
-    - name: difft
-      rule: |
-        prefix_rule(
-            pattern = ["difft"],
-            decision = "allow",
-            justification = "Allow difftastic diff viewing without repeated prompts",
-        )
-    - name: difftastic
-      rule: |
-        prefix_rule(
-            pattern = ["difftastic"],
-            decision = "allow",
-            justification = "Allow difftastic diff viewing without repeated prompts",
-        )
-    - name: just
-      rule: |
-        prefix_rule(
-            pattern = ["just"],
-            decision = "allow",
-            justification = "Allow project Justfile workflows in trusted workspaces without repeated prompts",
-        )
-    - name: make
-      rule: |
-        prefix_rule(
-            pattern = ["make"],
-            decision = "allow",
-            justification = "Allow Makefile workflows in trusted workspaces without repeated prompts",
-            match = ["make test"],
-        )
-    - name: uv-run
-      rule: |
-        prefix_rule(
-            pattern = ["uv", "run"],
-            decision = "allow",
-            justification = "Allow uv run project commands in trusted workspaces without repeated prompts",
-            match = ["uv run python -m pytest"],
-            not_match = ["uvx ruff"],
-        )
-    - name: cmake-build
-      rule: |
-        prefix_rule(
-            pattern = ["cmake", "--build"],
-            decision = "allow",
-            justification = "Allow trusted CMake workspace builds without repeated prompts",
-            match = ["cmake --build --preset=dev-win64 --target format-check -j 4"],
-        )
-    - name: ctest
-      rule: |
-        prefix_rule(
-            pattern = ["ctest"],
-            decision = "allow",
-            justification = "Allow trusted CTest workspace test runs without repeated prompts",
-            match = ["ctest --preset=dev-win64 --output-on-failure"],
-        )
-    - name: ninja
-      rule: |
-        prefix_rule(
-            pattern = ["ninja"],
-            decision = "allow",
-            justification = "Allow trusted Ninja workspace builds without repeated prompts",
-            match = ["ninja -C build"],
-        )
-    - name: meson-compile
-      rule: |
-        prefix_rule(
-            pattern = ["meson", "compile"],
-            decision = "allow",
-            justification = "Allow trusted Meson workspace builds without repeated prompts",
-            match = ["meson compile -C build"],
-        )
-    - name: meson-test
-      rule: |
-        prefix_rule(
-            pattern = ["meson", "test"],
-            decision = "allow",
-            justification = "Allow trusted Meson workspace test runs without repeated prompts",
-            match = ["meson test -C build"],
-        )
-    - name: cargo-build
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "build"],
-            decision = "allow",
-            justification = "Allow trusted Cargo workspace builds without repeated prompts",
-            match = ["cargo build --all-targets"],
-        )
-    - name: cargo-check
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "check"],
-            decision = "allow",
-            justification = "Allow trusted Cargo workspace checks without repeated prompts",
-            match = ["cargo check --all-targets"],
-        )
-    - name: cargo-test
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "test"],
-            decision = "allow",
-            justification = "Allow trusted Cargo workspace tests without repeated prompts",
-            match = ["cargo test"],
-        )
-    - name: cargo-clippy
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "clippy"],
-            decision = "allow",
-            justification = "Allow trusted Cargo clippy checks without repeated prompts",
-            match = ["cargo clippy --all-targets --all-features -- -D warnings"],
-        )
-    - name: cargo-nextest
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "nextest"],
-            decision = "allow",
-            justification = "Allow trusted Cargo nextest runs without repeated prompts",
-            match = ["cargo nextest run"],
-        )
-    - name: python-pytest
-      rule: |
-        prefix_rule(
-            pattern = ["python", "-m", "pytest"],
-            decision = "allow",
-            justification = "Allow trusted Python pytest runs without repeated prompts",
-            match = ["python -m pytest"],
-        )
-    - name: python3-pytest
-      rule: |
-        prefix_rule(
-            pattern = ["python3", "-m", "pytest"],
-            decision = "allow",
-            justification = "Allow trusted Python 3 pytest runs without repeated prompts",
-            match = ["python3 -m pytest"],
-        )
-    - name: pytest
-      rule: |
-        prefix_rule(
-            pattern = ["pytest"],
-            decision = "allow",
-            justification = "Allow trusted pytest runs without repeated prompts",
-            match = ["pytest tests"],
-        )
-    - name: npm-test
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "test"],
-            decision = "allow",
-            justification = "Allow trusted npm test scripts without repeated prompts",
-            match = ["npm test"],
-        )
-    - name: npm-run-test
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "run", "test"],
-            decision = "allow",
-            justification = "Allow trusted npm run test scripts without repeated prompts",
-            match = ["npm run test"],
-        )
-    - name: npm-run-build
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "run", "build"],
-            decision = "allow",
-            justification = "Allow trusted npm run build scripts without repeated prompts",
-            match = ["npm run build"],
-        )
-    - name: npm-run-lint
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "run", "lint"],
-            decision = "allow",
-            justification = "Allow trusted npm run lint scripts without repeated prompts",
-            match = ["npm run lint"],
-        )
-    - name: west-build
-      rule: |
-        prefix_rule(
-            pattern = ["west", "build"],
-            decision = "allow",
-            justification = "Allow trusted Zephyr workspace builds without repeated prompts",
-            match = ["west build -b mik32_evb"],
-        )
-    - name: west-flash
-      rule: |
-        prefix_rule(
-            pattern = ["west", "flash"],
-            decision = "allow",
-            justification = "Allow explicitly requested Zephyr hardware flashing without repeated prompts",
-            match = ["west flash -d build"],
-        )
-    - name: venv-west-build
-      rule: |
-        prefix_rule(
-            pattern = [".venv/bin/west", "build"],
-            decision = "allow",
-            justification = "Allow virtualenv Zephyr workspace builds without repeated prompts",
-            match = [".venv/bin/west build -b mik32_evb"],
-        )
-    - name: venv-west-flash
-      rule: |
-        prefix_rule(
-            pattern = [".venv/bin/west", "flash"],
-            decision = "allow",
-            justification = "Allow explicitly requested virtualenv Zephyr flashing without repeated prompts",
-            match = [".venv/bin/west flash -d build"],
-        )
-    - name: dmesg
-      rule: |
-        prefix_rule(
-            pattern = ["dmesg"],
-            decision = "allow",
-            justification = "Allow read-only kernel diagnostics outside sandbox",
-            match = ["dmesg --level=err,warn"],
-        )
-    - name: lsusb
-      rule: |
-        prefix_rule(
-            pattern = ["lsusb"],
-            decision = "allow",
-            justification = "Allow read-only USB device inspection outside sandbox",
-            match = ["lsusb -t"],
-        )
-    - name: usbreset
-      rule: |
-        prefix_rule(
-            pattern = ["usbreset"],
-            decision = "allow",
-            justification = "Allow explicitly requested USB device resets during hardware workflows",
-            match = ["usbreset 1d50:6018"],
-        )
-    - name: probe-rs
-      rule: |
-        prefix_rule(
-            pattern = ["probe-rs"],
-            decision = "allow",
-            justification = "Allow probe-rs hardware workflows outside sandbox",
-        )
-    - name: openocd
-      rule: |
-        prefix_rule(
-            pattern = ["openocd"],
-            decision = "allow",
-            justification = "Allow OpenOCD hardware workflows outside sandbox",
-        )
-    - name: dfu-util
-      rule: |
-        prefix_rule(
-            pattern = ["dfu-util"],
-            decision = "allow",
-            justification = "Allow DFU hardware workflows outside sandbox",
-        )
-    - name: picocom
-      rule: |
-        prefix_rule(
-            pattern = ["picocom"],
-            decision = "allow",
-            justification = "Allow serial console hardware workflows outside sandbox",
-        )
-    - name: stty
-      rule: |
-        prefix_rule(
-            pattern = ["stty"],
-            decision = "allow",
-            justification = "Allow serial TTY configuration outside sandbox",
-        )
-    - name: st-flash
-      rule: |
-        prefix_rule(
-            pattern = ["st-flash"],
-            decision = "allow",
-            justification = "Allow ST-Link flashing workflows outside sandbox",
-        )
-    - name: st-info
-      rule: |
-        prefix_rule(
-            pattern = ["st-info"],
-            decision = "allow",
-            justification = "Allow ST-Link probe inspection outside sandbox",
-        )
-    - name: st-util
-      rule: |
-        prefix_rule(
-            pattern = ["st-util"],
-            decision = "allow",
-            justification = "Allow ST-Link debug server workflows outside sandbox",
-        )
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Ensure Codex privileged command prompt rules
-  blockinfile:
-    path: "{{ user_home }}/.codex/rules/default.rules"
-    create: true
-    marker: "# {mark} ANSIBLE MANAGED CODEX PROMPT RULE {{ item.name }}"
-    block: "{{ item.rule }}"
-    mode: "0644"
-  loop:
-    - name: sudo
-      rule: |
-        prefix_rule(
-            pattern = ["sudo"],
-            decision = "prompt",
-            justification = "Prompt before running commands with elevated privileges",
-            match = ["sudo pacman -Syu"],
-        )
-    - name: git-push
-      rule: |
-        prefix_rule(
-            pattern = ["git", "push"],
-            decision = "prompt",
-            justification = "Prompt before publishing commits to a remote repository",
-            match = ["git push"],
-        )
-    - name: git-reset-hard
-      rule: |
-        prefix_rule(
-            pattern = ["git", "reset", "--hard"],
-            decision = "prompt",
-            justification = "Prompt before discarding tracked workspace changes",
-            match = ["git reset --hard HEAD"],
-        )
-    - name: git-reset
-      rule: |
-        prefix_rule(
-            pattern = ["git", "reset"],
-            decision = "prompt",
-            justification = "Prompt before moving HEAD or discarding tracked workspace changes",
-            match = ["git reset --hard HEAD"],
-        )
-    - name: git-clean
-      rule: |
-        prefix_rule(
-            pattern = ["git", "clean"],
-            decision = "prompt",
-            justification = "Prompt before deleting untracked workspace files",
-            match = ["git clean -fd"],
-        )
-    - name: git-restore
-      rule: |
-        prefix_rule(
-            pattern = ["git", "restore"],
-            decision = "prompt",
-            justification = "Prompt before restoring files and discarding local edits",
-            match = ["git restore README.md"],
-        )
-    - name: git-checkout-restore
-      rule: |
-        prefix_rule(
-            pattern = ["git", "checkout", "--"],
-            decision = "prompt",
-            justification = "Prompt before checkout restores files and discards local edits",
-            match = ["git checkout -- README.md"],
-        )
-    - name: git-rebase
-      rule: |
-        prefix_rule(
-            pattern = ["git", "rebase"],
-            decision = "prompt",
-            justification = "Prompt before rewriting local history",
-            match = ["git rebase main"],
-        )
-    - name: git-commit-amend
-      rule: |
-        prefix_rule(
-            pattern = ["git", "commit", "--amend"],
-            decision = "prompt",
-            justification = "Prompt before amending commits and rewriting history",
-            match = ["git commit --amend"],
-        )
-    - name: git-commit
-      rule: |
-        prefix_rule(
-            pattern = ["git", "commit"],
-            decision = "prompt",
-            justification = "Prompt for commits because Git permits history-rewriting flags in any argument position",
-            match = ["git commit -m update", "git commit --amend", "git commit -m update --amend"],
-        )
-    - name: git-branch-delete
-      rule: |
-        prefix_rule(
-            pattern = ["git", "branch", "-D"],
-            decision = "prompt",
-            justification = "Prompt before deleting branch refs",
-            match = ["git branch -D old-branch"],
-        )
-    - name: git-branch-delete-merged
-      rule: |
-        prefix_rule(
-            pattern = ["git", "branch", "-d"],
-            decision = "prompt",
-            justification = "Prompt before deleting branch refs",
-            match = ["git branch -d old-branch"],
-        )
-    - name: git-tag-delete
-      rule: |
-        prefix_rule(
-            pattern = ["git", "tag", "-d"],
-            decision = "prompt",
-            justification = "Prompt before deleting tag refs",
-            match = ["git tag -d v1.0.0"],
-        )
-    - name: git-checkout-force
-      rule: |
-        prefix_rule(
-            pattern = ["git", "checkout", "-f"],
-            decision = "prompt",
-            justification = "Prompt before forced checkout discards local edits",
-            match = ["git checkout -f main"],
-        )
-    - name: git-switch-force-create
-      rule: |
-        prefix_rule(
-            pattern = ["git", "switch", "-C"],
-            decision = "prompt",
-            justification = "Prompt before resetting an existing branch with switch -C",
-            match = ["git switch -C topic HEAD~1"],
-        )
-    - name: git-switch-discard
-      rule: |
-        prefix_rule(
-            pattern = ["git", "switch", "--discard-changes"],
-            decision = "prompt",
-            justification = "Prompt before switching branches and discarding local edits",
-            match = ["git switch --discard-changes main"],
-        )
-    - name: git-rm
-      rule: |
-        prefix_rule(
-            pattern = ["git", "rm"],
-            decision = "prompt",
-            justification = "Prompt before removing tracked files",
-            match = ["git rm old.txt"],
-        )
-    - name: git-stash-drop
-      rule: |
-        prefix_rule(
-            pattern = ["git", "stash", "drop"],
-            decision = "prompt",
-            justification = "Prompt before deleting stashed changes",
-            match = ["git stash drop stash@{0}"],
-        )
-    - name: git-stash-clear
-      rule: |
-        prefix_rule(
-            pattern = ["git", "stash", "clear"],
-            decision = "prompt",
-            justification = "Prompt before deleting all stashed changes",
-            match = ["git stash clear"],
-        )
-    - name: git-reflog-expire
-      rule: |
-        prefix_rule(
-            pattern = ["git", "reflog", "expire"],
-            decision = "prompt",
-            justification = "Prompt before expiring reflog history",
-            match = ["git reflog expire --expire=now --all"],
-        )
-    - name: git-gc-prune
-      rule: |
-        prefix_rule(
-            pattern = ["git", "gc", "--prune"],
-            decision = "prompt",
-            justification = "Prompt before pruning unreachable Git objects",
-            match = ["git gc --prune"],
-        )
-    - name: git-gc-prune-now
-      rule: |
-        prefix_rule(
-            pattern = ["git", "gc", "--prune=now"],
-            decision = "prompt",
-            justification = "Prompt before pruning unreachable Git objects immediately",
-            match = ["git gc --prune=now"],
-        )
-    - name: doas
-      rule: |
-        prefix_rule(
-            pattern = ["doas"],
-            decision = "prompt",
-            justification = "Prompt before running commands with elevated privileges",
-            match = ["doas apk update"],
-        )
-    - name: su
-      rule: |
-        prefix_rule(
-            pattern = ["su"],
-            decision = "prompt",
-            justification = "Prompt before switching users or running a root shell",
-            match = ["su -"],
-        )
-    - name: apt
-      rule: |
-        prefix_rule(
-            pattern = ["apt"],
-            decision = "prompt",
-            justification = "Prompt before system package changes with apt",
-            match = ["apt install ripgrep"],
-        )
-    - name: apt-get
-      rule: |
-        prefix_rule(
-            pattern = ["apt-get"],
-            decision = "prompt",
-            justification = "Prompt before system package changes with apt-get",
-            match = ["apt-get install ripgrep"],
-        )
-    - name: dnf
-      rule: |
-        prefix_rule(
-            pattern = ["dnf"],
-            decision = "prompt",
-            justification = "Prompt before system package changes with dnf",
-            match = ["dnf install ripgrep"],
-        )
-    - name: pacman
-      rule: |
-        prefix_rule(
-            pattern = ["pacman"],
-            decision = "prompt",
-            justification = "Prompt before system package changes with pacman",
-            match = ["pacman -Syu"],
-        )
-    - name: yay
-      rule: |
-        prefix_rule(
-            pattern = ["yay"],
-            decision = "prompt",
-            justification = "Prompt before AUR package changes with yay",
-            match = ["yay -S visual-studio-code-bin"],
-        )
-    - name: brew-install
-      rule: |
-        prefix_rule(
-            pattern = ["brew", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing Homebrew packages",
-            match = ["brew install ripgrep"],
-        )
-    - name: brew-upgrade
-      rule: |
-        prefix_rule(
-            pattern = ["brew", "upgrade"],
-            decision = "prompt",
-            justification = "Prompt before upgrading Homebrew packages",
-            match = ["brew upgrade"],
-        )
-    - name: rustup
-      rule: |
-        prefix_rule(
-            pattern = ["rustup"],
-            decision = "prompt",
-            justification = "Prompt before modifying Rust toolchains or global components",
-            match = ["rustup update stable"],
-        )
-    - name: cargo-install
-      rule: |
-        prefix_rule(
-            pattern = ["cargo", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing or replacing global Cargo binaries",
-            match = ["cargo install cargo-nextest"],
-        )
-    - name: uv-tool-install
-      rule: |
-        prefix_rule(
-            pattern = ["uv", "tool", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing global uv tools",
-            match = ["uv tool install ruff"],
-        )
-    - name: uv-tool-upgrade
-      rule: |
-        prefix_rule(
-            pattern = ["uv", "tool", "upgrade"],
-            decision = "prompt",
-            justification = "Prompt before upgrading global uv tools",
-            match = ["uv tool upgrade ruff"],
-        )
-    - name: npm-install-global-short
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "install", "-g"],
-            decision = "prompt",
-            justification = "Prompt before installing or replacing global npm packages",
-            match = ["npm install -g @openai/codex"],
-        )
-    - name: npm-install-global-long
-      rule: |
-        prefix_rule(
-            pattern = ["npm", "install", "--global"],
-            decision = "prompt",
-            justification = "Prompt before installing or replacing global npm packages",
-            match = ["npm install --global @openai/codex"],
-        )
-    - name: python-pip-install
-      rule: |
-        prefix_rule(
-            pattern = ["python", "-m", "pip", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing packages into the active Python environment",
-            match = ["python -m pip install pytest"],
-        )
-    - name: python3-pip-install
-      rule: |
-        prefix_rule(
-            pattern = ["python3", "-m", "pip", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing packages into the active Python environment",
-            match = ["python3 -m pip install pytest"],
-        )
-    - name: pipx-install
-      rule: |
-        prefix_rule(
-            pattern = ["pipx", "install"],
-            decision = "prompt",
-            justification = "Prompt before installing global pipx applications",
-            match = ["pipx install poetry"],
-        )
-    - name: systemctl
-      rule: |
-        prefix_rule(
-            pattern = ["systemctl"],
-            decision = "prompt",
-            justification = "Prompt before changing or inspecting systemd services outside the sandbox",
-            match = ["systemctl restart sshd"],
-        )
-    - name: mount
-      rule: |
-        prefix_rule(
-            pattern = ["mount"],
-            decision = "prompt",
-            justification = "Prompt before mounting filesystems",
-            match = ["mount /dev/sdb1 /mnt"],
-        )
-    - name: umount
-      rule: |
-        prefix_rule(
-            pattern = ["umount"],
-            decision = "prompt",
-            justification = "Prompt before unmounting filesystems",
-            match = ["umount /mnt"],
-        )
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Create Codex permissions example if missing
+- name: Write Codex permissions example
   copy:
     dest: "{{ user_home }}/.codex/config.permissions.example.toml"
     force: true
@@ -1131,7 +291,7 @@
       service_tier = "default"
       sandbox_mode = "workspace-write"
       approval_policy = "on-request"
-      approvals_reviewer = "user"
+      approvals_reviewer = "auto_review"
       check_for_update_on_startup = true
 
       [apps._default]
@@ -1142,8 +302,20 @@
 
       [sandbox_workspace_write]
       writable_roots = [
-        "/home/alexander/example"
+        "{{ user_home }}/example"
       ]
+
+- name: Configure Codex skill selection overrides
+  blockinfile:
+    path: "{{ user_home }}/.codex/config.toml"
+    marker: "# {mark} FIRSTBOOT CODEX SKILL SELECTION"
+    mode: "0600"
+    block: |
+      {% for skill_path in codex_disabled_skill_paths | default([]) %}
+      [[skills.config]]
+      path = "{{ user_home }}/{{ skill_path }}"
+      enabled = false
+      {% endfor %}
 
 - name: Create Codex CLI profile files
   copy:
@@ -1158,32 +330,20 @@
       service_tier = "{{ codex_service_tier | default('default') }}"
       sandbox_mode = "{{ codex_sandbox_mode | default('workspace-write') }}"
       approval_policy = "{{ codex_approval_policy | default('on-request') }}"
-      approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
+      approvals_reviewer = "{{ codex_approvals_reviewer | default('auto_review') }}"
       {% if item.name == 'lean' %}
       web_search = "cached"
       {% endif %}
 
-      {% if item.name == 'deep' %}
-
-      [apps._default]
-      default_tools_approval_mode = "{{ codex_apps_default_tools_approval_mode | default('writes') }}"
-      destructive_enabled = false
-      open_world_enabled = false
-      approvals_reviewer = "{{ codex_approvals_reviewer | default('user') }}"
-
-      {% for mcp_server in (codex_mcp_default_disabled_servers | default(['context7', 'memory', 'fetch', 'sequential-thinking'])) | intersect(codex_mcp_allowlist | default([])) %}
-      {% if mcp_server != 'fetch' or uv_available.rc == 0 %}
-      [mcp_servers.{{ mcp_server }}]
-      enabled = true
-
-      {% endif %}
-      {% endfor %}
-      {% endif %}
   loop:
     - name: lean
       model: "{{ codex_lean_profile_model | default('gpt-5.6-terra') }}"
       reasoning_effort: "{{ codex_lean_profile_reasoning_effort | default('medium') }}"
       verbosity: "{{ codex_lean_profile_verbosity | default('low') }}"
+    - name: astra
+      model: "{{ codex_astra_profile_model | default('gpt-6-astra') }}"
+      reasoning_effort: "{{ codex_astra_profile_reasoning_effort | default('medium') }}"
+      verbosity: "low"
     - name: deep
       model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
       reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
@@ -1199,6 +359,7 @@
   loop:
     - lean
     - deep
+    - astra
   when: not (codex_profiles_enabled | default(true) | bool)
 
 - name: Ensure Codex custom agents directory exists
@@ -1333,21 +494,20 @@
     marker: "<!-- {mark} FIRSTBOOT CODEX AGENT TEAMWORK -->"
     mode: "0600"
     block: |
-      ## Firstboot Agent Teamwork
+      ## Scope and autonomy
 
-      Use $codex-agent-teamwork for non-trivial development, debugging, review, architecture, docs research, and multi-file changes.
-      Do not spawn subagents for simple one-file edits, direct questions, or mechanical fixes.
-      Prefer explorer-terra, docs-researcher, and tester-terra for read-heavy or verification work.
-      Use reviewer-deep and architect-deep only when high reasoning materially improves correctness.
-      Use knowledge-curator only near the end of non-trivial work when a reusable workflow, command, or debugging path may be worth saving.
-      Use improvement-researcher only when the task explicitly asks for external improvement research, tooling/process updates, useful skills, MCP servers, or agent workflow tuning.
-      Start with at most one subagent. Add a second only for independent verification or research, and a third only for high-risk work with a separate domain. Keep max_depth = 1 and wait for all subagents before integrating results.
+      Carry the requested development or debugging task through implementation and focused verification. Use reasonable defaults for reversible in-scope steps; do not re-ask for authorization already given. For analysis or review requests, report evidence without editing unless asked.
+      Run workspace reads, edits, builds, tests, and local diagnostics directly in the sandbox. Use workdir for command location and direct argv-style commands where practical. Keep temporary artifacts in the workspace or /tmp; use workspace-local caches when a global cache is blocked. Inspect only the relevant files and bounded log excerpts.
+      For multi-repository builds, identify the required neighboring roots; use --add-dir at launch for those authorized paths. A sibling repo is not automatically writable. Do not replace filesystem permissions with broad shell, interpreter, timeout, env, build-tool, or git allow rules.
+      On a sandbox denial, request the smallest required escalation with the exact command and its purpose; auto-review can handle it. AGENTS.md and skills do not grant sandbox permissions. After an auto-review denial, use a materially safer alternative or explain the denial and request the missing authorization.
+      When the user requests hardware debugging or flashing, establish the target board, transport, and intended operation once; carry out the authorized sequence without repeating the question. Stop for an ambiguous target, a new device, destructive recovery outside that scope, or changed side effects. Keep credentials out of commands, rules, and logs.
+      Ask before external publication, production changes, destructive actions, or cost only when existing authorization does not cover the concrete action. Prepare a reviewable result first. Preserve unrelated user changes. Stop when the acceptance checks pass and report what was actually verified.
 
-      ## Scope and completion
+      ## Agent and skill budget
 
-      For answer, review, diagnose, or plan requests, inspect only the minimum relevant files, logs, and docs; report evidence and do not edit unless asked.
-      For change, build, or fix requests, make only the requested in-scope local change and run the smallest relevant non-destructive validation.
-      Do not add features, dependencies, refactors, configuration changes, documentation, or tests outside the acceptance criteria. If a needed action materially broadens scope, affects another platform, writes externally, is destructive, or incurs cost, stop and ask. Stop when the acceptance criteria and required validation pass.
+      Use a relevant skill when it adds task-specific knowledge. Prefer one workflow skill; do not cascade into planning, TDD, formal review, or knowledge capture for routine edits. Scale tests to behavior and risk, and use existing checks for configuration-only changes.
+      Delegate only when a bounded independent subtask can run alongside useful parent work. Start with at most one subagent. Use explorer-terra, docs-researcher, or tester-terra for read-heavy work; reviewer-deep or architect-deep for substantial correctness risks. Add a second agent only for independent verification. Subagents must not spawn agents.
+      Give each agent scope, acceptance checks, and a concise requested output. Prefer a self-contained prompt with fork_turns="none" when full history is unnecessary. Wait for all agents before integrating their results. Consult $codex-agent-teamwork only when coordinating complex parallel work; no automatic curator or researcher step.
   when: codex_global_agents_guidance_enabled | default(true) | bool
 
 - name: Remove Codex global AGENTS.md teamwork guidance when disabled
@@ -1989,3 +1149,13 @@
     state: link
     force: true
   loop: "{{ codex_karpathy_skills | default([]) }}"
+
+- name: Validate generated Codex configuration
+  shell: |
+    export NVM_DIR="{{ user_home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm use {{ node_version }} >/dev/null || exit 1
+    codex mcp list >/dev/null
+  args:
+    executable: /bin/bash
+  changed_when: false

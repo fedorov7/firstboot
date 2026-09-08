@@ -52,7 +52,7 @@ codex_mcp_prune_unmanaged: false
 codex_context7_remove_inline_api_key: true
 codex_sandbox_mode: workspace-write
 codex_approval_policy: on-request
-codex_approvals_reviewer: user
+codex_approvals_reviewer: auto_review
 codex_check_for_update_on_startup: true
 codex_model: gpt-5.6-terra
 codex_model_reasoning_effort: medium
@@ -74,6 +74,9 @@ codex_lean_profile_verbosity: low
 codex_deep_profile_model: gpt-5.6-sol
 codex_deep_profile_reasoning_effort: high
 codex_deep_profile_verbosity: medium
+codex_astra_profile_model: gpt-6-astra
+codex_astra_profile_reasoning_effort: medium
+codex_max_concurrent_subagents: 2
 codex_custom_agents_enabled: true
 codex_custom_agents:
   - explorer-terra
@@ -93,27 +96,35 @@ codex_serena_enabled: false
 codex_playwright_mcp_enabled: false
 codex_remove_legacy_external_skill_sources: false
 
+# Disable overlapping/ceremonial skills without deleting their installed sources.
+# Paths are relative to user_home; remove an entry to opt back in.
+codex_disabled_skill_paths:
+  - .agents/skills/superpowers/test-driven-development/SKILL.md
+  - .agents/skills/superpowers/requesting-code-review/SKILL.md
+  - .agents/skills/superpowers/writing-skills/SKILL.md
+  - .agents/skills/karpathy-skills/karpathy-guidelines/SKILL.md
+  - .agents/skills/claude-skills/database-optimizer/SKILL.md
+  - .agents/skills/claude-skills/security-reviewer/SKILL.md
+  - .agents/skills/claude-skills/legacy-modernizer/SKILL.md
+  - .agents/skills/claude-skills/spec-miner/SKILL.md
+  - .agents/skills/claude-skills/fine-tuning-expert/SKILL.md
+  - .codex/skills/winui-app/SKILL.md
+
 codex_curated_skills:
   - cli-creator
   - jupyter-notebook
   - pdf
   - playwright
   - security-best-practices
-  - winui-app
 
 codex_superpowers_skills:
   - systematic-debugging
   - verification-before-completion
-  - test-driven-development    # Enable for strict TDD workflows.
   - receiving-code-review      # Enable when iterating on external review feedback.
-  - requesting-code-review     # Enable when you want formal review checkpoints.
-  - writing-skills
-  # - subagent-driven-development  # Multi-agent implementation workflow.
   # - using-git-worktrees          # Isolated feature branch workflow.
   # - finishing-a-development-branch
 
-codex_karpathy_skills:
-  - karpathy-guidelines
+codex_karpathy_skills: []
 
 codex_claude_skills:
   - cpp-pro
@@ -121,17 +132,12 @@ codex_claude_skills:
   - python-pro
   - pandas-pro
   - ml-pipeline
-  - fine-tuning-expert
-  - database-optimizer
   - sql-pro
   - mcp-developer
   - api-designer               # API/backend work.
   - code-documenter            # Enable when writing API docs, tutorials, or docstrings.
   - devops-engineer            # CI/CD and infrastructure.
-  - legacy-modernizer          # Enable for large migrations of older codebases.
   - secure-code-guardian       # Enable for auth/input-validation implementation work.
-  - security-reviewer
-  - spec-miner                 # Legacy/undocumented system discovery.
   # - csharp-developer             # .NET/C# work.
   # - dotnet-core-expert           # .NET runtime/framework work.
   # - embedded-systems             # MCU/UEFI/hardware workflows.

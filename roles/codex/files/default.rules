@@ -1,0 +1,25 @@
+# Managed by firstboot. Provisioning resets accumulated interactive approvals.
+# Routine development runs INSIDE workspace-write without allow rules.
+# Boundary crossings go through auto-review; prompt does not mean always human.
+# No global unsandboxed allow for interpreters, wrappers, builds or hardware.
+
+prefix_rule(
+    pattern = ["lsusb"],
+    decision = "allow",
+    justification = "Inspect attached USB devices without changing their state",
+    match = ["lsusb -t"],
+)
+
+# Review privileged/system changes and remote publication even within a workspace.
+prefix_rule(pattern = [["sudo", "doas", "su", "pacman", "yay", "apt", "apt-get", "dnf", "systemctl", "mount", "umount"]], decision = "prompt")
+prefix_rule(pattern = ["git", ["push", "reset", "clean", "restore", "rebase", "commit", "checkout", "switch", "rm", "stash", "reflog", "gc", "config"]], decision = "prompt")
+prefix_rule(pattern = ["git", ["branch", "tag"], ["-d", "-D", "--delete"]], decision = "prompt")
+prefix_rule(pattern = ["gh", ["pr", "issue", "release", "repo"], ["create", "edit", "delete", "merge", "close", "comment"]], decision = "prompt")
+prefix_rule(pattern = [["ssh", "sshpass", "scp", "rsync"]], decision = "prompt")
+
+# Firmware writes, resets and remote diagnostics require target/task context.
+prefix_rule(pattern = [["openocd", "probe-rs", "dfu-util", "st-flash", "st-util", "usbreset", "picocom", "stty"]], decision = "prompt")
+prefix_rule(pattern = [["west", ".venv/bin/west"], ["flash", "debug", "attach"]], decision = "prompt")
+
+# No prefix policy is a complete flag/parser security boundary. The sandbox
+# and built-in reviewer remain necessary; project scripts can execute any code.
