@@ -1,25 +1,66 @@
-# Managed by firstboot. Provisioning resets accumulated interactive approvals.
-# Routine development runs INSIDE workspace-write without allow rules.
-# Boundary crossings go through auto-review; prompt does not mean always human.
-# No global unsandboxed allow for interpreters, wrappers, builds or hardware.
+# Managed by firstboot. Provisioning backs up and resets interactive approvals.
+# Routine trusted development and SSH diagnostics may run outside the sandbox.
+# More restrictive matching prompt rules take precedence over allow rules.
 
-prefix_rule(
-    pattern = ["lsusb"],
-    decision = "allow",
-    justification = "Inspect attached USB devices without changing their state",
-    match = ["lsusb -t"],
-)
+prefix_rule(pattern = [["rg", "fd", "bat", "eza", "delta", "difft", "difftastic", "lsusb", "st-info", "ping"]], decision = "allow")
+prefix_rule(pattern = ["git", ["status", "diff", "log", "show", "grep", "blame", "ls-files", "ls-tree", "rev-parse", "merge-base", "describe", "add", "commit", "fetch"]], decision = "allow")
+prefix_rule(pattern = ["git", "branch", ["--list", "--show-current"]], decision = "allow")
+prefix_rule(pattern = ["git", "tag", "--list"], decision = "allow")
+prefix_rule(pattern = ["git", "remote", "get-url"], decision = "allow")
 
-# Review privileged/system changes and remote publication even within a workspace.
-prefix_rule(pattern = [["sudo", "doas", "su", "pacman", "yay", "apt", "apt-get", "dnf", "systemctl", "mount", "umount"]], decision = "prompt")
-prefix_rule(pattern = ["git", ["push", "reset", "clean", "restore", "rebase", "commit", "checkout", "switch", "rm", "stash", "reflog", "gc", "config"]], decision = "prompt")
+prefix_rule(pattern = [["make", "just", "ninja", "ctest", "pytest"]], decision = "allow")
+prefix_rule(pattern = ["cmake", "--build"], decision = "allow")
+prefix_rule(pattern = ["meson", ["compile", "test"]], decision = "allow")
+prefix_rule(pattern = ["cargo", ["build", "check", "test", "clippy", "fmt", "nextest"]], decision = "allow")
+prefix_rule(pattern = [["python", "python3"], "-m", ["pytest", "compileall"]], decision = "allow")
+prefix_rule(pattern = ["npm", "test"], decision = "allow")
+prefix_rule(pattern = [["npm", "pnpm", "yarn"], "run", ["build", "test", "lint", "typecheck", "dev"]], decision = "allow")
+prefix_rule(pattern = [["west", ".venv/bin/west"], "build"], decision = "allow")
+prefix_rule(pattern = ["gh", ["pr", "issue", "run"], ["view", "list", "checks", "diff", "watch"]], decision = "allow")
+
+# Debuggers and analysis tools are trusted development execution paths.
+prefix_rule(pattern = [["gdb", "gdb-multiarch", "lldb", "strace", "ltrace", "perf", "valgrind", "objdump", "llvm-objdump", "readelf", "nm", "addr2line", "size", "file", "strings", "hexdump", "xxd", "lsof", "ss", "ps", "top", "htop", "dmesg"]], decision = "allow")
+prefix_rule(pattern = ["/opt/zephyr-sdk/gnu/riscv64-zephyr-elf/bin/riscv64-zephyr-elf-gdb"], decision = "allow")
+prefix_rule(pattern = ["uv", "run"], decision = "allow")
+
+# Compilers, normal file edits, and installing development utilities.
+prefix_rule(pattern = [["cc", "c++", "gcc", "g++", "clang", "clang++", "ld", "ar", "ranlib", "rustc", "cmake"]], decision = "allow")
+prefix_rule(pattern = [["cp", "mv", "mkdir", "touch", "tee", "sed", "perl", "apply_patch", "install"]], decision = "allow")
+prefix_rule(pattern = ["chmod", "+x"], decision = "allow")
+prefix_rule(pattern = [["npm", "pnpm", "yarn"], ["install", "add", "ci", "update"]], decision = "allow")
+prefix_rule(pattern = [["pip", "pip3"], "install"], decision = "allow")
+prefix_rule(pattern = [["python", "python3"], "-m", "pip", "install"], decision = "allow")
+prefix_rule(pattern = ["uv", ["sync", "add"]], decision = "allow")
+prefix_rule(pattern = ["uv", ["pip", "tool"], "install"], decision = "allow")
+prefix_rule(pattern = ["cargo", "install"], decision = "allow")
+prefix_rule(pattern = ["rustup", ["toolchain", "target", "component"], "add"], decision = "allow")
+prefix_rule(pattern = ["rustup", "toolchain", "install"], decision = "allow")
+prefix_rule(pattern = [["apt", "apt-get", "dnf", "brew"], "install"], decision = "allow")
+prefix_rule(pattern = [["pacman", "yay"], ["-S", "--sync", "-Sy", "-Syu"]], decision = "allow")
+prefix_rule(pattern = ["sudo", ["apt", "apt-get", "dnf"], "install"], decision = "allow")
+prefix_rule(pattern = ["sudo", "pacman", ["-S", "--sync", "-Sy", "-Syu"]], decision = "allow")
+prefix_rule(pattern = ["sudo", "make", "install"], decision = "allow")
+prefix_rule(pattern = ["sudo", "cmake", "--install"], decision = "allow")
+
+# SSH transports remote shell strings; local rm/rebase rules cannot inspect them.
+# Task instructions require reviewing destructive remote actions before execution.
+prefix_rule(pattern = [["ssh", "sshpass", "scp", "sftp", "rsync"]], decision = "allow")
+
+# Deletion, history rewriting, publication, and dangerous system/hardware changes.
+prefix_rule(pattern = [["rm", "rmdir", "shred", "wipefs", "mkfs", "dd", "doas", "su", "systemctl", "mount", "umount"]], decision = "prompt")
+prefix_rule(pattern = ["git", ["push", "reset", "clean", "restore", "rebase", "checkout", "switch", "rm", "stash", "reflog", "gc", "config"]], decision = "prompt")
+prefix_rule(pattern = ["git", "commit", "--amend"], decision = "prompt")
 prefix_rule(pattern = ["git", ["branch", "tag"], ["-d", "-D", "--delete"]], decision = "prompt")
 prefix_rule(pattern = ["gh", ["pr", "issue", "release", "repo"], ["create", "edit", "delete", "merge", "close", "comment"]], decision = "prompt")
-prefix_rule(pattern = [["ssh", "sshpass", "scp", "rsync"]], decision = "prompt")
-
-# Firmware writes, resets and remote diagnostics require target/task context.
 prefix_rule(pattern = [["openocd", "probe-rs", "dfu-util", "st-flash", "st-util", "usbreset", "picocom", "stty"]], decision = "prompt")
 prefix_rule(pattern = [["west", ".venv/bin/west"], ["flash", "debug", "attach"]], decision = "prompt")
 
-# No prefix policy is a complete flag/parser security boundary. The sandbox
-# and built-in reviewer remain necessary; project scripts can execute any code.
+# Prefix matching cannot restrict arbitrary later flags, Git hooks, build scripts,
+# fd --exec, or SSH command contents. These allows intentionally trust development
+# tools; use AGENTS.md for action intent. No blanket git/interpreter/shell allow.
+
+prefix_rule(pattern = [["apt", "apt-get", "dnf", "brew"], ["remove", "purge", "autoremove", "uninstall"]], decision = "prompt")
+prefix_rule(pattern = [["pacman", "yay"], ["-R", "-Rs", "-Rns", "--remove"]], decision = "prompt")
+prefix_rule(pattern = ["sudo", ["rm", "rmdir", "dd", "shred", "wipefs", "mkfs", "reboot", "shutdown", "systemctl", "mount", "umount", "sh", "bash", "zsh"]], decision = "prompt")
+prefix_rule(pattern = ["sudo", ["apt", "apt-get", "dnf"], ["remove", "purge", "autoremove"]], decision = "prompt")
+prefix_rule(pattern = ["sudo", "pacman", ["-R", "-Rs", "-Rns", "--remove"]], decision = "prompt")
