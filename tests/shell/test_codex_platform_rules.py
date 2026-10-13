@@ -31,7 +31,7 @@ def macos_rules(directory):
     functions = []
     for name in names:
         functions.append(re.search(r"(?ms)^" + name + r"\(\) \{.*?^\}", source).group())
-    start = source.index("\ninitialize_codex_default_rules\n")
+    start = source.index('\nif [[ ! -f "$codex_default_rules"')
     end = source.index("\nensure_codex_permissions_example\n", start)
     path = directory / "macos.rules"
     # Old prompts and unrelated allows must be backed up, not migrated.
@@ -44,8 +44,13 @@ def macos_rules(directory):
         'prefix_rule(pattern = ["custom-tool"], decision = "allow")',
     ]) + '\n')
     original = path.read_bytes()
-    script = 'set -euo pipefail\nwrite_ok() { :; }\nwrite_skip() { :; }\nwrite_warn() { :; }\ncodex_default_rules="$1"\ncodex_rules_dir="${1%/*}"\n'
+    script = 'set -euo pipefail\nwrite_ok() { :; }\nwrite_skip() { :; }\nwrite_warn() { :; }\nCODEX_RESET_RULES=1\ncodex_default_rules="$1"\ncodex_rules_dir="${1%/*}"\n'
     script += '\n'.join(functions) + source[start:end]
+    # Routine provisioning preserves approvals and adds no new prompts/backups.
+    subprocess.run(["bash", "-c", script.replace("CODEX_RESET_RULES=1", "CODEX_RESET_RULES=0"),
+                    "rule-test", str(path)], check=True)
+    assert path.read_bytes() == original
+    assert not (directory / "backups").exists()
     for iteration in range(2):
         subprocess.run(["bash", "-c", script, "rule-test", str(path)], check=True)
         current = path.read_bytes()
@@ -59,7 +64,7 @@ def macos_rules(directory):
     assert all(p.suffix != ".rules" for p in backups)
     check(path, ["custom-tool"], None)
     # A validation failure must preserve the installed file.
-    invalid = script[:script.index("\ninitialize_codex_default_rules\n")]
+    invalid = script[:script.index('\nif [[ ! -f "$codex_default_rules"')]
     invalid += '\ninitialize_codex_default_rules\nprintf "invalid_rule(\\n" >>"$codex_default_rules"\ncomplete_codex_default_rules\n'
     result = subprocess.run(["bash", "-c", invalid, "rule-test", str(path)], capture_output=True)
     assert result.returncode != 0

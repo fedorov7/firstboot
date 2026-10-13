@@ -42,9 +42,9 @@ CODEX_SERENA_ENABLED="${CODEX_SERENA_ENABLED:-0}"
 CODEX_PLAYWRIGHT_MCP_ENABLED="${CODEX_PLAYWRIGHT_MCP_ENABLED:-0}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
-CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-user}"
+CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-auto_review}"
 CODEX_CHECK_FOR_UPDATE_ON_STARTUP="${CODEX_CHECK_FOR_UPDATE_ON_STARTUP:-1}"
-CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-terra}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-6.1-sol}"
 CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-medium}"
 CODEX_MODEL_VERBOSITY="${CODEX_MODEL_VERBOSITY:-low}"
 CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-default}"
@@ -61,7 +61,7 @@ CODEX_PROFILES_ENABLED="${CODEX_PROFILES_ENABLED:-1}"
 CODEX_LEAN_PROFILE_MODEL="${CODEX_LEAN_PROFILE_MODEL:-gpt-5.6-terra}"
 CODEX_LEAN_PROFILE_REASONING_EFFORT="${CODEX_LEAN_PROFILE_REASONING_EFFORT:-medium}"
 CODEX_LEAN_PROFILE_VERBOSITY="${CODEX_LEAN_PROFILE_VERBOSITY:-low}"
-CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-5.6-sol}"
+CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-6.1-sol}"
 CODEX_DEEP_PROFILE_REASONING_EFFORT="${CODEX_DEEP_PROFILE_REASONING_EFFORT:-high}"
 CODEX_DEEP_PROFILE_VERBOSITY="${CODEX_DEEP_PROFILE_VERBOSITY:-medium}"
 CODEX_CUSTOM_AGENTS_ENABLED="${CODEX_CUSTOM_AGENTS_ENABLED:-1}"
@@ -316,7 +316,7 @@ Options:
   --force-neovim-cleanup                Remove Neovim config/data before clone/update.
   --preserve-neovim-state               Preserve Neovim state unless stale non-git config blocks cloning.
   --codex-mcp-allowlist <csv>           Codex MCP allowlist.
-  --codex-mcp-default-disabled-servers <csv> MCP servers enabled only by the deep profile.
+  --codex-mcp-default-disabled-servers <csv> MCP servers disabled by default.
   --codex-mcp-prune-unmanaged           Remove Codex MCP entries not in allowlist.
   --codex-github-mcp-enabled            Enable official GitHub MCP server for Codex.
   --codex-github-token-env-var <name>   Env var name used by Codex GitHub MCP.
@@ -324,7 +324,7 @@ Options:
   --codex-playwright-mcp-enabled        Enable Playwright MCP browser automation.
   --codex-sandbox-mode <mode>           Codex sandbox mode (default: workspace-write).
   --codex-approval-policy <policy>      Codex approval policy (default: on-request).
-  --codex-model <model>                 Codex model (default: gpt-5.6-terra).
+  --codex-model <model>                 Codex model (default: gpt-6.1-sol).
   --codex-model-reasoning-effort <effort> Codex reasoning effort (default: medium).
   --codex-model-verbosity <level>       Codex response verbosity (default: low).
   --codex-service-tier <tier>           Codex service tier (default: default).

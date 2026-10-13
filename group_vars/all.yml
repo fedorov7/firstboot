@@ -50,11 +50,15 @@ codex_mcp_default_disabled_servers:
   - sequential-thinking
 codex_mcp_prune_unmanaged: false
 codex_context7_remove_inline_api_key: true
+# Preserve existing config.toml and approval rules on repeat provisioning.
+# Opt in explicitly to reapply configured defaults or reset rules.
+codex_manage_existing_config: false
+codex_reset_rules: false
 codex_sandbox_mode: workspace-write
 codex_approval_policy: on-request
 codex_approvals_reviewer: auto_review
 codex_check_for_update_on_startup: true
-codex_model: gpt-5.6-terra
+codex_model: gpt-6.1-sol
 codex_model_reasoning_effort: medium
 codex_model_verbosity: low
 codex_service_tier: default
@@ -71,7 +75,7 @@ codex_profiles_enabled: true
 codex_lean_profile_model: gpt-5.6-terra
 codex_lean_profile_reasoning_effort: medium
 codex_lean_profile_verbosity: low
-codex_deep_profile_model: gpt-5.6-sol
+codex_deep_profile_model: gpt-6.1-sol
 codex_deep_profile_reasoning_effort: high
 codex_deep_profile_verbosity: medium
 codex_astra_profile_model: gpt-6-astra

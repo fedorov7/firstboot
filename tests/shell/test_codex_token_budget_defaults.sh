@@ -25,19 +25,19 @@ require_not_contains() {
   fi
 }
 
-require_contains group_vars/all.yml 'codex_model: gpt-5.6-terra' \
-  'Linux must use the balanced Terra model by default.'
+require_contains group_vars/all.yml 'codex_model: gpt-6.1-sol' \
+  'Linux must use the current Sol model by default.'
 require_contains group_vars/all.yml 'codex_model_reasoning_effort: medium' \
   'Linux must use medium reasoning by default.'
 require_contains group_vars/all.yml 'codex_model_verbosity: low' \
   'Linux must keep routine responses concise.'
-require_contains group_vars/all.yml 'codex_deep_profile_model: gpt-5.6-sol' \
+require_contains group_vars/all.yml 'codex_deep_profile_model: gpt-6.1-sol' \
   'Linux must preserve Sol for explicit deep work.'
 require_contains group_vars/all.yml 'codex_deep_profile_reasoning_effort: high' \
   'Linux must preserve high reasoning for explicit deep work.'
-require_contains roles/codex/tasks/main.yml 'model = "gpt-5.6-terra"' \
+require_contains roles/codex/tasks/main.yml 'model = "gpt-6.1-sol"' \
   'Linux permissions example must not restore the expensive default.'
-require_contains macos/modules/codex.sh 'model = "gpt-5.6-terra"' \
+require_contains macos/modules/codex.sh 'model = "gpt-6.1-sol"' \
   'macOS permissions example must not restore the expensive default.'
 require_contains windows/modules/codex.ps1 'model = "gpt-6.1-sol"' \
   'Windows permissions example must not restore the expensive default.'
@@ -60,18 +60,16 @@ require_contains roles/codex/tasks/main.yml 'key: enabled' \
   'Linux must write the base MCP enabled state.'
 require_contains macos/modules/codex.sh 'upsert_codex_mcp_setting "$server_name" enabled false' \
   'macOS must disable optional MCP servers in the base config.'
-require_contains macos/modules/codex.sh 'array_contains "$mcp_server" "${profile_mcp_servers[@]}"' \
-  'macOS deep profile must not create MCP tables outside the allowlist.'
-require_contains macos/modules/codex.sh 'command_exists uvx' \
-  'macOS deep profile must not enable fetch without uvx.'
+require_not_contains macos/modules/codex.sh 'deep_mcp_overrides' \
+  'macOS model profiles must inherit MCP state instead of enabling servers.'
 require_contains windows/modules/codex.ps1 "Set-CodexMcpSetting \$server 'enabled' 'false'" \
   'Windows must disable optional MCP servers in the base config.'
 require_not_contains windows/modules/codex.ps1 '[mcp_servers.$_]' \
   'Windows model profiles must inherit MCP state instead of enabling servers.'
 
-require_contains macos/bootstrap.sh 'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-terra}"' \
-  'macOS must use Terra by default.'
-require_contains macos/bootstrap.sh 'CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-5.6-sol}"' \
+require_contains macos/bootstrap.sh 'CODEX_MODEL="${CODEX_MODEL:-gpt-6.1-sol}"' \
+  'macOS must use current Sol by default.'
+require_contains macos/bootstrap.sh 'CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-6.1-sol}"' \
   'macOS must preserve Sol in the deep profile.'
 require_contains windows/bootstrap.ps1 '[string]$CodexModel = "gpt-6.1-sol"' \
   'Windows fresh installs must use GPT-6.1 Sol by default.'

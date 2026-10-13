@@ -62,6 +62,16 @@
     state: directory
     mode: "0700"
 
+# Existing choices include deliberately omitted keys. Reapply defaults only on request.
+- name: Check for existing Codex user configuration
+  stat:
+    path: "{{ user_home }}/.codex/config.toml"
+  register: codex_existing_config
+
+- name: Select Codex configuration management mode
+  set_fact:
+    codex_configure_preferences: "{{ not codex_existing_config.stat.exists or (codex_manage_existing_config | default(false) | bool) }}"
+
 - name: Set Codex workspace access defaults and top-level options
   shell: |
     config_toml="{{ user_home }}/.codex/config.toml"
@@ -107,7 +117,7 @@
   changed_when: "'OK:' in codex_top_level_defaults.stdout"
   loop:
     - key: model
-      value: '"{{ codex_model | default(''gpt-5.6-terra'') }}"'
+      value: '"{{ codex_model | default(''gpt-6.1-sol'') }}"'
     - key: model_reasoning_effort
       value: '"{{ codex_model_reasoning_effort | default(''medium'') }}"'
     - key: model_verbosity
@@ -124,6 +134,7 @@
       value: "{{ (codex_check_for_update_on_startup | default(true) | bool) | ternary('true', 'false') }}"
   loop_control:
     label: "{{ item.key }}"
+  when: codex_configure_preferences | bool
 
 - name: Set Codex runtime table defaults
   shell: |
@@ -195,7 +206,7 @@
       value: "{{ (codex_apps_open_world_enabled | default(false) | bool) | ternary('true', 'false') }}"
     - table: apps._default
       key: approvals_reviewer
-      value: '"user"'
+      value: '"{{ codex_approvals_reviewer | default(''auto_review'') }}"'
     - table: agents
       key: max_concurrent_threads_per_session
       value: '{{ codex_max_concurrent_subagents | default(2) }}'
@@ -210,6 +221,7 @@
       value: '"{{ codex_lean_profile_reasoning_effort | default(''medium'') }}"'
   loop_control:
     label: "{{ item.table }} {{ item.key }}"
+  when: codex_configure_preferences | bool
 
 - name: Remove misplaced Codex top-level settings from Codex-owned tables
   shell: |
@@ -244,6 +256,13 @@
   register: codex_misplaced_top_level_cleanup
   changed_when: "'OK:' in codex_misplaced_top_level_cleanup.stdout"
 
+- name: Remove retired Codex steer feature flag
+  replace:
+    path: "{{ user_home }}/.codex/config.toml"
+    regexp: '(?ms)(^\[features\][ \t]*(?:#[^\n]*)?\n(?:(?!^\[).)*?)^[ \t]*steer[ \t]*=[^\n]*(?:\n|$)'
+    replace: '\1'
+    backup: true
+
 - name: Validate Codex config TOML after managed cleanup
   command:
     argv:
@@ -269,11 +288,13 @@
     state: directory
     mode: "0700"
 
-# This file is the managed baseline; provisioning resets interactive approvals.
+# Initialize the baseline without overwriting user-approved rules.
+# Set codex_reset_rules=true explicitly to reinstall the reviewed baseline.
 # Backups do not end in .rules and therefore are not loaded by Codex.
 - name: Install reviewed Codex rules baseline
   copy:
     src: default.rules
+    force: "{{ codex_reset_rules | default(false) | bool }}"
     dest: "{{ user_home }}/.codex/rules/default.rules"
     backup: true
     mode: "0600"
@@ -285,7 +306,7 @@
     mode: "0644"
     content: |
       # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-      model = "gpt-5.6-terra"
+      model = "gpt-6.1-sol"
       model_reasoning_effort = "medium"
       model_verbosity = "low"
       service_tier = "default"
@@ -298,7 +319,7 @@
       default_tools_approval_mode = "writes"
       destructive_enabled = false
       open_world_enabled = false
-      approvals_reviewer = "user"
+      approvals_reviewer = "auto_review"
 
       [sandbox_workspace_write]
       writable_roots = [
@@ -316,6 +337,7 @@
       path = "{{ user_home }}/{{ skill_path }}"
       enabled = false
       {% endfor %}
+  when: codex_configure_preferences | bool
 
 - name: Create Codex CLI profile files
   copy:
@@ -327,13 +349,6 @@
       model = "{{ item.model }}"
       model_reasoning_effort = "{{ item.reasoning_effort }}"
       model_verbosity = "{{ item.verbosity }}"
-      service_tier = "{{ codex_service_tier | default('default') }}"
-      sandbox_mode = "{{ codex_sandbox_mode | default('workspace-write') }}"
-      approval_policy = "{{ codex_approval_policy | default('on-request') }}"
-      approvals_reviewer = "{{ codex_approvals_reviewer | default('auto_review') }}"
-      {% if item.name == 'lean' %}
-      web_search = "cached"
-      {% endif %}
 
   loop:
     - name: lean
@@ -345,7 +360,7 @@
       reasoning_effort: "{{ codex_astra_profile_reasoning_effort | default('medium') }}"
       verbosity: "low"
     - name: deep
-      model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+      model: "{{ codex_deep_profile_model | default('gpt-6.1-sol') }}"
       reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
       verbosity: "{{ codex_deep_profile_verbosity | default('medium') }}"
   loop_control:
@@ -381,7 +396,7 @@
           You are a read-only exploration agent. Inspect files, logs, docs, and command output. Do not edit files. Return only decision-relevant findings with file paths, commands used, and uncertainty where evidence is incomplete.
       - name: reviewer-deep
         description: High-reasoning code review focused on bugs, regressions, security risks, and test gaps.
-        model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+        model: "{{ codex_deep_profile_model | default('gpt-6.1-sol') }}"
         reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
         sandbox_mode: read-only
         nicknames: '"Reviewer", "Auditor", "Skeptic"'
@@ -405,7 +420,7 @@
           You are a verification agent. Run focused build, lint, typecheck, and test commands requested by the parent thread. You may create normal build/test artifacts in the workspace, but do not edit source files. Return commands, exit codes, concise failure summaries, and likely next investigation targets.
       - name: architect-deep
         description: High-reasoning architecture and migration analyst for ambiguous cross-module design decisions.
-        model: "{{ codex_deep_profile_model | default('gpt-5.6-sol') }}"
+        model: "{{ codex_deep_profile_model | default('gpt-6.1-sol') }}"
         reasoning_effort: "{{ codex_deep_profile_reasoning_effort | default('high') }}"
         sandbox_mode: read-only
         nicknames: '"Architect", "Planner", "Strategist"'
@@ -531,6 +546,7 @@
     'disabled' in (codex_apps_disable.stdout | lower)
     or 'updated' in (codex_apps_disable.stdout | lower)
   when:
+    - codex_configure_preferences | bool
     - not (codex_apps_enabled | default(false) | bool)
     - "'apps = false' not in codex_config"
 
@@ -547,6 +563,7 @@
     'enabled' in (codex_apps_enable.stdout | lower)
     or 'updated' in (codex_apps_enable.stdout | lower)
   when:
+    - codex_configure_preferences | bool
     - codex_apps_enabled | default(false) | bool
     - "'apps = false' in codex_config"
 
@@ -583,6 +600,7 @@
   loop_control:
     label: "{{ item }}"
   when:
+    - codex_configure_preferences | bool
     - codex_prune_disabled_optional_mcp | default(true) | bool
     - not (codex_mcp_prune_unmanaged | default(false) | bool)
 
@@ -601,7 +619,9 @@
   loop: "{{ codex_mcp_existing_servers | difference(codex_mcp_desired_servers) }}"
   loop_control:
     label: "{{ item }}"
-  when: codex_mcp_prune_unmanaged | default(false) | bool
+  when:
+    - codex_configure_preferences | bool
+    - codex_mcp_prune_unmanaged | default(false) | bool
 
 - name: Remove archived Codex GitHub MCP if present
   shell: |
@@ -612,6 +632,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'github' in codex_mcp_desired_servers"
     - "'@modelcontextprotocol/server-github' in codex_config"
 
@@ -624,6 +645,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - codex_context7_remove_inline_api_key | default(true) | bool
     - "'context7' in codex_mcp_desired_servers"
     - "'@upstash/context7-mcp' in codex_context7_mcp_block"
@@ -653,6 +675,7 @@
     executable: /bin/bash
   register: codex_fetch_mcp_migration
   when:
+    - codex_configure_preferences | bool
     - "'fetch' in codex_mcp_desired_servers"
     - uv_available.rc == 0
     - "'mcp-server-fetch' in codex_fetch_mcp_block"
@@ -667,6 +690,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'context7' in codex_mcp_desired_servers"
     - "'[mcp_servers.context7]' not in codex_config_clean"
 
@@ -679,6 +703,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'openaiDeveloperDocs' in codex_mcp_desired_servers"
     - "'[mcp_servers.openaiDeveloperDocs]' not in codex_config_clean"
 
@@ -691,6 +716,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'microsoft-learn' in codex_mcp_desired_servers"
     - "'[mcp_servers.microsoft-learn]' not in codex_config_clean"
 
@@ -709,6 +735,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'memory' in codex_mcp_desired_servers"
     - "'[mcp_servers.memory]' not in codex_config_clean"
 
@@ -721,6 +748,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'fetch' in codex_mcp_desired_servers"
     - "'[mcp_servers.fetch]' not in codex_config_clean or codex_fetch_mcp_migration is changed"
     - uv_available.rc == 0
@@ -734,6 +762,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'sequential-thinking' in codex_mcp_desired_servers"
     - "'[mcp_servers.sequential-thinking]' not in codex_config_clean"
 
@@ -746,6 +775,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'github' in codex_mcp_desired_servers"
     - "'[mcp_servers.github]' not in codex_config_clean"
 
@@ -753,6 +783,7 @@
   fail:
     msg: "Serena MCP requires uv/uvx. Run the python role first or disable codex_serena_enabled."
   when:
+    - codex_configure_preferences | bool
     - "'serena' in codex_mcp_desired_servers"
     - uv_available.rc != 0
 
@@ -765,6 +796,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'serena' in codex_mcp_desired_servers"
     - "'[mcp_servers.serena]' not in codex_config_clean"
     - uv_available.rc == 0
@@ -778,6 +810,7 @@
   args:
     executable: /bin/bash
   when:
+    - codex_configure_preferences | bool
     - "'playwright' in codex_mcp_desired_servers"
     - "'[mcp_servers.playwright]' not in codex_config_clean"
 
@@ -879,6 +912,7 @@
       value: '"{{ codex_playwright_mcp_approval_mode | default(''prompt'') }}"'
   loop_control:
     label: "{{ item.name }} {{ item.key }}"
+  when: codex_configure_preferences | bool
 
 # ── Skills: optimized allowlist ──
 

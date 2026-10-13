@@ -36,6 +36,10 @@ fi
 
 codex_dir="$HOME/.codex"
 config_toml="$codex_dir/config.toml"
+codex_configure_preferences=false
+if [[ ! -f "$config_toml" || "${CODEX_MANAGE_EXISTING_CONFIG:-0}" == "1" || "${CODEX_MANAGE_EXISTING_CONFIG:-0}" == "true" ]]; then
+  codex_configure_preferences=true
+fi
 mkdir -p "$codex_dir"
 codex_rules_dir="$codex_dir/rules"
 codex_default_rules="$codex_rules_dir/default.rules"
@@ -314,20 +318,20 @@ ensure_codex_permissions_example() {
   local desired
 desired="$(cat <<'EOF'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 model_verbosity = "low"
 service_tier = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
-approvals_reviewer = "user"
+approvals_reviewer = "auto_review"
 check_for_update_on_startup = true
 
 [apps._default]
 default_tools_approval_mode = "writes"
 destructive_enabled = false
 open_world_enabled = false
-approvals_reviewer = "user"
+approvals_reviewer = "auto_review"
 
 [sandbox_workspace_write]
 writable_roots = [
@@ -390,29 +394,8 @@ ensure_codex_profile_files() {
 model = "$CODEX_LEAN_PROFILE_MODEL"
 model_reasoning_effort = "$CODEX_LEAN_PROFILE_REASONING_EFFORT"
 model_verbosity = "$CODEX_LEAN_PROFILE_VERBOSITY"
-service_tier = "$CODEX_SERVICE_TIER"
-sandbox_mode = "$CODEX_SANDBOX_MODE"
-approval_policy = "$CODEX_APPROVAL_POLICY"
-approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
-web_search = "cached"
 EOF
 )"
-
-  local deep_mcp_overrides=""
-  local mcp_server
-  local profile_mcp_servers=()
-  while IFS= read -r mcp_server; do
-    profile_mcp_servers+=("$mcp_server")
-  done < <(split_csv "$CODEX_MCP_ALLOWLIST")
-  while IFS= read -r mcp_server; do
-    if ! array_contains "$mcp_server" "${profile_mcp_servers[@]}"; then
-      continue
-    fi
-    if [[ "$mcp_server" == "fetch" ]] && ! command_exists uvx; then
-      continue
-    fi
-    deep_mcp_overrides+=$'\n[mcp_servers.'"$mcp_server"$']\nenabled = true\n'
-  done < <(split_csv "$CODEX_MCP_DEFAULT_DISABLED_SERVERS")
 
   local deep_profile
   deep_profile="$(cat <<EOF
@@ -420,17 +403,6 @@ EOF
 model = "$CODEX_DEEP_PROFILE_MODEL"
 model_reasoning_effort = "$CODEX_DEEP_PROFILE_REASONING_EFFORT"
 model_verbosity = "$CODEX_DEEP_PROFILE_VERBOSITY"
-service_tier = "$CODEX_SERVICE_TIER"
-sandbox_mode = "$CODEX_SANDBOX_MODE"
-approval_policy = "$CODEX_APPROVAL_POLICY"
-approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
-
-[apps._default]
-default_tools_approval_mode = "$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE"
-destructive_enabled = false
-open_world_enabled = false
-approvals_reviewer = "$CODEX_APPROVALS_REVIEWER"
-$deep_mcp_overrides
 EOF
 )"
 
@@ -684,6 +656,7 @@ toml_bool() {
   esac
 }
 
+if "$codex_configure_preferences"; then
 upsert_codex_top_level_setting sandbox_mode "\"$CODEX_SANDBOX_MODE\""
 upsert_codex_top_level_setting approval_policy "\"$CODEX_APPROVAL_POLICY\""
 upsert_codex_top_level_setting model "\"$CODEX_MODEL\""
@@ -698,12 +671,14 @@ upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_A
 upsert_codex_table_setting apps._default destructive_enabled "$(toml_bool "$CODEX_APPS_DESTRUCTIVE_ENABLED")"
 upsert_codex_table_setting apps._default open_world_enabled "$(toml_bool "$CODEX_APPS_OPEN_WORLD_ENABLED")"
 upsert_codex_table_setting apps._default approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
+fi
 
 if ! codex_config_validate_runtime; then
   write_warn "Generated Codex config failed runtime validation; refusing to continue"
   return 1
 fi
 
+if [[ ! -f "$codex_default_rules" || "${CODEX_RESET_RULES:-0}" == "1" || "${CODEX_RESET_RULES:-0}" == "true" ]]; then
 initialize_codex_default_rules
 
 ensure_codex_git_allow_rule '["git", "status"]' \
@@ -1525,12 +1500,14 @@ ensure_codex_prefix_rule '["sshpass", "-p"]' 'prefix_rule(
     decision = "prompt",
 )'
 complete_codex_default_rules
+fi
 ensure_codex_permissions_example
 ensure_codex_profile_files
 ensure_codex_custom_agent_files
 ensure_codex_agent_teamwork_skill
 ensure_codex_global_agents_guidance
 
+if "$codex_configure_preferences"; then
 desired_mcp_servers=()
 while IFS= read -r server_name; do
   if ! array_contains "$server_name" "${desired_mcp_servers[@]}"; then
@@ -1661,6 +1638,8 @@ upsert_codex_mcp_setting github default_tools_approval_mode "\"$CODEX_GITHUB_MCP
 upsert_codex_mcp_setting serena default_tools_approval_mode "\"$CODEX_SERENA_MCP_APPROVAL_MODE\""
 upsert_codex_mcp_setting playwright startup_timeout_sec 30
 upsert_codex_mcp_setting playwright default_tools_approval_mode "\"$CODEX_PLAYWRIGHT_MCP_APPROVAL_MODE\""
+
+fi
 
 skill_source_root="$HOME/.local/share/codex/skill-sources"
 agents_skills_dir="$HOME/.agents/skills"
