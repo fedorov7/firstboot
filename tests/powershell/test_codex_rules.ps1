@@ -377,7 +377,7 @@ if ($bootstrapSource -notmatch '\[bool\]\$CodexCheckForUpdateOnStartup = \$true'
 }
 
 foreach ($expected in @(
-    '[string]$CodexModel = "gpt-5.6-terra"',
+    '[string]$CodexModel = "gpt-6.1-sol"',
     '[string]$CodexModelReasoningEffort = "medium"',
     '[string]$CodexModelVerbosity = "low"',
     '[string]$CodexServiceTier = "default"',

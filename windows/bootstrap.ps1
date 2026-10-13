@@ -53,7 +53,8 @@
 .PARAMETER CodexMcpPruneUnmanaged
     Remove Codex MCP servers outside the configured allowlist.
 .PARAMETER CodexMcpDefaultDisabledServers
-    Configured MCP servers kept disabled until the deep profile is selected.
+    MCP servers disabled on fresh setup or when this parameter is explicitly supplied.
+    Model profiles inherit the user config's MCP state.
 .PARAMETER CodexSandboxMode
     Codex sandbox mode for shell/file operations (default: workspace-write).
 .PARAMETER CodexApprovalPolicy
@@ -67,7 +68,8 @@
 .PARAMETER CodexCheckForUpdateOnStartup
     Let Codex check for CLI updates at startup.
 .PARAMETER CodexModel
-    Codex model used by default for new work (default: gpt-5.6-terra).
+    Model for fresh Codex setup (default: gpt-6.1-sol).
+    Existing user configuration is preserved unless its parameter is explicitly supplied.
 .PARAMETER CodexModelReasoningEffort
     Codex reasoning effort (default: medium).
 .PARAMETER CodexModelVerbosity
@@ -171,7 +173,7 @@ param(
     [string]$CodexWindowsSandbox = "elevated",
     [bool]$CodexWindowsSandboxPrivateDesktop = $true,
     [bool]$CodexCheckForUpdateOnStartup = $true,
-    [string]$CodexModel = "gpt-5.6-terra",
+    [string]$CodexModel = "gpt-6.1-sol",
     [string]$CodexModelReasoningEffort = "medium",
     [string]$CodexModelVerbosity = "low",
     [string]$CodexServiceTier = "default",
@@ -185,10 +187,10 @@ param(
     [string]$CodexPlaywrightMcpApprovalMode = "prompt",
     [bool]$CodexPruneDisabledOptionalMcp = $true,
     [bool]$CodexProfilesEnabled = $true,
-    [string]$CodexLeanProfileModel = "gpt-5.6-terra",
-    [string]$CodexLeanProfileReasoningEffort = "medium",
+    [string]$CodexLeanProfileModel = "gpt-6-luna",
+    [string]$CodexLeanProfileReasoningEffort = "high",
     [string]$CodexLeanProfileVerbosity = "low",
-    [string]$CodexDeepProfileModel = "gpt-5.6-sol",
+    [string]$CodexDeepProfileModel = "gpt-6.1-sol",
     [string]$CodexDeepProfileReasoningEffort = "high",
     [string]$CodexDeepProfileVerbosity = "medium",
     [bool]$CodexCustomAgentsEnabled = $true,
@@ -413,6 +415,8 @@ if ([string]::IsNullOrWhiteSpace($Modules)) {
 
 Assert-AdministratorForSelectedModules -SelectedModules $SelectedModules
 
+# Distinguish explicit user overrides from provisioning defaults.
+$script:CodexExplicitParameters = @{} + $PSBoundParameters
 foreach ($mod in $SelectedModules) {
     $modulePath = Join-Path $ScriptRoot "modules\$mod.ps1"
     if (-not (Test-Path $modulePath)) {

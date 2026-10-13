@@ -180,6 +180,70 @@ function Set-CodexMcpSetting {
     Write-Ok "MCP $Name $Key = $Value"
 }
 
+function Test-CodexShouldConfigure {
+    param([Parameter(Mandatory)][string]$Parameter)
+    return (-not $script:CodexConfigExisted -or $script:CodexExplicitParameters.ContainsKey($Parameter))
+}
+
+function Set-CodexUserDefaults {
+    # Existing user choices include deliberately omitted settings.
+    $script:CodexConfigExisted = Test-Path -LiteralPath $script:ConfigToml
+    if (Test-CodexShouldConfigure 'CodexSandboxMode') {
+        Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
+    }
+    if (Test-CodexShouldConfigure 'CodexApprovalPolicy') {
+        Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
+    }
+    if (Test-CodexShouldConfigure 'codexCheckForUpdateOnStartup') {
+        $codexCheckForUpdateOnStartupToml = ConvertTo-CodexTomlBoolean $CodexCheckForUpdateOnStartup
+    }
+    if (Test-CodexShouldConfigure 'codexWindowsSandboxPrivateDesktop') {
+        $codexWindowsSandboxPrivateDesktopToml = ConvertTo-CodexTomlBoolean $CodexWindowsSandboxPrivateDesktop
+    }
+    if (Test-CodexShouldConfigure 'codexAppsDestructiveEnabled') {
+        $codexAppsDestructiveEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsDestructiveEnabled
+    }
+    if (Test-CodexShouldConfigure 'codexAppsOpenWorldEnabled') {
+        $codexAppsOpenWorldEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsOpenWorldEnabled
+    }
+    if (Test-CodexShouldConfigure 'CodexModel') {
+        Set-CodexTopLevelSetting 'model' "`"$CodexModel`""
+    }
+    if (Test-CodexShouldConfigure 'CodexModelReasoningEffort') {
+        Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`""
+    }
+    if (Test-CodexShouldConfigure 'CodexModelVerbosity') {
+        Set-CodexTopLevelSetting 'model_verbosity' "`"$CodexModelVerbosity`""
+    }
+    if (Test-CodexShouldConfigure 'CodexServiceTier') {
+        Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
+    }
+    if (Test-CodexShouldConfigure 'CodexApprovalsReviewer') {
+        Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
+    }
+    if (Test-CodexShouldConfigure 'codexCheckForUpdateOnStartup') {
+        Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartupToml
+    }
+    if (Test-CodexShouldConfigure 'CodexAppsDefaultToolsApprovalMode') {
+        Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode' "`"$CodexAppsDefaultToolsApprovalMode`""
+    }
+    if (Test-CodexShouldConfigure 'codexAppsDestructiveEnabled') {
+        Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabledToml
+    }
+    if (Test-CodexShouldConfigure 'codexAppsOpenWorldEnabled') {
+        Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabledToml
+    }
+    if (Test-CodexShouldConfigure 'CodexApprovalsReviewer') {
+        Set-CodexTableSetting 'apps._default' 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
+    }
+    if (Test-CodexShouldConfigure 'CodexWindowsSandbox') {
+        Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
+    }
+    if (Test-CodexShouldConfigure 'codexWindowsSandboxPrivateDesktop') {
+        Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktopToml
+    }
+}
+
 function Set-CodexTopLevelSetting {
     param(
         [Parameter(Mandatory)][string]$Key,
@@ -395,7 +459,7 @@ function Initialize-CodexDefaultRules {
         Write-Ok "Backed up previous Codex default rules to $backupPath"
     }
     $script:CodexDefaultRules = Join-Path $rulesDir (".default.rules.{0}.tmp" -f [guid]::NewGuid())
-    Set-Content -LiteralPath $script:CodexDefaultRules -Value '# Managed by firstboot. Rebuilt from the current rules on every run.' -Encoding utf8
+    Set-Content -LiteralPath $script:CodexDefaultRules -Value '# Initialized by firstboot. Existing user rules are preserved on subsequent runs.' -Encoding utf8
 }
 
 function Complete-CodexDefaultRules {
@@ -507,7 +571,7 @@ $matchLine)
 function Set-CodexPermissionsExample {
     $content = @'
 # Example only. Copy selected settings to ~/.codex/config.toml when needed.
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 model_verbosity = "low"
 service_tier = "default"
@@ -626,42 +690,19 @@ function Set-CodexProfileFiles {
         return
     }
 
+    # Model profiles inherit permissions, tools and service tier from config.toml.
     $leanProfile = @"
 # Managed by firstboot. Use with: codex --profile lean
 model = "$CodexLeanProfileModel"
 model_reasoning_effort = "$CodexLeanProfileReasoningEffort"
 model_verbosity = "$CodexLeanProfileVerbosity"
-service_tier = "$CodexServiceTier"
-sandbox_mode = "$CodexSandboxMode"
-approval_policy = "$CodexApprovalPolicy"
-approvals_reviewer = "$CodexApprovalsReviewer"
-web_search = "cached"
 "@
-
-    $profileMcpServers = ConvertTo-NameList $CodexMcpAllowlist
-    $deepMcpOverrides = @((ConvertTo-NameList $CodexMcpDefaultDisabledServers) | Where-Object {
-        $_ -in $profileMcpServers -and ($_ -ne 'fetch' -or (Test-CommandExists uvx))
-    } | ForEach-Object {
-        "[mcp_servers.$_]`nenabled = true"
-    }) -join "`n`n"
 
     $deepProfile = @"
 # Managed by firstboot. Use with: codex --profile deep
 model = "$CodexDeepProfileModel"
 model_reasoning_effort = "$CodexDeepProfileReasoningEffort"
 model_verbosity = "$CodexDeepProfileVerbosity"
-service_tier = "$CodexServiceTier"
-sandbox_mode = "$CodexSandboxMode"
-approval_policy = "$CodexApprovalPolicy"
-approvals_reviewer = "$CodexApprovalsReviewer"
-
-[apps._default]
-default_tools_approval_mode = "$CodexAppsDefaultToolsApprovalMode"
-destructive_enabled = false
-open_world_enabled = false
-approvals_reviewer = "$CodexApprovalsReviewer"
-
-$deepMcpOverrides
 "@
 
     Set-CodexManagedFile -Path (Join-Path $codexDir 'lean.config.toml') -Content $leanProfile -Description 'Codex lean profile'
@@ -1105,7 +1146,6 @@ $script:CodexSkillsDir = Join-Path $codexDir 'skills'
 if (-not (Test-Path $codexRulesDir)) {
     New-Item -ItemType Directory -Path $codexRulesDir -Force | Out-Null
 }
-Initialize-CodexDefaultRules
 if (-not (Test-Path $script:CodexAgentsDir)) {
     New-Item -ItemType Directory -Path $script:CodexAgentsDir -Force | Out-Null
 }
@@ -1113,26 +1153,7 @@ if (-not (Test-Path $script:CodexSkillsDir)) {
     New-Item -ItemType Directory -Path $script:CodexSkillsDir -Force | Out-Null
 }
 
-Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
-Set-CodexTopLevelSetting 'approval_policy' "`"$CodexApprovalPolicy`""
-$codexCheckForUpdateOnStartupToml = ConvertTo-CodexTomlBoolean $CodexCheckForUpdateOnStartup
-$codexWindowsSandboxPrivateDesktopToml = ConvertTo-CodexTomlBoolean $CodexWindowsSandboxPrivateDesktop
-$codexAppsDestructiveEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsDestructiveEnabled
-$codexAppsOpenWorldEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsOpenWorldEnabled
-Set-CodexTopLevelSetting 'model' "`"$CodexModel`""
-Set-CodexTopLevelSetting 'model_reasoning_effort' "`"$CodexModelReasoningEffort`""
-Set-CodexTopLevelSetting 'model_verbosity' "`"$CodexModelVerbosity`""
-Set-CodexTopLevelSetting 'service_tier' "`"$CodexServiceTier`""
-Set-CodexTopLevelSetting 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
-Set-CodexTopLevelSetting 'check_for_update_on_startup' $codexCheckForUpdateOnStartupToml
-Remove-CodexLegacyAgentsTable
-Remove-CodexMisplacedTopLevelSettings
-Set-CodexTableSetting 'apps._default' 'default_tools_approval_mode' "`"$CodexAppsDefaultToolsApprovalMode`""
-Set-CodexTableSetting 'apps._default' 'destructive_enabled' $codexAppsDestructiveEnabledToml
-Set-CodexTableSetting 'apps._default' 'open_world_enabled' $codexAppsOpenWorldEnabledToml
-Set-CodexTableSetting 'apps._default' 'approvals_reviewer' "`"$CodexApprovalsReviewer`""
-Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
-Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktopToml
+Set-CodexUserDefaults
 
 codex mcp list 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -1140,6 +1161,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 
+# Preserve existing user-approved rules without adding prompts.
+if (-not (Test-Path -LiteralPath $script:CodexDefaultRules)) {
+Initialize-CodexDefaultRules
 Add-CodexGitAllowRule '["git", "status"]' `
     'Allow read-only Git status checks without repeated prompts' `
     'git status --short'
@@ -2461,10 +2485,17 @@ prefix_rule(
 )
 '@
 Complete-CodexDefaultRules
+}
 Set-CodexPermissionsExample
 Set-CodexProfileFiles
 Set-CodexCustomAgentFiles
 
+# Server reconciliation requires a fresh config or explicit selection changes.
+$configureMcpServers = -not $script:CodexConfigExisted -or @(
+    'CodexMcpAllowlist', 'CodexMcpPruneUnmanaged', 'CodexPruneDisabledOptionalMcp',
+    'CodexGithubMcpEnabled', 'CodexSerenaEnabled', 'CodexPlaywrightMcpEnabled'
+).Where({ $script:CodexExplicitParameters.ContainsKey($_) }).Count -gt 0
+if ($configureMcpServers) {
 $desiredMcpServers = ConvertTo-NameList $CodexMcpAllowlist
 if ($CodexGithubMcpEnabled) {
     $desiredMcpServers += 'github'
@@ -2573,19 +2604,23 @@ if ('playwright' -in $desiredMcpServers) {
     Add-CodexMcpIfMissing 'playwright' { codex mcp add playwright -- npx -y '@playwright/mcp@latest' }
 }
 
-Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'microsoft-learn' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'fetch' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`""
-foreach ($server in (ConvertTo-NameList $CodexMcpDefaultDisabledServers)) {
-    Set-CodexMcpSetting $server 'enabled' 'false'
 }
-Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode' "`"$CodexMicrosoftLearnMcpApprovalMode`""
-Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`""
-Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' "`"$CodexSerenaMcpApprovalMode`""
-Set-CodexMcpSetting 'playwright' 'startup_timeout_sec' '30'
-Set-CodexMcpSetting 'playwright' 'default_tools_approval_mode' "`"$CodexPlaywrightMcpApprovalMode`""
+
+if (-not $script:CodexConfigExisted) { Set-CodexMcpSetting 'context7' 'startup_timeout_sec' '30' }
+if (-not $script:CodexConfigExisted) { Set-CodexMcpSetting 'openaiDeveloperDocs' 'startup_timeout_sec' '30' }
+if (-not $script:CodexConfigExisted) { Set-CodexMcpSetting 'microsoft-learn' 'startup_timeout_sec' '30' }
+if (-not $script:CodexConfigExisted) { Set-CodexMcpSetting 'fetch' 'startup_timeout_sec' '30' }
+if (Test-CodexShouldConfigure 'CodexFetchMcpApprovalMode') { Set-CodexMcpSetting 'fetch' 'default_tools_approval_mode' "`"$CodexFetchMcpApprovalMode`"" }
+if (Test-CodexShouldConfigure 'CodexMcpDefaultDisabledServers') {
+    foreach ($server in (ConvertTo-NameList $CodexMcpDefaultDisabledServers)) {
+        Set-CodexMcpSetting $server 'enabled' 'false'
+    }
+}
+if (Test-CodexShouldConfigure 'CodexMicrosoftLearnMcpApprovalMode') { Set-CodexMcpSetting 'microsoft-learn' 'default_tools_approval_mode' "`"$CodexMicrosoftLearnMcpApprovalMode`"" }
+if (Test-CodexShouldConfigure 'CodexGithubMcpApprovalMode') { Set-CodexMcpSetting 'github' 'default_tools_approval_mode' "`"$CodexGithubMcpApprovalMode`"" }
+if (Test-CodexShouldConfigure 'CodexSerenaMcpApprovalMode') { Set-CodexMcpSetting 'serena' 'default_tools_approval_mode' "`"$CodexSerenaMcpApprovalMode`"" }
+if (-not $script:CodexConfigExisted) { Set-CodexMcpSetting 'playwright' 'startup_timeout_sec' '30' }
+if (Test-CodexShouldConfigure 'CodexPlaywrightMcpApprovalMode') { Set-CodexMcpSetting 'playwright' 'default_tools_approval_mode' "`"$CodexPlaywrightMcpApprovalMode`"" }
 
 # Skills
 Set-CodexAgentTeamworkSkill

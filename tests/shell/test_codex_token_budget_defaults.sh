@@ -39,7 +39,7 @@ require_contains roles/codex/tasks/main.yml 'model = "gpt-5.6-terra"' \
   'Linux permissions example must not restore the expensive default.'
 require_contains macos/modules/codex.sh 'model = "gpt-5.6-terra"' \
   'macOS permissions example must not restore the expensive default.'
-require_contains windows/modules/codex.ps1 'model = "gpt-5.6-terra"' \
+require_contains windows/modules/codex.ps1 'model = "gpt-6.1-sol"' \
   'Windows permissions example must not restore the expensive default.'
 require_contains group_vars/all.yml 'codex_mcp_default_disabled_servers:' \
   'Linux must expose the default-disabled MCP allowlist.'
@@ -66,18 +66,16 @@ require_contains macos/modules/codex.sh 'command_exists uvx' \
   'macOS deep profile must not enable fetch without uvx.'
 require_contains windows/modules/codex.ps1 "Set-CodexMcpSetting \$server 'enabled' 'false'" \
   'Windows must disable optional MCP servers in the base config.'
-require_contains windows/modules/codex.ps1 '$_ -in $profileMcpServers' \
-  'Windows deep profile must not create MCP tables outside the allowlist.'
-require_contains windows/modules/codex.ps1 "\$_ -ne 'fetch' -or (Test-CommandExists uvx)" \
-  'Windows deep profile must not enable fetch without uvx.'
+require_not_contains windows/modules/codex.ps1 '[mcp_servers.$_]' \
+  'Windows model profiles must inherit MCP state instead of enabling servers.'
 
 require_contains macos/bootstrap.sh 'CODEX_MODEL="${CODEX_MODEL:-gpt-5.6-terra}"' \
   'macOS must use Terra by default.'
 require_contains macos/bootstrap.sh 'CODEX_DEEP_PROFILE_MODEL="${CODEX_DEEP_PROFILE_MODEL:-gpt-5.6-sol}"' \
   'macOS must preserve Sol in the deep profile.'
-require_contains windows/bootstrap.ps1 '[string]$CodexModel = "gpt-5.6-terra"' \
-  'Windows must use Terra by default.'
-require_contains windows/bootstrap.ps1 '[string]$CodexDeepProfileModel = "gpt-5.6-sol"' \
+require_contains windows/bootstrap.ps1 '[string]$CodexModel = "gpt-6.1-sol"' \
+  'Windows fresh installs must use GPT-6.1 Sol by default.'
+require_contains windows/bootstrap.ps1 '[string]$CodexDeepProfileModel = "gpt-6.1-sol"' \
   'Windows must preserve Sol in the deep profile.'
 
 require_contains codex/skills/codex-agent-teamwork/SKILL.md \

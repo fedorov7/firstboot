@@ -9,10 +9,10 @@ $macosCodexSource = Get-Content -LiteralPath (Join-Path $repoRoot 'macos\modules
 
 foreach ($expected in @(
     '[bool]$CodexProfilesEnabled = $true',
-    '[string]$CodexLeanProfileModel = "gpt-5.6-terra"',
-    '[string]$CodexLeanProfileReasoningEffort = "medium"',
+    '[string]$CodexLeanProfileModel = "gpt-6-luna"',
+    '[string]$CodexLeanProfileReasoningEffort = "high"',
     '[string]$CodexLeanProfileVerbosity = "low"',
-    '[string]$CodexDeepProfileModel = "gpt-5.6-sol"',
+    '[string]$CodexDeepProfileModel = "gpt-6.1-sol"',
     '[string]$CodexDeepProfileReasoningEffort = "high"',
     '[string]$CodexDeepProfileVerbosity = "medium"',
     '[bool]$CodexCustomAgentsEnabled = $true',
