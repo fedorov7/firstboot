@@ -1,5 +1,85 @@
 # Codex: аудит и настройка от 2026-09-08
 
+> Актуализация: 2026-10-13. Сентябрьские результаты ниже сохранены как история.
+
+## Актуализация 2026-10-13
+
+Проверен установленный Codex CLI **0.158.0**. Сопоставлены последние коммиты
+`b917ef0` / `a995567` и официальные
+[изменения продукта](https://learn.chatgpt.com/docs/changelog),
+[справочник конфигурации](https://learn.chatgpt.com/docs/config-file/config-reference),
+[модели](https://learn.chatgpt.com/docs/models),
+[профили](https://learn.chatgpt.com/docs/config-file/config-advanced#profiles) и
+[Auto-review](https://learn.chatgpt.com/docs/sandboxing/auto-review).
+
+GPT-6.1 Sol появился в changelog 29 сентября, Ultrafast — 8 октября.
+Доступность зависит от аккаунта и клиента. Ultrafast не включён: это отдельный
+выбор скорости и расхода. Terra пока поддерживается, поэтому lean и лёгкие
+субагенты сохраняют её. Основной preset новых установок Linux/macOS и deep
+обновлены до `gpt-6.1-sol`; Windows уже использует его.
+
+Последние Windows-изменения правильно сохраняют существующие предпочтения и
+убирают устаревший `sandbox_private_desktop`. Найденное расхождение устранено
+для Linux/macOS: повторное provisioning сохраняет существующий `config.toml`
+(включая намеренно отсутствующие параметры) и пользовательские rules.
+Linux выполняет точечную очистку некорректно размещённых параметров и retired
+`features.steer`; последний подтверждён как `removed` через `codex features list`.
+
+Для намеренного повторного применения defaults используются
+`-e codex_manage_existing_config=true` в Ansible и
+`CODEX_MANAGE_EXISTING_CONFIG=1` в macOS bootstrap. Это также включает управление
+MCP и app preferences. На существующей macOS-конфигурации флаги `--codex-model`
+и другие параметры defaults нужно сочетать с этой переменной окружения.
+Сброс rules — отдельный opt-in: `codex_reset_rules=true` / `CODEX_RESET_RULES=1`.
+Это параметры provisioning, а не новые требования подтверждения действий агента.
+Модельные profiles и определения custom agents остаются управляемыми файлами.
+
+Все модельные profiles теперь содержат только модель, reasoning и verbosity.
+Они наследуют разрешения, service tier, web search и MCP из основной конфигурации.
+macOS deep больше не включает отключённые MCP и не меняет app permissions.
+Новые Linux/macOS defaults используют `workspace-write`, `on-request` и
+`auto_review`, включая reviewer для Apps. Существующие app settings сохраняются.
+Новые `prompt`-правила, hooks и инструкции с дополнительными подтверждениями
+не добавлены; сеть и writable roots не расширены.
+
+### Применено к текущей Linux-установке
+
+- Основная модель **Astra/medium**, `service_tier=default`, permissions, MCP,
+  skills и rules сохранены.
+- Удалён неработающий `features.steer`; `unified_exec` сохранён.
+- Из lean/deep/astra убраны переопределения разрешений, service tier и поиска.
+- Deep, reviewer-deep и architect-deep используют **GPT-6.1 Sol/high**.
+- Сохранены два вспомогательных потока и `max_depth=1`.
+- Шесть изменённых файлов скопированы в резервный каталог
+  `~/.codex/backups/config-review-20261013-124037` перед заменой.
+
+### Проверки актуализации
+
+- `ANSIBLE_LOCAL_TEMP=/tmp/firstboot-ansible ansible-playbook site.yml --syntax-check`.
+- `python3 tests/shell/test_codex_local_preferences.py`: изолированное применение
+  Linux config-задач, fresh/existing, повтор `changed=0`, явное применение defaults;
+  выполнение macOS profile helper и проверка пропуска записи существующего config.
+  Тест запускался вне sandbox, поскольку локальный RPC Ansible внутри него не стартует.
+- `python3 tests/shell/test_codex_platform_rules.py` и
+  `bash tests/shell/test_codex_rules.sh`: 142 решения execpolicy без исполнения команд.
+- `bash tests/shell/test_codex_config_transaction.sh` и
+  `bash tests/shell/test_codex_token_budget_defaults.sh`.
+- `bash -n macos/modules/codex.sh macos/bootstrap.sh`;
+  `shellcheck -S warning macos/modules/codex.sh`.
+  Проверка bootstrap дополнительно выявила два прежних предупреждения
+  SC2034 (`REPO_ROOT`) и SC2155 (`backup`); эти строки не менялись.
+- Реальный `codex app-server --strict-config` с `config/read` подтвердил основную
+  конфигурацию. Каждый profile загружен через `codex --profile NAME mcp list`;
+  его модельные overrides отдельно проверены через app-server `-c` и `config/read`
+  (app-server сам не принимает `--profile`). Модельные запросы не выполнялись.
+- Повторное локальное применение подготовленных файлов: `changed=0`.
+
+Полное provisioning с установкой внешних skills и пакетов не запускалось.
+Нативные Windows/macOS sandbox и доступность модели через inference не проверялись.
+
+---
+
+
 Проверена локальная установка Codex CLI 0.153.4. Изменения относятся к Linux-роли
 и текущему `~/.codex`; Windows/macOS provisioning не изменяется.
 
