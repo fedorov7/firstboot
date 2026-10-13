@@ -63,8 +63,6 @@
     Reviewer for eligible Codex approval prompts (default: user).
 .PARAMETER CodexWindowsSandbox
     Native Windows Codex sandbox mode (default: elevated).
-.PARAMETER CodexWindowsSandboxPrivateDesktop
-    Use a private desktop for native Windows sandboxed processes.
 .PARAMETER CodexCheckForUpdateOnStartup
     Let Codex check for CLI updates at startup.
 .PARAMETER CodexModel
@@ -171,7 +169,6 @@ param(
     [string]$CodexApprovalPolicy = "on-request",
     [string]$CodexApprovalsReviewer = "user",
     [string]$CodexWindowsSandbox = "elevated",
-    [bool]$CodexWindowsSandboxPrivateDesktop = $true,
     [bool]$CodexCheckForUpdateOnStartup = $true,
     [string]$CodexModel = "gpt-6.1-sol",
     [string]$CodexModelReasoningEffort = "medium",

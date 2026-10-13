@@ -368,8 +368,8 @@ if ($bootstrapSource -notmatch '\[string\]\$CodexWindowsSandbox = "elevated"') {
     throw 'Windows bootstrap must default CodexWindowsSandbox to elevated'
 }
 
-if ($bootstrapSource -notmatch '\[bool\]\$CodexWindowsSandboxPrivateDesktop = \$true') {
-    throw 'Windows bootstrap must default CodexWindowsSandboxPrivateDesktop to true'
+if ($bootstrapSource.Contains('CodexWindowsSandboxPrivateDesktop')) {
+    throw 'Windows bootstrap must not expose the removed private desktop setting'
 }
 
 if ($bootstrapSource -notmatch '\[bool\]\$CodexCheckForUpdateOnStartup = \$true') {
@@ -452,8 +452,9 @@ if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox'' "`"\$CodexW
     throw 'Codex module must apply the native Windows sandbox mode'
 }
 
-if ($source -notmatch 'Set-CodexTableSetting ''windows'' ''sandbox_private_desktop'' \$codexWindowsSandboxPrivateDesktopToml') {
-    throw 'Codex module must apply the native Windows private desktop setting'
+if ($source.Contains("Set-CodexTableSetting 'windows' 'sandbox_private_desktop'") -or
+    $source.Contains('sandbox_private_desktop = true')) {
+    throw 'Codex module must not generate the removed private desktop setting'
 }
 
 foreach ($removedSetting in @(

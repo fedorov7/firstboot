@@ -185,9 +185,32 @@ function Test-CodexShouldConfigure {
     return (-not $script:CodexConfigExisted -or $script:CodexExplicitParameters.ContainsKey($Parameter))
 }
 
+function Remove-CodexObsoleteWindowsSetting {
+    if (-not (Test-Path -LiteralPath $script:ConfigToml)) { return }
+
+    $source = Get-Content -LiteralPath $script:ConfigToml -Raw
+    $result = [System.Text.StringBuilder]::new()
+    $inWindows = $false
+    foreach ($line in [regex]::Split($source, '(?<=\n)')) {
+        if ($line -match '^\s*\[') {
+            $inWindows = $line -match '^\s*\[windows\]\s*(?:#.*)?$'
+        }
+        if ($inWindows -and $line -match '^\s*sandbox_private_desktop\s*=') { continue }
+        [void]$result.Append($line)
+    }
+    $next = $result.ToString()
+    if ($next -ceq $source) { return }
+    if (-not (Test-CodexConfigContent $next)) {
+        throw 'Refusing invalid Codex config after removing obsolete Windows setting'
+    }
+    Set-Content -LiteralPath $script:ConfigToml -Value $next -NoNewline -Encoding utf8
+    Write-Ok 'Removed ignored windows.sandbox_private_desktop; private desktop is always enabled'
+}
+
 function Set-CodexUserDefaults {
     # Existing user choices include deliberately omitted settings.
     $script:CodexConfigExisted = Test-Path -LiteralPath $script:ConfigToml
+    Remove-CodexObsoleteWindowsSetting
     if (Test-CodexShouldConfigure 'CodexSandboxMode') {
         Set-CodexTopLevelSetting 'sandbox_mode' "`"$CodexSandboxMode`""
     }
@@ -196,9 +219,6 @@ function Set-CodexUserDefaults {
     }
     if (Test-CodexShouldConfigure 'codexCheckForUpdateOnStartup') {
         $codexCheckForUpdateOnStartupToml = ConvertTo-CodexTomlBoolean $CodexCheckForUpdateOnStartup
-    }
-    if (Test-CodexShouldConfigure 'codexWindowsSandboxPrivateDesktop') {
-        $codexWindowsSandboxPrivateDesktopToml = ConvertTo-CodexTomlBoolean $CodexWindowsSandboxPrivateDesktop
     }
     if (Test-CodexShouldConfigure 'codexAppsDestructiveEnabled') {
         $codexAppsDestructiveEnabledToml = ConvertTo-CodexTomlBoolean $CodexAppsDestructiveEnabled
@@ -238,9 +258,6 @@ function Set-CodexUserDefaults {
     }
     if (Test-CodexShouldConfigure 'CodexWindowsSandbox') {
         Set-CodexTableSetting 'windows' 'sandbox' "`"$CodexWindowsSandbox`""
-    }
-    if (Test-CodexShouldConfigure 'codexWindowsSandboxPrivateDesktop') {
-        Set-CodexTableSetting 'windows' 'sandbox_private_desktop' $codexWindowsSandboxPrivateDesktopToml
     }
 }
 
@@ -588,7 +605,6 @@ approvals_reviewer = "user"
 
 [windows]
 sandbox = "elevated"
-sandbox_private_desktop = true
 
 [sandbox_workspace_write]
 writable_roots = [

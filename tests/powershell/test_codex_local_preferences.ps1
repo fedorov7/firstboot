@@ -31,10 +31,13 @@ max_concurrent_threads_per_session = 3
 enabled = true
 default_tools_approval_mode = "auto"
 '@
-    Set-Content $script:ConfigToml $original -NoNewline
+    $legacy = $original.Replace('[windows]', "[windows]`nsandbox_private_desktop = true")
+    Set-Content $script:ConfigToml $legacy -NoNewline
     $script:CodexExplicitParameters = @{}
     Set-CodexUserDefaults
     if ((Get-Content $script:ConfigToml -Raw) -cne $original) { throw 'Rerun changed existing user preferences' }
+    Set-CodexUserDefaults
+    if ((Get-Content $script:ConfigToml -Raw) -cne $original) { throw 'Migration is not idempotent' }
 
     $script:CodexDefaultRules = Join-Path $temp 'default.rules'
     $rules = 'prefix_rule(pattern = ["custom-tool"], decision = "allow")'
@@ -93,6 +96,7 @@ default_tools_approval_mode = "auto"
     $script:CodexExplicitParameters = @{}
     Set-CodexUserDefaults
     $fresh = Get-Content $script:ConfigToml -Raw
+    if ($fresh -match 'sandbox_private_desktop') { throw 'Fresh config includes removed Windows setting' }
     if (-not (Test-CodexConfigContent $fresh) -or $fresh -notmatch 'model = "gpt-6.1-sol"' -or
         $fresh -notmatch 'approval_policy = "on-request"' -or $fresh -notmatch 'sandbox_mode = "workspace-write"') {
         throw 'Fresh installation defaults are invalid'
