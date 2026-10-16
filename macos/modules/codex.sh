@@ -247,21 +247,6 @@ ensure_codex_prefix_rule() {
   printf '\n%s\n' "$rule" >>"$codex_default_rules"
 }
 
-remove_codex_legacy_agents_table() {
-  if [[ ! -f "$config_toml" ]]; then
-    return
-  fi
-
-  local before
-  before="$(cat "$config_toml")"
-  perl -0pi -e 's/^\[agents\]\r?\n(?=(?:(?!^\[).*(?:\r?\n|$))*(?:max_threads|max_depth|job_max_runtime_seconds|interrupt_message)\s*=)(?:(?!^\[).*(?:\r?\n|$))*//mg' "$config_toml"
-  if [[ "$(cat "$config_toml")" != "$before" ]]; then
-    write_ok "Removed legacy Codex agents table"
-  else
-    write_skip "Legacy Codex agents table absent"
-  fi
-}
-
 remove_codex_misplaced_top_level_settings() {
   if [[ ! -f "$config_toml" ]]; then
     return
@@ -665,7 +650,6 @@ upsert_codex_top_level_setting model_verbosity "\"$CODEX_MODEL_VERBOSITY\""
 upsert_codex_top_level_setting service_tier "\"$CODEX_SERVICE_TIER\""
 upsert_codex_top_level_setting approvals_reviewer "\"$CODEX_APPROVALS_REVIEWER\""
 upsert_codex_top_level_setting check_for_update_on_startup "$(toml_bool "$CODEX_CHECK_FOR_UPDATE_ON_STARTUP")"
-remove_codex_legacy_agents_table
 remove_codex_misplaced_top_level_settings
 upsert_codex_table_setting apps._default default_tools_approval_mode "\"$CODEX_APPS_DEFAULT_TOOLS_APPROVAL_MODE\""
 upsert_codex_table_setting apps._default destructive_enabled "$(toml_bool "$CODEX_APPS_DESTRUCTIVE_ENABLED")"

@@ -122,6 +122,43 @@ write_codex_managed_file() { printf '%s\n' "$2" > "$1"; }
         subprocess.run(["bash", "-euc", "codex_configure_preferences=false\n" + source[start:end]], check=True)
     print("macOS profile inheritance and existing config guards: PASS")
 
+    # Explicit default updates must preserve supported agent limits and roles.
+    config = directory / "config.toml"
+    original = '''model = "gpt-6-astra"
+[agents]
+max_concurrent_threads_per_session = 2
+max_depth = 1
+default_subagent_model = "gpt-5.6-terra"
+interrupt_message = false
+[agents.custom]
+description = "My custom agent"
+config_file = "agents/custom.toml"
+'''
+    config.write_text(original)
+    bootstrap = (ROOT / "macos/bootstrap.sh").read_text()
+    defaults = "\n".join(line for line in bootstrap.splitlines() if line.startswith("CODEX_") and "=" in line)
+    names = ["upsert_codex_top_level_setting", "upsert_codex_table_setting",
+             "remove_codex_misplaced_top_level_settings", "toml_bool"]
+    # Include the historical cleanup when present so this catches its data loss.
+    if "remove_codex_legacy_agents_table()" in source:
+        names.append("remove_codex_legacy_agents_table")
+    functions = "\n".join(re.search(r"(?ms)^" + name + r"\(\) \{.*?^\}", source).group() for name in names)
+    start = source.index('\nif "$codex_configure_preferences"; then')
+    end = source.index("\nif ! codex_config_validate_runtime", start)
+    script = '''set -euo pipefail
+config_toml="$1"
+codex_configure_preferences=true
+write_ok() { :; }
+write_skip() { :; }
+write_warn() { :; }
+source "$2/macos/lib/codex_config.sh"
+''' + defaults + "\n" + functions + source[start:end]
+    subprocess.run(["bash", "-c", script, "defaults-test", str(config), str(ROOT)], check=True)
+    updated = tomllib.loads(config.read_text())
+    assert updated["model"] == "gpt-6.1-sol", "Explicit defaults were not applied"
+    assert updated["agents"] == tomllib.loads(original)["agents"], "Explicit defaults erased agent settings"
+    print("macOS explicit defaults preserve agent settings: PASS")
+
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="firstboot-codex-preferences-") as temp:
